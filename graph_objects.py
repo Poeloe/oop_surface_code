@@ -66,49 +66,6 @@ class iGraph(object):
         for vertex in self.V.values():
             vertex.reset()
 
-    def init_bucket(self, method="B"):
-
-        self.bucket_method = method
-        if method in ["A", "B"]:
-            self.numbuckets = self.size - self.size % 2
-            self.buckmax = [(i+1)**2 + (i+2)**2 for i in range(self.size//2)]
-        elif method == "C":
-            self.numbuckets = self.size*(self.size//2-1)*2
-
-        self.buckets = [[] for _ in range(self.numbuckets)]
-        self.wastebasket = []
-        self.maxbucket = 0
-
-
-    def print_graph_stop(self, clusters=None, prestring=""):
-        '''
-        :param clusters     either None or a list of clusters
-        :param prestring    string to print before evertything else
-
-        This function prints a cluster's size, parity, growth state and appropiate bucket number. If None is inputted, all clusters will be displayed.
-        '''
-
-        if clusters is None:
-            clusters = list(self.C.values())
-            print("\nShowing all clusters:")
-
-        for cluster in clusters:
-
-            if cluster.parent == cluster:
-                print(prestring + str(cluster), end="")
-                print(" with size: " + str(cluster.size), end="")
-                print(", parity: " + str(cluster.parity), end="")
-                print(", full edged: " + str(cluster.full_edged), end="")
-                if cluster.bucket is None:
-                    print(", and bucket: " + str(cluster.bucket))
-                else:
-                    if cluster.bucket < self.numbuckets:
-                        print(", and bucket: " + str(cluster.bucket))
-                    else:
-                        print(", and bucket: wastebasket")
-            else:
-                print(str(cluster), "is merged with", str(cluster.parent))
-
 
 class iCluster(object):
     '''

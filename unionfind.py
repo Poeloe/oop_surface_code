@@ -91,6 +91,12 @@ def find_clusters(graph, uf_plot=None, plot_step=False):
     It loops over all vertices (randomly if toggled, which produces a different tree), and calls {cluster_new_vertex} to find all connected erasure qubits, and finds the boundary for growth step 1. Afterwards the cluster is placed in a bucket based in its size.
 
     '''
+
+    graph.numbuckets = graph.size*(graph.size//2-1)*2
+    graph.buckets = [[] for _ in range(graph.numbuckets)]
+    graph.wastebasket = []
+    graph.maxbucket = 0
+
     cID = 0
     vertices = graph.V.values()
 
