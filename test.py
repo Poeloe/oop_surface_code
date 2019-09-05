@@ -5,9 +5,9 @@ import time
 if __name__ == '__main__':
 
     t0 = time.time()
-    size = 12
-    pX = 0.09
-    pZ = 0.09
+    size = 10
+    pX = 0.11
+    pZ = 0.0
     pE = 0.0
     iters = 20000
 
@@ -15,9 +15,8 @@ if __name__ == '__main__':
     save_file = 0
     filename = None
     pauli_file = filename + "_pauli" if filename is not None else None
+    # pauli_file = "test_pauli"
     erasure_file = filename + "_erasure" if filename is not None else None
-    # pauli_file = "P12_maxdistance"
-    # erasure_file = "E12_no_error"
 
     output = rt2u.single(size, pE, pX, pZ, save_file, erasure_file, pauli_file, plot_load)
     # output = rt2u.multiple(size, iters, pE, pX, pZ, plot_load=plot_load)
