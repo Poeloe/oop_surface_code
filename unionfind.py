@@ -64,7 +64,7 @@ def cluster_new_vertex(graph, cluster, vertex, random_traverse=True, uf_plot=Non
                     cluster.add_full_bound(vertex, new_edge, new_vertex)
 
 
-def cluster_place_bucket(graph, cluster, merge=False):
+def cluster_place_bucket(graph, cluster):
     '''
     :param cluster      current cluster
 
@@ -243,27 +243,28 @@ def grow_bucket(graph, uf_plot=None, plot_step=False, print_steps=False, step_cl
                     root_cluster.add_vertex(grow_vertex)
                     cluster_new_vertex(graph, root_cluster, grow_vertex)
                 uf_plot.add_edge(edge, base_vertex) if plot else None
+            elif grrt_cluster is not root_cluster:
+                edge.support += 1
+                if full_edged and edge.support == 2 or not full_edged:
+                    string += " Merged with " + str(grrt_cluster) + "."
+                    union_clusters(grrt_cluster, root_cluster)
+                    merge_cluster = grrt_cluster
+                    uf_plot.add_edge(edge, base_vertex) if plot else None
+                    if intervention and family_growth and grrt_cluster.parity % 2 == 0:
+                        grrt_cluster.foster.append(root_cluster)
+                        print("intervention on merge.") if print_steps else None
+                        break
+                elif full_edged:
+                    root_cluster.half_bound.append((base_vertex, edge, grow_vertex))
+                    uf_plot.add_edge(edge, base_vertex) if plot else None
             else:
-                if grrt_cluster is not root_cluster:
-                    edge.support += 1
-                    if full_edged and edge.support == 2 or not full_edged:
-                        string += " Merged with " + str(grrt_cluster) + "."
-                        union_clusters(grrt_cluster, root_cluster)
-                        merge_cluster = grrt_cluster
-                        uf_plot.add_edge(edge, base_vertex) if plot else None
-                        if intervention and family_growth and grrt_cluster.parity % 2 == 0:
-                            grrt_cluster.foster.append(root_cluster)
-                            print("intervention on merge.") if print_steps else None
-                            break
-                    elif full_edged:
-                        root_cluster.half_bound.append((base_vertex, edge, grow_vertex))
-                        uf_plot.add_edge(edge, base_vertex) if plot else None
+                None
 
         if root_level:          # only at the root level will a cluster be placed in a new bucket
             if merge_cluster is None:
                 cluster_place_bucket(graph, root_cluster)
             else:
-                cluster_place_bucket(graph, merge_cluster, merge=True)
+                cluster_place_bucket(graph, merge_cluster)
 
         uf_plot.draw_plot(string) if plot and plot_step else None
         if print_steps and root_level:
