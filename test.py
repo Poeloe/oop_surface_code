@@ -1,21 +1,23 @@
 import run_toric_2D_uf as rt2u
-import run_toric_2D_mwpm as rt2m
+# import run_toric_2D_mwpm as rt2m
 import time
 
 if __name__ == '__main__':
 
     t0 = time.time()
     size = 10
-    pX = 0.11
+    pX = 0.0
     pZ = 0.0
-    pE = 0.0
+    pE = 0.001
     iters = 20000
 
     plot_load = 1
     save_file = 0
     filename = None
-    pauli_file = filename + "_pauli" if filename is not None else None
-    erasure_file = filename + "_erasure" if filename is not None else None
+    # pauli_file = filename + "_pauli" if filename is not None else None
+    pauli_file = "pauli"
+    erasure_file = "erasure"
+    # erasure_file = filename + "_erasure" if filename is not None else None
 
     output = rt2u.single(size, pE, pX, pZ, save_file, erasure_file, pauli_file, plot_load)
     # output = rt2u.multiple(size, iters, pE, pX, pZ, plot_load=plot_load)
