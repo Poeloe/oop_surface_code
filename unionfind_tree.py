@@ -30,7 +30,7 @@ def union_clusters(parent, child):
     parent.childs[0].append(child)
 
 
-def cluster_new_vertex(graph, cluster, vertex, random_traverse=1, uf_plot=None, plot_step=0):
+def cluster_new_vertex(graph, cluster, vertex, random_traverse=0, uf_plot=None, plot_step=0):
     '''
     :param cluster          current cluster
     :param vertex           vertex that is recently added to the cluster
@@ -84,7 +84,7 @@ def cluster_place_bucket(graph, cluster, vcomb=0):
 
 # Main functions
 
-def find_clusters(graph, uf_plot=None, plot_step=0, random_order=1, vcomb=0):
+def find_clusters(graph, uf_plot=None, plot_step=0, random_order=0, vcomb=0):
     '''
     Given a set of erased qubits/edges on a lattice, this functions finds all edges that are connected and sorts them in separate clusters. A single anyon can also be its own cluster.
     It loops over all vertices (randomly if toggled, which produces a different tree), and calls {cluster_new_vertex} to find all connected erasure qubits, and finds the boundary for growth step 1. Afterwards the cluster is placed in a bucket based in its size.

@@ -9,6 +9,7 @@ from psycopg2 import extras as pgse
 from configparser import ConfigParser
 import random
 import cpuinfo
+import time
 
 
 
@@ -92,18 +93,20 @@ def multiple(ini, comp_id, iters, size, p, worker=None):
     pgse.execute_values(cur, query, diff_res, template)
 
     # Update cases counters
-    cur.execute("SELECT tot_sims, diff_sims, ubuck_wins, vcomb_wins FROM cases WHERE lattice = {} AND p = {}".format(size, p))
+    cur.execute("SELECT tot_sims, ubuck_sims, vcomb_sims, ubuck_wins, vcomb_wins FROM cases WHERE lattice = {} AND p = {}".format(size, p))
     counter = list(cur.fetchone())
     counter[0] += iters
-    for ubuck_win, vcomb_win, _ in results:
-        if ubuck_win != vcomb_win:
+    for ubuck_sim, vcomb_sim, _ in results:
+        if ubuck_sim:
             counter[1] += 1
-        if ubuck_win and not vcomb_win:
+            if not vcomb_sim:
+                counter[3] += 1
+        if vcomb_sim:
             counter[2] += 1
-        if not ubuck_win and vcomb_win:
-            counter[3] += 1
+            if not ubuck_sim:
+                counter[4] += 1
 
-    cur.execute("UPDATE cases SET tot_sims = {}, diff_sims = {}, ubuck_wins = {}, vcomb_wins = {} WHERE lattice = {} and p = {}".format(*counter, size, p))
+    cur.execute("UPDATE cases SET tot_sims = {}, ubuck_sims = {}, vcomb_sims = {}, ubuck_wins = {}, vcomb_wins = {} WHERE lattice = {} and p = {}".format(*counter, size, p))
 
     cur.close()
     con.close()
@@ -125,6 +128,8 @@ def multiprocess(ini, comp_id, iters, size, p, processes=None):
         worker.start()
     print("Started", processes, "workers.")
     for worker in workers:
+        while worker.is_alive():
+            time.sleep(1)
         worker.join()
 
 
