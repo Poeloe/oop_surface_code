@@ -3,9 +3,7 @@ from cposguf_run import sql_connection, fetch_query
 import graph_objects as go
 import toric_error as te
 from collections import defaultdict as dd
-from matplotlib import pyplot as plt
-import scipy.stats as stats
-from scipy.optimize import curve_fit
+from cluster_per_size import coordinates
 import numpy as np
 import pickle
 import os
@@ -16,30 +14,18 @@ plotnum = 25
 maxfetch = 5000
 L = [8] # + 4 * i for i in range(10)]
 P = [(90 + i)/1000 for i in range(21)]
-file = "sim4_r1c_data_gauss"
+file = "sim4_r1c_data_gauss12_44"
 
 
 ##############################################
 # definitions:
 
-def clusters1_3(): # All possible clusters between and including size 1 and 3
-    return 1, 3, [
-        frozenset({(0, 0, 0)}),
-        frozenset({(0, 0, 0), (0, 0, 1)}),
-        frozenset({(0, 0, 1), (1, 0, 1)}),
-        frozenset({(0, 0, 0), (0, 0, 1), (1, 0, 0)}),
-        frozenset({(1, 0, 0), (0, 1, 1), (0, 1, 0)}),
-        frozenset({(1, 0, 0), (0, 0, 1), (1, 0, 1)}),
-        frozenset({(0, 0, 0), (0, 0, 1), (0, 1, 0)}),
-        frozenset({(0, 0, 0), (0, 1, 0), (0, 2, 0)})
-    ]
 
 def d0(): return [0,0]
 def d1(): return [[0,0], [0,0]]
 def d2(): return dd(d1)
 
-
-def load_obj(name ):
+def load_obj(name):
     with open(f"/data/{name}.pkl", "rb") as f:
         return pickle.load(f)
 
@@ -94,7 +80,8 @@ else:                                       # Initate database
     data_p, data_n = [dd(d2) for _ in range(2)]
     countp, countn = [dd(d0) for _ in range(2)]
 
-minl, maxl, clist = clusters1_3()
+minl, maxl = 4, 4
+clist = coordinates(minl, maxl)
 
 for lattice in L:
     for p in P:
