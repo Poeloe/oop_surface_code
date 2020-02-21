@@ -21,7 +21,9 @@ Qubits: qID (td, y, x)          Stabilizers: sID (ertype, y, x)
 The 2D graph (toric/planar) is a square lattice with 1 layer of these unit cells.
 '''
 import plot_graph_lattice as pgl
+import anim_graph_lattice as agl
 import plot_unionfind as puf
+import anim_unionfind as auf
 import random
 
 
@@ -44,7 +46,7 @@ class toric(object):
                         Value:  Qubit object with two Edge objects
     matching_weight total length of edges in the matching
     """
-    def __init__(self, size, decoder, plot2D=0, plot_config={}, dim=2, *args, **kwargs):
+    def __init__(self, size, decoder, plot2D=0, animation=0, plot_config={}, dim=2, *args, **kwargs):
         self.dim = dim
         self.size = size
         self.range = range(size)
@@ -59,10 +61,14 @@ class toric(object):
 
         self.plot2D = plot2D
         self.plot_config = plot_config
+
         self.gl_plot = pgl.plot_2D(self, **plot_config) if plot2D else None
+        self.gl_anim = agl.anim_2D(self, **plot_config) if animation else None
+
 
     def __repr__(self):
         return f"2D {self.__class__.__name__} graph object with"
+
 
     def init_uf_plot(self):
         '''
@@ -70,6 +76,10 @@ class toric(object):
         '''
         self.uf_plot = puf.plot_2D(self, **self.plot_config)
         return self.uf_plot
+
+    def init_uf_anim(self):
+        self.uf_anim = auf.anim_2D(self, **self.plot_config)
+        return self.uf_anim
 
 
     def count_matching_weight(self, z=0):
@@ -147,6 +157,7 @@ class toric(object):
                     qubit.E[1].state = 1
 
         if self.gl_plot: self.gl_plot.plot_erasures()
+        if self.gl_anim: self.gl_anim.get_frame("Erasures")
 
 
     def init_pauli(self, pX=0, pZ=0, **kwargs):
@@ -162,6 +173,9 @@ class toric(object):
 
         if self.gl_plot: self.gl_plot.plot_errors()
 
+        if self.gl_anim:
+            self.gl_anim.get_frame("Errors")
+
 
     def measure_stab(self, **kwargs):
         """
@@ -176,6 +190,7 @@ class toric(object):
                     stab.state = stab.parity
 
         if self.gl_plot: self.gl_plot.plot_syndrome()
+        if self.gl_anim: self.gl_anim.get_frame("Syndrome")
 
 
     def logical_error(self, z=0):
@@ -197,6 +212,13 @@ class toric(object):
                 logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
+
+        if self.gl_anim:
+            self.gl_anim.get_frame("Matchings")
+            self.plot_reset()
+            self.gl_anim.get_frame("Final")
+            self.gl_anim.plot_animation()
+
         return logical_error, errorless
 
 
@@ -248,6 +270,15 @@ class toric(object):
         for slayer in self.S.values():
             for stab in slayer.values():
                 stab.reset()
+
+    def plot_reset(self):
+        for qlayer in self.Q.values():
+            for qubit in qlayer.values():
+                qubit.plot_reset()
+        for slayer in self.S.values():
+            for stab in slayer.values():
+                stab.plot_reset()
+
 
 '''
 ########################################################################################
@@ -456,6 +487,11 @@ class Stab(object):
         self.tree       = 0
         self.node       = None
 
+    def plot_reset(self):
+        self.state      = 0
+        self.mstate     = 0
+        self.parity     = 0
+
 
 class Bound(Stab):
     '''
@@ -502,6 +538,9 @@ class Qubit(object):
         self.E[1].reset()
         self.erasure = 0
 
+    def plot_reset(self):
+        self.E[0].plot_reset()
+        self.E[1].plot_reset()
 
 
 class Edge(object):
@@ -550,4 +589,7 @@ class Edge(object):
         self.state      = 0
         self.support    = 0
         self.peeled     = 0
+        self.matching   = 0
+
+    def plot_reset(self):
         self.matching   = 0

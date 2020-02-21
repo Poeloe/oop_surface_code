@@ -24,6 +24,7 @@ The 3D graph (toric/planar) is a cubic lattice with many layer of these unit cel
 
 import graph_2D as go
 import plot_graph_lattice as pgl
+import anim_graph_lattice as agl
 import plot_unionfind as puf
 import random
 
@@ -51,7 +52,7 @@ class toric(go.toric):
     Dim dimension is set to 3 and decoder_layer is set to last layer.
     '''
 
-    def __init__(self, size, decoder, plot2D, plot3D=0, plot_config={}, dim=3, *args, **kwargs):
+    def __init__(self, size, decoder, plot2D=0, plot3D=0, animation=0, plot_config={}, dim=3, *args, **kwargs):
         super().__init__(size, decoder, *args, **kwargs)
 
         self.dim = 3
@@ -72,6 +73,7 @@ class toric(go.toric):
         self.plot2D = plot2D
         self.plot_config = plot_config
         self.gl_plot = pgl.plot_3D(self, **plot_config) if plot3D else None
+        self.gl_anim = agl.anim_3D(self, **plot_config) if animation else None
 
     def init_uf_plot(self):
 
@@ -132,6 +134,8 @@ class toric(go.toric):
                 self.gl_plot.plot_errors(z)
                 self.gl_plot.plot_syndrome(z)
             self.gl_plot.draw_plot("Errors and syndromes plotted")
+        if self.gl_anim: self.gl_anim.get_frame("Errors and syndromes")
+
 
 
     def init_erasure(self, pE=0, z=0, **kwargs):

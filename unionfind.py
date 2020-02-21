@@ -45,11 +45,15 @@ class toric(object):
         Decode functions for the Union-Find toric decoder
         '''
         self.plot = self.graph.init_uf_plot() if self.graph.gl_plot else None
+        self.anim = self.graph.init_uf_anim() if self.graph.gl_anim else None
         self.t0 = time.time()
         self.init_buckets()
         self.find_clusters()
         self.grow_clusters()
         self.peel_clusters()
+
+        if self.anim:
+            self.anim.plot_animation()
 
 
     def get_counts(self):
@@ -301,6 +305,9 @@ class toric(object):
         if self.plot and not self.plot_growth:
             self.plot.draw_plot("Clusters merged")
 
+        if self.anim:
+            self.anim.get_frame(bucket_i)
+
 
     def grow_boundary(self, cluster, *args, **kwargs):
         '''
@@ -441,6 +448,9 @@ class toric(object):
         if self.plot and not self.plot_peel:
             self.plot.plot_removed()
             self.plot.draw_plot("Clusters peeled.")
+
+        if self.anim:
+            self.anim.get_frame("Final")
 
 
     def peel_edge(self, cluster, vertex, *args, **kwargs):

@@ -48,10 +48,10 @@ def lattice_type(type, config, dec, go, size, **kwargs):
     '''
     if type == "toric":
         decoder = dec.toric(**config.decoder, **kwargs, plot_config=config.plot)
-        graph = go.toric(size, decoder, plot2D=config.plot2D, plot3D=config.plot3D, plot_config=config.plot)
+        graph = go.toric(size, decoder, plot2D=config.plot2D, plot3D=config.plot3D, animation=config.animation, plot_config=config.plot)
     elif type == "planar":
         decoder = dec.planar(**config.decoder, **kwargs, plot_config=config.plot)
-        graph = go.planar(size, decoder, plot2D=config.plot2D, plot3D=config.plot3D, plot_config=config.plot)
+        graph = go.planar(size, decoder, plot2D=config.plot2D, plot3D=config.plot3D, animation=config.animation, plot_config=config.plot)
     return decoder, graph
 
 
@@ -249,6 +249,7 @@ class decoder_config(object):
 
         self.plot2D = 0
         self.plot3D = 0
+        self.animation = 1
         self.seed = None
         self.decoder = {
             "dg_connections": 1,
@@ -269,21 +270,21 @@ class decoder_config(object):
 
 if __name__ == "__main__":
 
-    import unionfind_evengrow_integrated as decode
-    import graph_2D as go
+    import unionfind as decode
+    import graph_3D as go
 
     sim_config = {
         "ltype" : "toric",
-        "size"  : 96,
-        "pX"    : 0.028,
+        "size"  : 6,
+        "pX"    : 0.03,
         "pZ"    : 0.0,
         "pE"    : 0.0,
-        "pmX"   : 0.028,
+        "pmX"   : 0.03,
         "pmZ"   : 0.0,
     }
-    iters = 500
+    iters = 1
 
-    # output = single(decoder_config(), decode, go, **sim_config)
-    output = multiple(iters, decoder_config(), decode, go, **sim_config)
+    output = single(decoder_config(), decode, go, **sim_config)
+    # output = multiple(iters, decoder_config(), decode, go, **sim_config)
 
     pprint(output)
