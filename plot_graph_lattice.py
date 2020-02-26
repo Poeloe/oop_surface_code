@@ -499,6 +499,7 @@ class plot_3D(plot_2D):
 
 
     def new_attributes(self, object, attr_dict, overwrite=False):
+
         if type(object) == dict:
 
             prev_changes = self.history[self.iter - 1]

@@ -27,7 +27,6 @@ Though this repository, several non-standard python libraries are used, which ca
 * scipy
 * numpy
 * pandas
-* decimal
 * progiter
 
 **printing and info**
@@ -35,3 +34,5 @@ Though this repository, several non-standard python libraries are used, which ca
 * git-python
 * pyparsing
 * termcolor
+
+pip install -r requirements.txt

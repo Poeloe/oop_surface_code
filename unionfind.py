@@ -377,7 +377,7 @@ class toric(object):
             aC.add_vertex(pV)
             self.cluster_new_vertex(aC, pV, self.plot_growth)
         elif pC is aC:
-            edge.support -= 1
+            edge.support -= 2
             if self.plot:
                 if self.plot_cut: self.plot.new_iter(str(edge) + " cut")
                 self.plot.add_edge(edge, aV)
@@ -612,7 +612,7 @@ class planar(toric):
         union = False
 
         if (aC.on_bound and (pV.type == 1 or (pC is not None and pC.on_bound))) or pC is aC:
-            edge.support -= 1
+            edge.support -= 2
             if self.plot:
                 if self.plot_cut: self.plot.new_iter(str(edge) + " cut")
                 self.plot.add_edge(edge, aV)

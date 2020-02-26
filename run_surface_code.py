@@ -91,13 +91,14 @@ def single(
         pr.print_configuration(config, 1, size=size, pX=pX, pZ=pZ, pE=pE, pmX=pmX, pmZ=pmZ)
         decoder, graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
+
     # Initialize errors
     if seed is None and not config["seeds"]:
         init_random_seed(worker=worker, iteration=iter)
     elif seed is not None:
         apply_random_seed(seed)
-    elif not config["seeds"]:
-        apply_random_seed(config["seed"][0])
+    elif config["seeds"]:
+        apply_random_seed(config["seeds"][0])
 
     graph.apply_and_measure_errors(pX=pX, pZ=pZ, pE=pE, pmX=pmX, pmZ=pmZ)
 
