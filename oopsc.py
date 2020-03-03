@@ -169,7 +169,7 @@ def multiple(
 
     result = [
         single(size, dec, go, config, ltype, paulix, pauliz, erasure, measurex, measurez ,graph, worker, iter, seed, 0, debug, **kwargs)
-        for iter, seed in zip(ProgIter(range(iters)), seeds)
+        for iter, seed in zip(range(iters), seeds)
     ]
 
     if called:

@@ -53,8 +53,8 @@ def run_thresholds(
         os.makedirs(folder + "/data/", exist_ok=True)
         os.makedirs(folder + "/figures/", exist_ok=True)
 
-    file_path = folder + "/data/" + full_name + ".csv"
-    fig_path = folder + "/figures/" + full_name + ".pdf"
+    file_path = folder + "/" + full_name + ".csv"
+    fig_path = folder + "/" + full_name + ".pdf"
 
     data = None
     int_P = [int(p*P_store) for p in perror]
