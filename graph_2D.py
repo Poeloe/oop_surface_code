@@ -23,6 +23,8 @@ The 2D graph (toric/planar) is a square lattice with 1 layer of these unit cells
 import plot_graph_lattice as pgl
 import plot_unionfind as puf
 import random
+import numpy as np
+import super_operator as so
 
 
 class toric(object):
@@ -200,6 +202,54 @@ class toric(object):
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
 
+    def superoperator_error(self, error_list_name, z):
+        sup_op = so.SuperOperator(error_list_name)
+        weights = sup_op.get_probabilities()
+
+        # Get all edge objects in the lattice
+        edges_list = np.unique([np.array(list(stab.neighbors.values()))[:, 1] for stab in list(self.S[z].values())])\
+            .flatten()
+
+        for stab in self.S[z].values():
+            random_error_array = np.random.choice(sup_op.sup_op_elements, p=weights).error_array
+            np.random.shuffle(random_error_array)
+
+            for i, dir in enumerate(self.dirs):
+                if dir in stab.neighbors:
+                    _, edge = stab.neighbors[dir]
+
+                    # Create string to find edge with opposite errortype
+                    opp_error_symbol = "X" if edge.ertype == 1 else "Z"
+                    opp_edge_string = edge.__repr__()[:1] + opp_error_symbol + edge.__repr__()[2:]
+
+                    # Since each edge in the stabilizer has a 'Z'-error version and a 'X'-error version, the X errors
+                    # should only be applied on the 'X' version and the Z errors only on the 'Z' version. Y errors
+                    # are implemented by adding a X error and a Z error on the corresponding edge versions
+                    if random_error_array[i] == "I":
+                        continue
+
+                    if random_error_array[i] == "X":
+                        if edge.ertype == 1:
+                            for edge_new in edges_list:
+                                if edge_new.__repr__() == opp_edge_string:
+                                    edge = edge_new
+                                    break
+                        edge.state = (1 + edge.state) % 2
+
+                    elif random_error_array[i] == "Y":
+                        edge.state = (1 + edge.state) % 2
+                        for edge_new in edges_list:
+                            if edge_new.picker() == opp_edge_string:
+                                edge_new.state = (1 + edge_new.state) % 2
+
+                    elif random_error_array[i] == "Z":
+                        if edge.ertype == 0:
+                            for edge_new in edges_list:
+                                if edge_new.picker() == opp_edge_string:
+                                    edge = edge_new
+                        edge.state = (1 + edge.state) % 2
+
+        if self.gl_plot: self.gl_plot.plot_errors()
 
     '''
     ########################################################################################
@@ -556,6 +606,21 @@ class Edge(object):
             orientation = "~"
         errortype = "X" if self.ertype == 0 else "Z"
         return "e{}{}({},{}|{})".format(errortype, orientation, *self.qubit.qID[1:], self.z)
+
+    def __eq__(self, other):
+        return self.__repr__() == other.__repr__()
+
+    def __gt__(self, other):
+        return self.__repr__() > other.__repr__()
+
+    def __ge__(self, other):
+        return self.__repr__() >= other.__repr__()
+
+    def __lt__(self, other):
+        return self.__repr__() < other.__repr__()
+
+    def __le__(self, other):
+        return self.__repr__() <= other.__repr__()
 
     def picker(self):
         return "{}-{}".format(self.__repr__(), self.qubit)
