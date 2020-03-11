@@ -9,7 +9,7 @@ _____________________________________________
 import oopsc
 import numpy as np
 import pandas as pd
-import git, sys, os
+import sys, os, socket
 import sqlalchemy
 
 
@@ -73,17 +73,13 @@ def check_row_exists(con, tablename, L, p):
 def run_thresholds(
         decoder,
         sql_database,
-        batchnumber,
         lattice_type="toric",
         lattices = [],
         perror = [],
         iters = 0,
+        processes=1,
         measurement_error=False,
-        modified_ansatz=False,
         save_result=True,
-        file_name="thres",
-        show_plot=False,
-        plot_title=None,
         folder = "./",
         P_store=1000,
         debug=False,
@@ -99,23 +95,13 @@ def run_thresholds(
         import graph_2D as go
 
     sys.setrecursionlimit(100000)
-    r = git.Repo(os.path.dirname(__file__))
-    full_name = r.git.rev_parse(r.head, short=True) + f"_{lattice_type}_{go.__name__}_{decoder.__name__}_{file_name}"
-    if not plot_title:
-        plot_title = full_name
 
+    table = socket.gethostname().split(".", 1)[0]
+    full_name = f"{sql_database}_{table}"
 
     if not os.path.exists(folder):
         os.makedirs(folder)
-
-    if kwargs.pop("subfolder"):
-        os.makedirs(folder + "/data/", exist_ok=True)
-        os.makedirs(folder + "/figures/", exist_ok=True)
-        file_path = folder + "/data/" + full_name + ".csv"
-        # fig_path = folder + "/figures/" + full_name + ".pdf"
-    else:
-        file_path = folder + "/" + full_name + ".csv"
-        # fig_path = folder + "/" + full_name + ".pdf"
+    file_path = folder + "/" + full_name + ".csv"
 
     progressbar = kwargs.pop("progressbar")
 
@@ -123,15 +109,13 @@ def run_thresholds(
     int_P = [int(p*P_store) for p in perror]
     config = oopsc.default_config(**kwargs)
 
-    table = "t_{}".format(batchnumber)
     con = connect_database(sql_database)
     create_table(con, table)
 
     # Simulate and save results to file
     for lati in lattices:
 
-
-        graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati)
+        graph = [oopsc.lattice_type(lattice_type, config, decoder, go, lati) for _ in range(processes)]
 
         for pi, int_p in zip(perror, int_P):
 
@@ -148,7 +132,8 @@ def run_thresholds(
             )
             if measurement_error:
                 oopsc_args.update(measurex=pi)
-            output = oopsc.multiple(lati, config, iters, graph=graph, worker=batchnumber, **oopsc_args)
+
+            output = oopsc.multiprocess(lati, config, iters, graph=graph, processes=processes, **oopsc_args)
 
             sql_data = dict(L=lati, p=pi, **output)
             insert_database(con, table, sql_data)
@@ -196,11 +181,11 @@ if __name__ == "__main__":
         metavar="sql",
     )
 
-    parser.add_argument("batchnumber",
+    parser.add_argument("processes",
         action="store",
         type=int,
-        help="batch number",
-        metavar="batch",
+        help="number of processes",
+        metavar="processes",
     )
 
     parser.add_argument("decoder",
@@ -233,11 +218,7 @@ if __name__ == "__main__":
         ["-me", "--measurement_error", "store_true", "enable measurement error (2+1D) - toggle", dict()],
         ["-ma", "--modified_ansatz", "store_true", "use modified ansatz - toggle", dict()],
         ["-s", "--save_result", "store_true", "save results - toggle", dict()],
-        ["-sp", "--show_plot", "store_true", "show plot - toggle", dict()],
-        ["-fn", "--file_name", "store", "plot filename - toggle", dict(default="thres", metavar="")],
-        ["-pt", "--plot_title", "store", "plot filename - toggle", dict(default="", metavar="")],
         ["-f", "--folder", "store", "base folder path - toggle", dict(default="./", metavar="")],
-        ["-sf", "--subfolder", "store_true", "store figures and data in subfolders - toggle", dict()],
         ["-pb", "--progressbar", "store_true", "enable progressbar - toggle", dict()],
         ["-dgc", "--dg_connections", "store_true", "use dg_connections pre-union processing - toggle", dict()],
         ["-dg", "--directed_graph", "store_true", "use directed graph for evengrow - toggle", dict()],
@@ -250,7 +231,6 @@ if __name__ == "__main__":
 
     args=vars(parser.parse_args())
     decoder = args.pop("decoder")
-    batchnumber = args.pop("batchnumber")
     sql_database = args.pop("sql_database")
 
 
@@ -269,4 +249,4 @@ if __name__ == "__main__":
             print(f"{'_'*75}\n\nusing dg_connections pre-union processing")
 
 
-    run_thresholds(decode, sql_database, batchnumber, **args)
+    run_thresholds(decode, sql_database, **args)

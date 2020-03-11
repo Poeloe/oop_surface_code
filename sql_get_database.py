@@ -2,26 +2,29 @@ import pandas as pd
 from threshold_runsql import connect_database
 from progiter import ProgIter
 
+database = "eg_planar_3d_test"
 
+def get_data(database):
 
-def get_data(database, tables):
     con = connect_database(database)
+    res = con.execute('SHOW TABLES')
+    tables = res.fetchall()
 
     print("reading data...")
     data = []
-    for i in ProgIter(range(tables)):
-        data.append(pd.read_sql_table("t_{}".format(i), con).drop(["id"], axis=1).set_index(["L", "p"]))
+    for table in ProgIter(tables):
+        data.append(pd.read_sql_table(table[0], con).drop(["id"], axis=1).set_index(["L", "p"]))
 
     cdata = data[0]
 
     print("processing data...")
-    for i in ProgIter(range(1, tables)):
+    for i in ProgIter(range(1, len(tables))):
         pdata = data[i]
 
         for j in range(len(pdata)):
             prow = pdata.iloc[j,:]
             if prow.name not in cdata.index:
-                cdata.append(prow)
+                cdata = cdata.append(prow)
             else:
                 crow = cdata.loc[prow.name]
                 cN, pN = crow["N"], prow["N"]
@@ -57,13 +60,6 @@ if __name__ == "__main__":
         type=str,
         help="name of database",
         metavar="dn",
-    )
-
-    parser.add_argument("tables",
-        action="store",
-        type=int,
-        help="number of tables",
-        metavar="tables",
     )
 
     args=vars(parser.parse_args())
