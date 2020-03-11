@@ -123,14 +123,34 @@ class toric(go.toric):
 
         # first layers initilized with measurement error
         for z in self.range[:-1]:
-            self.init_erasure(pE=pE, z=z)
-            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
+            # self.init_erasure(pE=pE, z=z)
+            self.superoperator_error("/Users/Paul/Documents/TU/Master/Afstuderen/oop_surface_code/error_list_test.csv", z)
+            # self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
 
+            for qubit in self.Q[z].values():
+                if qubit.E[0].state == 1 and qubit.E[1].state == 1:
+                    print(str(qubit) + ": Y error")
+                elif qubit.E[0].state == 1:
+                    print(str(qubit) + ": X error")
+                elif qubit.E[1].state == 1:
+                    print(str(qubit) + ": Z error")
+            print(z)
+
         # final layer initialized with perfect measurements
-        self.init_erasure(pE=pE, z=self.decode_layer)
-        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
+        # self.init_erasure(pE=pE, z=self.decode_layer)
+        # self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
+        self.superoperator_error("/Users/Paul/Documents/TU/Master/Afstuderen/oop_surface_code/error_list_test.csv", self.range[-1])
         self.measure_stab(pmX=0, pmZ=0, z=self.decode_layer)
+
+        for qubit in self.Q[self.range[-1]].values():
+            if qubit.E[0].state == 1 and qubit.E[1].state == 1:
+                print(str(qubit) + ": Y error")
+            elif qubit.E[0].state == 1:
+                print(str(qubit) + ": X error")
+            elif qubit.E[1].state == 1:
+                print(str(qubit) + ": Z error")
+        print(self.range[-1])
 
         if self.gl_plot:
             if pE != 0:
