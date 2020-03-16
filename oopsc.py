@@ -73,6 +73,7 @@ def single(
     ltype="toric",
     paulix=0,
     pauliz=0,
+    superoperator=None,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -102,7 +103,10 @@ def single(
     elif config["seeds"]:
         apply_random_seed(config["seeds"][0])
 
-    graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
+    if superoperator is None:
+        graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
+    else:
+        graph.apply_and_measure_superoperator_error(superoperator)
 
     # Peeling decoder
     graph.decoder.decode()
@@ -343,6 +347,7 @@ if __name__ == "__main__":
         ["-d", "--decoder", "store", "type of decoder - {mwpm/uf/eg}", dict(type=str, choices=["mwpm", "uf", "eg"], default="eg", metavar="")],
         ["-px", "--paulix", "store", "Pauli X error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-pz", "--pauliz", "store", "Pauli Y error rate - float {0,1}", dict(type=float, default=0, metavar="")],
+        ["-so", "--superoperator", "store", "Use superoperator as error input - {file directory}", dict(type=str, default="None", metavar="")],
         ["-pmx", "--measurex", "store", "Measurement X error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-pmz", "--measurez", "store", "Measurement Y error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-pe", "--erasure", "store", "Erasure - float {0,1}", dict(type=float, default=0, metavar="")],
@@ -393,6 +398,7 @@ if __name__ == "__main__":
 
     config = dict(
         ltype   = args.pop("lattice_type"),
+        superoperator = args.pop("superoperator"),
         paulix      = args.pop("paulix"),
         pauliz      = args.pop("pauliz"),
         erasure      = args.pop("erasure"),

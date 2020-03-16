@@ -26,6 +26,7 @@ The 3D graph (toric/planar) is a cubic lattice with many layer of these unit cel
 import graph_2D as go
 import plot_graph_lattice as pgl
 import plot_unionfind as puf
+import super_operator as so
 import random
 
 
@@ -123,34 +124,14 @@ class toric(go.toric):
 
         # first layers initilized with measurement error
         for z in self.range[:-1]:
-            # self.init_erasure(pE=pE, z=z)
-            self.superoperator_error("/Users/Paul/Documents/TU/Master/Afstuderen/oop_surface_code/error_list_test.csv", z)
-            # self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
+            self.init_erasure(pE=pE, z=z)
+            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
 
-            for qubit in self.Q[z].values():
-                if qubit.E[0].state == 1 and qubit.E[1].state == 1:
-                    print(str(qubit) + ": Y error")
-                elif qubit.E[0].state == 1:
-                    print(str(qubit) + ": X error")
-                elif qubit.E[1].state == 1:
-                    print(str(qubit) + ": Z error")
-            print(z)
-
         # final layer initialized with perfect measurements
-        # self.init_erasure(pE=pE, z=self.decode_layer)
-        # self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
-        self.superoperator_error("/Users/Paul/Documents/TU/Master/Afstuderen/oop_surface_code/error_list_test.csv", self.range[-1])
+        self.init_erasure(pE=pE, z=self.decode_layer)
+        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
         self.measure_stab(pmX=0, pmZ=0, z=self.decode_layer)
-
-        for qubit in self.Q[self.range[-1]].values():
-            if qubit.E[0].state == 1 and qubit.E[1].state == 1:
-                print(str(qubit) + ": Y error")
-            elif qubit.E[0].state == 1:
-                print(str(qubit) + ": X error")
-            elif qubit.E[1].state == 1:
-                print(str(qubit) + ": Z error")
-        print(self.range[-1])
 
         if self.gl_plot:
             if pE != 0:
@@ -162,9 +143,25 @@ class toric(go.toric):
             self.gl_plot.draw_plot()
             for z in self.range:
                 self.gl_plot.plot_syndrome(z)
+                self.gl_plot.draw_plot()
+
+    def apply_and_measure_superoperator_error(self, superoperator_filename):
+        superoperator = so.SuperOperator(superoperator_filename)
+        for z in self.range[:-1]:
+            self.init_superoperator_error_per_timestep(superoperator, z=z)
+
+        self.init_superoperator_error_per_timestep(superoperator, z=self.decode_layer)
+
+        if self.gl_plot:
+            for z in self.range:
+                self.gl_plot.plot_erasures(z, draw=False)
             self.gl_plot.draw_plot()
-
-
+            for z in self.range:
+                self.gl_plot.plot_errors(z, draw=False)
+            self.gl_plot.draw_plot()
+            for z in self.range:
+                self.gl_plot.plot_syndrome(z)
+                self.gl_plot.draw_plot()
 
     def init_erasure(self, pE=0, z=0, **kwargs):
         """
@@ -220,8 +217,14 @@ class toric(go.toric):
         """
         The measurement outcomes of the stabilizers, which are the vertices on the self are saved to their corresponding vertex objects.
         """
+        stabs = self.S[z].values()
+        measurement_errors = None
+        if "stabs" in kwargs.keys():
+            stabs = kwargs["stabs"]
+        if "measurement_errors" in kwargs.keys():
+            measurement_errors = kwargs["measurement_errors"]
 
-        for stab in self.S[z].values():
+        for i, stab in enumerate(stabs):
 
             # Get parity of stabilizer
             stab.parity = 0
@@ -234,6 +237,11 @@ class toric(go.toric):
             # Apply measurement error
             pM = pmX if stab.sID[0] == 0 else pmZ
             if pM != 0 and random.random() < pM:
+                stab.parity = 1 - stab.parity
+                stab.mstate = 1
+
+            # Apply measurement error in case of superoperator
+            if measurement_errors is not None and measurement_errors[i] == -1:
                 stab.parity = 1 - stab.parity
                 stab.mstate = 1
 

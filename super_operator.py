@@ -1,5 +1,7 @@
 import csv
 import numpy as np
+import pandas as pd
+import re
 from pprint import pprint
 
 
@@ -9,7 +11,8 @@ class SuperOperator:
         self._error_list_name = error_list_name
 
         # Filled by the _convert_error_list method
-        self.sup_op_elements = []
+        self.sup_op_elements_p = []
+        self.sup_op_elements_s = []
 
         self._convert_error_list()
 
@@ -22,23 +25,21 @@ class SuperOperator:
     def _convert_error_list(self):
 
         with open(self._error_list_name) as file:
-            reader = csv.reader(file)
+            reader = pd.read_csv(file, sep=";")
 
-            for i, row in enumerate(reader):
-                if i == 0:
-                    if len(row) != 3:
-                        raise TypeError("CSV not of expected format")
-                    continue
+            for i in range(len(list(reader.p_prob))):
+                sup_op_el_p = SuperOperatorElement(reader.p_prob[i], int(reader.p_lie[i]),
+                                                   [ch for ch in reader.p_error[i]])
+                sup_op_el_s = SuperOperatorElement(reader.s_prob[i], int(reader.s_lie[i]),
+                                                   [ch for ch in reader.s_error[i]])
+                self.sup_op_elements_p.append(sup_op_el_p)
+                self.sup_op_elements_s.append(sup_op_el_s)
 
-                sup_op = SuperOperatorElement(float(row[0]), int(row[1]), [ch for ch in row[2]])
-                self.sup_op_elements.append(sup_op)
-
-    def get_probabilities(self):
-        probs = []
-        for sup_op_el in self.sup_op_elements:
-            probs.append(sup_op_el.p)
-
-        return probs
+        if np.round(np.sum(self.sup_op_elements_p), 10) != 1.0 or np.round(np.sum(self.sup_op_elements_s), 10) != 1.0:
+            raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
+                             "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). Check your superoperator csv."
+                             .format(np.sum(self.sup_op_elements_p), 1.0-np.sum(self.sup_op_elements_p),
+                                     np.sum(self.sup_op_elements_s), 1.0-np.sum(self.sup_op_elements_s)))
 
 
 class SuperOperatorElement:
@@ -54,7 +55,20 @@ class SuperOperatorElement:
     def __str__(self):
         return "SuperOperatorElement(p:{}, lie:{}, errors:{})".format(self.p, self.lie, self.error_array)
 
+    def __ge__(self, other):
+        return self.p >= other.p
 
-if __name__ == "__main__":
-    sup_op = SuperOperator("error_list_test.csv")
-    pprint(sup_op.errors)
+    def __gt__(self, other):
+        return self.p > other.p
+
+    def __le__(self, other):
+        return self.p <= other.p
+
+    def __lt__(self, other):
+        return self.p < other.p
+
+    def __add__(self, other):
+        return self.p + other.p
+
+    def __radd__(self, other):
+        return self.p + other

@@ -24,6 +24,7 @@ import plot_graph_lattice as pgl
 import plot_unionfind as puf
 import random
 import numpy as np
+import re
 import super_operator as so
 
 
@@ -130,6 +131,9 @@ class toric(object):
         self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
         self.measure_stab()                       # Measure stabiliziers
 
+    def apply_and_measure_superoperator_error(self, superoperator_filename):
+        superoperator = so.SuperOperator(superoperator_filename)
+        self.init_superoperator_error_per_timestep(superoperator)
 
     def init_erasure(self, pE=0, **kwargs):
         """
@@ -170,13 +174,25 @@ class toric(object):
         """
         The measurement outcomes of the stabilizers, which are the vertices on the self are saved to their corresponding vertex objects.
         """
-        for stab in self.S[0].values():
+        stabs = self.S[0].values()
+        measurement_errors = None
+        if "stabs" in kwargs.keys():
+            stabs = kwargs["stabs"]
+        if "measurement_errors" in kwargs.keys():
+            measurement_errors = kwargs["measurement_errors"]
+
+        for i, stab in enumerate(stabs):
             for dir in self.dirs:
                 if dir in stab.neighbors:
                     vertex, edge = stab.neighbors[dir]
                     if edge.state:
                         stab.parity = 1 - stab.parity
                     stab.state = stab.parity
+
+            # Apply measurement error in case of superoperator
+            if measurement_errors is not None and measurement_errors[i] == -1:
+                stab.parity = 1 - stab.parity
+                stab.mstate = 1
 
         if self.gl_plot: self.gl_plot.plot_syndrome()
 
@@ -202,13 +218,48 @@ class toric(object):
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
 
-    def superoperator_error(self, error_list_name, z):
-        sup_op = so.SuperOperator(error_list_name)
-        weights = sup_op.get_probabilities()
+    def get_stabilizers_by_type(self, stab_type, z=0):
+        if re.match('.*star.*|[1]', str(stab_type), flags=re.IGNORECASE) is not None:
+            stab_type = 1
+        elif re.match('.*plaq.*|[0]', str(stab_type), flags=re.IGNORECASE) is not None:
+            stab_type = 0
+        else:
+            raise ValueError("No valid stabilizer type provided, expected 'star' or 'plaquette'.")
 
-        for stab in self.S[z].values():
-            random_super_op_element = np.random.choice(sup_op.sup_op_elements, p=weights)
-            random_lie = random_super_op_element.lie
+        matched_stabs = []
+        for i, stab in enumerate(self.S[z].values()):
+            if stab.sID[0] == stab_type:
+                matched_stabs.append(stab)
+
+        return np.array(matched_stabs)
+
+    def init_superoperator_error_per_timestep(self, superoperator, z=0):
+        stabs_p = self.get_stabilizers_by_type("plaq", z)
+        stabs_s = self.get_stabilizers_by_type("star", z)
+
+        # separate even and odd stabilizers for both types of stabilizers to be able to perform 'rounds'
+        stabs_p1, stabs_p2, stabs_s1, stabs_s2 = stabs_p[::2], stabs_p[1::2], stabs_s[::2], stabs_s[1::2]
+
+        # Apply error and measure stabilizers with according measurement error (round 1)
+        measurement_errors_p1 = self.superoperator_error(superoperator.sup_op_elements_p, stabs_p1)
+        measurement_errors_s1 = self.superoperator_error(superoperator.sup_op_elements_s, stabs_s1)
+        self.measure_stab(stabs=stabs_p1, measurement_errors=measurement_errors_p1)
+        self.measure_stab(stabs=stabs_s1, measurement_errors=measurement_errors_s1)
+
+        # Apply error and measure stabilizers with according measurement error (round 2)
+        measurement_errors_p2 = self.superoperator_error(superoperator.sup_op_elements_p, stabs_p2)
+        measurement_errors_s2 = self.superoperator_error(superoperator.sup_op_elements_s, stabs_s2)
+        self.measure_stab(stabs=stabs_p1, measurement_errors=measurement_errors_p2)
+        self.measure_stab(stabs=stabs_s1, measurement_errors=measurement_errors_s2)
+
+    def superoperator_error(self, superoperator_elements, stabs):
+        weights = [super_el.p for super_el in superoperator_elements]
+
+        measurement_errors = []
+
+        for stab in stabs:
+            random_super_op_element = np.random.choice(superoperator_elements, p=weights)
+            measurement_errors.append(random_super_op_element.lie)
             random_error_array = random_super_op_element.error_array
             np.random.shuffle(random_error_array)
 
@@ -228,8 +279,10 @@ class toric(object):
 
                     elif random_error_array[i] == "Z":
                         edge.qubit.E[1].state = (1 + edge.qubit.E[1].state) % 2
-            # stab.parity = random_lie --> Find out what the lie exactly means
+
         if self.gl_plot: self.gl_plot.plot_errors()
+
+        return measurement_errors
 
     '''
     ########################################################################################
