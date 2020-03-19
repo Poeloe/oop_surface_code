@@ -20,7 +20,7 @@ class SuperOperator:
         return "Superoperator ({})".format(self._error_list_name)
 
     def __str__(self):
-        return "Superoperator ({})".format(self._error_list_name) + str(self.errors)
+        return "Superoperator ({})".format(self._error_list_name)
 
     def _convert_error_list(self):
 
@@ -28,16 +28,17 @@ class SuperOperator:
             reader = pd.read_csv(file, sep=";")
 
             for i in range(len(list(reader.p_prob))):
-                sup_op_el_p = SuperOperatorElement(reader.p_prob[i], int(reader.p_lie[i]),
+                sup_op_el_p = SuperOperatorElement(float(reader.p_prob[i].replace(',', '.')), int(reader.p_lie[i]),
                                                    [ch for ch in reader.p_error[i]])
-                sup_op_el_s = SuperOperatorElement(reader.s_prob[i], int(reader.s_lie[i]),
+                sup_op_el_s = SuperOperatorElement(float(reader.s_prob[i].replace(',', '.')), int(reader.s_lie[i]),
                                                    [ch for ch in reader.s_error[i]])
                 self.sup_op_elements_p.append(sup_op_el_p)
                 self.sup_op_elements_s.append(sup_op_el_s)
 
-        if np.round(np.sum(self.sup_op_elements_p), 10) != 1.0 or np.round(np.sum(self.sup_op_elements_s), 10) != 1.0:
+        if np.round(np.sum(self.sup_op_elements_p), 6) != 1.0 or np.round(np.sum(self.sup_op_elements_s), 6) != 1.0:
             raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
-                             "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). Check your superoperator csv."
+                             "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
+                             "Check your superoperator csv."
                              .format(np.sum(self.sup_op_elements_p), 1.0-np.sum(self.sup_op_elements_p),
                                      np.sum(self.sup_op_elements_s), 1.0-np.sum(self.sup_op_elements_s)))
 
