@@ -92,7 +92,8 @@ def single(
     """
     # Initialize lattice
     if graph is None:
-        pr.print_configuration(config, 1, size=size, pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
+        pr.print_configuration(config, 1, size=size, pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez,
+                               superoperator=superoperator)
         graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
     # Initialize errors
