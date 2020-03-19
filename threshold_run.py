@@ -21,6 +21,7 @@ def run_thresholds(
         lattice_type="toric",
         lattices = [],
         perror = [],
+        superoperator=[],
         iters = 0,
         measurement_error=False,
         multithreading=False,
@@ -80,12 +81,18 @@ def run_thresholds(
         else:
             graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati)
 
-        for pi, int_p in zip(perror, int_P):
+        for i, (pi, int_p) in enumerate(zip(perror, int_P)):
 
             print("Calculating for L = ", str(lati), "and p =", str(pi))
 
+            superop = None
+            if superoperator:
+                px = 0
+                superop = superoperator[i]
+
             oopsc_args = dict(
                 paulix=pi,
+                superoperator=superop,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,
@@ -166,6 +173,8 @@ if __name__ == "__main__":
     key_arguments = [
         ["-l", "--lattices", "store", "lattice sizes - verbose list int", dict(type=int, nargs='*', metavar="", required=True)],
         ["-p", "--perror", "store", "error rates - verbose list float", dict(type=float, nargs='*', metavar="", required=True)],
+        ["-so", "--superoperator", "store", "Use superoperator as error input - list of superoperator filenames",
+         dict(type=str, nargs='*', metavar="")],
         ["-me", "--measurement_error", "store_true", "enable measurement error (2+1D) - toggle", dict()],
         ["-mt", "--multithreading", "store_true", "use multithreading - toggle", dict()],
         ["-nt", "--threads", "store", "number of threads", dict(type=int, metavar="")],
