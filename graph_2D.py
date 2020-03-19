@@ -261,6 +261,8 @@ class toric(object):
             random_super_op_element = np.random.choice(superoperator_elements, p=weights)
             measurement_errors.append(random_super_op_element.lie)
             random_error_array = random_super_op_element.error_array
+
+            # Apply 'Twirling' by shuffling the error array for the 4 qubits
             np.random.shuffle(random_error_array)
 
             for i, dir in enumerate(self.dirs):
