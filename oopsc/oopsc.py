@@ -194,7 +194,7 @@ def multiple(
     )
 
     zipped = zip(ProgIter(range(iters)), seeds) if progressbar else zip(range(iters), seeds)
-    result = [single(size, config, iter=iter, seed=seed, **options, **kwargs) for iter, seed in zipped]
+    result = [single(size, config, iter=iter, seed=seed, superoperator=superoperator, **options, **kwargs) for iter, seed in zipped]
 
     if called:
         output = dict(
