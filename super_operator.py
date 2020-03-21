@@ -1,14 +1,11 @@
-import csv
 import numpy as np
 import pandas as pd
-import re
-from pprint import pprint
 
 
 class SuperOperator:
 
-    def __init__(self, error_list_name):
-        self._error_list_name = error_list_name
+    def __init__(self, file_name):
+        self.file_name = file_name
 
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
@@ -17,14 +14,14 @@ class SuperOperator:
         self._convert_error_list()
 
     def __repr__(self):
-        return "Superoperator ({})".format(self._error_list_name)
+        return "Superoperator ({})".format(self.file_name)
 
     def __str__(self):
-        return "Superoperator ({})".format(self._error_list_name)
+        return "Superoperator ({})".format(self.file_name)
 
     def _convert_error_list(self):
 
-        with open(self._error_list_name) as file:
+        with open(self.file_name) as file:
             reader = pd.read_csv(file, sep=";")
 
             for i in range(len(list(reader.p_prob))):
