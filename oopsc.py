@@ -146,6 +146,7 @@ def multiple(
     ltype="toric",
     paulix=0,
     pauliz=0,
+    superoperator=None,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -165,7 +166,7 @@ def multiple(
     """
 
     if qres is None:
-        pr.print_configuration(config, iters, size=size, paulix=paulix, pauliz=pauliz, erasure=erasure, measurex=measurex, measurez=measurez)
+        pr.print_configuration(config, iters, size=size, paulix=paulix, pauliz=pauliz, erasure=erasure, measurex=measurex, measurez=measurez, superoperator=superoperator)
     if graph is None:
         graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
@@ -188,7 +189,7 @@ def multiple(
     )
 
     zipped = zip(ProgIter(range(iters)), seeds) if progressbar else zip(range(iters), seeds)
-    result = [single(size, config, iter=iter, seed=seed, **options, **kwargs) for iter, seed in zipped]
+    result = [single(size, config, iter=iter, seed=seed, superoperator=superoperator, **options, **kwargs) for iter, seed in zipped]
 
     if called:
         output = dict(
