@@ -25,7 +25,15 @@ import plot_unionfind as puf
 import random
 import numpy as np
 import super_operator as so
-import time
+
+
+def _get_value_by_prob(array, p):
+    r = random.random()
+    index = 0
+    while r >= 0 and index < len(p):
+        r -= p[index]
+        index += 1
+    return array[index - 1]
 
 
 class toric(object):
@@ -122,19 +130,13 @@ class toric(object):
                 vW, vE = self.S[z][(1, y, (x - 1) % self.size)], self.S[z][(1, y, x)]
                 self.add_qubit(1, y, x, z, vW, vE, vN, vS)
 
-
     def apply_and_measure_errors(self, pX=0, pZ=0, pE=0, **kwargs):
         '''
         Initilizes errors on the qubits and measures the stabilizers on the graph
         '''
 
         self.init_erasure(pE=pE)
-        start = time.time()
         self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
-        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
-        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
-        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
-        print(time.time() - start)
         self.measure_stab()                       # Measure stabiliziers
 
     def apply_and_measure_superoperator_error(self, superoperator_filename):
@@ -176,7 +178,6 @@ class toric(object):
                 qubit.E[1].state = 1
 
         if self.gl_plot: self.gl_plot.plot_errors()
-
 
     def measure_stab(self, **kwargs):
         """
@@ -254,15 +255,18 @@ class toric(object):
         measurement_errors = []
 
         for stab in stabs:
-            random_super_op_element = np.random.choice(superoperator_elements, p=weights)
+            # np.random.choice can be used as well, only this takes a lot of time compared to the self written
+            # '_get_value_by_prob' method, which has complexity O(n)
+            random_super_op_element = _get_value_by_prob(superoperator_elements, weights)
+
             measurement_errors.append(random_super_op_element.lie)
             random_error_array = random_super_op_element.error_array
 
             # Apply 'Twirling' by shuffling the error array for the 4 qubits if not all values are the same
-            if np.unique(random_error_array).size > 1:
-                np.random.shuffle(random_error_array)
-            elif random_error_array[0] == "I":
+            if random_error_array == ["I", "I", "I", "I"]:
                 continue
+
+            np.random.shuffle(random_error_array)
 
             for i, dir in enumerate(self.dirs):
                 if random_error_array[i] == "I":
