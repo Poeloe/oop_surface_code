@@ -146,11 +146,12 @@ class toric(go.toric):
                 self.gl_plot.draw_plot()
 
     def apply_and_measure_superoperator_error(self, superoperator_filename):
-        superoperator = so.SuperOperator(superoperator_filename)
+        if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
+            self.superoperator = so.SuperOperator(superoperator_filename, self)
         for z in self.range[:-1]:
-            self.init_superoperator_error_per_timestep(superoperator, z=z)
+            self.init_superoperator_error_per_timestep(z)
 
-        self.init_superoperator_error_per_timestep(superoperator, z=self.decode_layer)
+        self.init_superoperator_error_per_timestep(z=self.decode_layer)
 
         if self.gl_plot:
             for z in self.range:

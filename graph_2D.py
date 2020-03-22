@@ -24,8 +24,8 @@ import plot_graph_lattice as pgl
 import plot_unionfind as puf
 import random
 import numpy as np
-import re
 import super_operator as so
+import time
 
 
 class toric(object):
@@ -65,6 +65,7 @@ class toric(object):
         self.plot_config = plot_config
         self.gl_plot = pgl.plot_2D(self, **plot_config) if self.plot2D else None
 
+        self.superoperator = None
 
     def __repr__(self):
         return f"2D {self.__class__.__name__} graph object with"
@@ -128,12 +129,19 @@ class toric(object):
         '''
 
         self.init_erasure(pE=pE)
+        start = time.time()
         self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
+        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
+        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
+        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
+        print(time.time() - start)
         self.measure_stab()                       # Measure stabiliziers
 
     def apply_and_measure_superoperator_error(self, superoperator_filename):
-        superoperator = so.SuperOperator(superoperator_filename)
-        self.init_superoperator_error_per_timestep(superoperator)
+        if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
+            self.superoperator = so.SuperOperator(superoperator_filename, self)
+
+        self.init_superoperator_error_per_timestep()
 
     def init_erasure(self, pE=0, **kwargs):
         """
@@ -163,7 +171,7 @@ class toric(object):
         """
         for qubit in self.Q[0].values():
             if pX != 0 and random.random() < pX:
-                qubit.E[0].state = 1
+                qubit.E[0].state = 1 - qubit.E[0].state
             if pZ != 0 and random.random() < pZ:
                 qubit.E[1].state = 1
 
@@ -218,43 +226,31 @@ class toric(object):
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
 
-    def get_stabilizers_by_type(self, stab_type, z=0):
-        if re.match('.*star.*|[1]', str(stab_type), flags=re.IGNORECASE) is not None:
-            stab_type = 1
-        elif re.match('.*plaq.*|[0]', str(stab_type), flags=re.IGNORECASE) is not None:
-            stab_type = 0
-        else:
-            raise ValueError("No valid stabilizer type provided, expected 'star' or 'plaquette'.")
-
-        matched_stabs = []
-        for i, stab in enumerate(self.S[z].values()):
-            if stab.sID[0] == stab_type:
-                matched_stabs.append(stab)
-
-        return np.array(matched_stabs)
-
-    def init_superoperator_error_per_timestep(self, superoperator, z=0):
-        stabs_p = self.get_stabilizers_by_type("plaq", z)
-        stabs_s = self.get_stabilizers_by_type("star", z)
-
-        # separate even and odd stabilizers for both types of stabilizers to be able to perform 'rounds'
-        stabs_p1, stabs_p2, stabs_s1, stabs_s2 = stabs_p[::2], stabs_p[1::2], stabs_s[::2], stabs_s[1::2]
+    def init_superoperator_error_per_timestep(self, z=0):
+        if z != 0:
+            self.superoperator.set_stabilizer_rounds(z)
 
         # Apply error and measure stabilizers with according measurement error (round 1)
-        measurement_errors_p1 = self.superoperator_error(superoperator.sup_op_elements_p, stabs_p1)
-        measurement_errors_s1 = self.superoperator_error(superoperator.sup_op_elements_s, stabs_s1)
-        self.measure_stab(stabs=stabs_p1, measurement_errors=measurement_errors_p1)
-        self.measure_stab(stabs=stabs_s1, measurement_errors=measurement_errors_s1)
+        measurement_errors_p1 = self.superoperator_error(self.superoperator.sup_op_elements_p,
+                                                         self.superoperator.weights_p,
+                                                         self.superoperator.stabs_p1)
+        measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
+                                                         self.superoperator.weights_s,
+                                                         self.superoperator.stabs_s1)
+        self.measure_stab(stabs=self.superoperator.stabs_p1, measurement_errors=measurement_errors_p1)
+        self.measure_stab(stabs=self.superoperator.stabs_s1, measurement_errors=measurement_errors_s1)
 
         # Apply error and measure stabilizers with according measurement error (round 2)
-        measurement_errors_p2 = self.superoperator_error(superoperator.sup_op_elements_p, stabs_p2)
-        measurement_errors_s2 = self.superoperator_error(superoperator.sup_op_elements_s, stabs_s2)
-        self.measure_stab(stabs=stabs_p1, measurement_errors=measurement_errors_p2)
-        self.measure_stab(stabs=stabs_s1, measurement_errors=measurement_errors_s2)
+        measurement_errors_p2 = self.superoperator_error(self.superoperator.sup_op_elements_p,
+                                                         self.superoperator.weights_p,
+                                                         self.superoperator.stabs_p2)
+        measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
+                                                         self.superoperator.weights_s,
+                                                         self.superoperator.stabs_s2)
+        self.measure_stab(stabs=self.superoperator.stabs_p1, measurement_errors=measurement_errors_p2)
+        self.measure_stab(stabs=self.superoperator.stabs_s1, measurement_errors=measurement_errors_s2)
 
-    def superoperator_error(self, superoperator_elements, stabs):
-        weights = [super_el.p for super_el in superoperator_elements]
-
+    def superoperator_error(self, superoperator_elements, weights, stabs):
         measurement_errors = []
 
         for stab in stabs:
@@ -262,15 +258,18 @@ class toric(object):
             measurement_errors.append(random_super_op_element.lie)
             random_error_array = random_super_op_element.error_array
 
-            # Apply 'Twirling' by shuffling the error array for the 4 qubits
-            np.random.shuffle(random_error_array)
+            # Apply 'Twirling' by shuffling the error array for the 4 qubits if not all values are the same
+            if np.unique(random_error_array).size > 1:
+                np.random.shuffle(random_error_array)
+            elif random_error_array[0] == "I":
+                continue
 
             for i, dir in enumerate(self.dirs):
+                if random_error_array[i] == "I":
+                    continue
+
                 if dir in stab.neighbors:
                     _, edge = stab.neighbors[dir]
-
-                    if random_error_array[i] == "I":
-                        continue
 
                     if random_error_array[i] == "X":
                         edge.qubit.E[0].state = (1 + edge.qubit.E[0].state) % 2

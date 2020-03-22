@@ -4,13 +4,19 @@ import pandas as pd
 
 class SuperOperator:
 
-    def __init__(self, file_name):
+    def __init__(self, file_name, graph):
         self.file_name = file_name
 
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
         self.sup_op_elements_s = []
+        self.weights_p = []
+        self.weights_s = []
 
+        # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
+        self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = [], [], [], []
+
+        self._get_stabilizer_rounds(graph)
         self._convert_error_list()
 
     def __repr__(self):
@@ -25,12 +31,15 @@ class SuperOperator:
             reader = pd.read_csv(file, sep=";")
 
             for i in range(len(list(reader.p_prob))):
-                sup_op_el_p = SuperOperatorElement(float(reader.p_prob[i].replace(',', '.')), int(reader.p_lie[i]),
-                                                   [ch for ch in reader.p_error[i]])
-                sup_op_el_s = SuperOperatorElement(float(reader.s_prob[i].replace(',', '.')), int(reader.s_lie[i]),
-                                                   [ch for ch in reader.s_error[i]])
+                p_prob = float(reader.p_prob[i].replace(',', '.'))
+                s_prob = float(reader.s_prob[i].replace(',', '.'))
+                sup_op_el_p = SuperOperatorElement(p_prob, int(reader.p_lie[i]), [ch for ch in reader.p_error[i]])
+                sup_op_el_s = SuperOperatorElement(s_prob, int(reader.s_lie[i]), [ch for ch in reader.s_error[i]])
                 self.sup_op_elements_p.append(sup_op_el_p)
                 self.sup_op_elements_s.append(sup_op_el_s)
+
+                self.weights_p.append(p_prob)
+                self.weights_s.append(s_prob)
 
         if np.round(np.sum(self.sup_op_elements_p), 6) != 1.0 or np.round(np.sum(self.sup_op_elements_s), 6) != 1.0:
             raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
@@ -38,6 +47,32 @@ class SuperOperator:
                              "Check your superoperator csv."
                              .format(np.sum(self.sup_op_elements_p), 1.0-np.sum(self.sup_op_elements_p),
                                      np.sum(self.sup_op_elements_s), 1.0-np.sum(self.sup_op_elements_s)))
+
+    def _get_stabilizer_rounds(self, graph, stab_type=None, z=0):
+        # if stab_type is not None:
+        #     if re.match('.*star.*|[0]', str(stab_type), flags=re.IGNORECASE) is not None:
+        #         stab_type = 0
+        #     elif re.match('.*plaq.*|[1]', str(stab_type), flags=re.IGNORECASE) is not None:
+        #         stab_type = 1
+        #     else:
+        #         raise ValueError("No valid stabilizer type provided, expected 'star' or 'plaquette'.")
+
+        stabs_p = []
+        stabs_s = []
+
+        for stab in graph.S[z].values():
+            if stab.sID[0] == 0:
+                stabs_s.append(stab)
+            else:
+                stabs_p.append(stab)
+
+        self.stabs_p1 = np.array(stabs_p)[::2]
+        self.stabs_p2 = np.array(stabs_p)[1::2]
+        self.stabs_s1 = np.array(stabs_s)[::2]
+        self.stabs_s2 = np.array(stabs_s)[1::2]
+
+    def set_stabilizer_rounds(self, z):
+        self._get_stabilizer_rounds(z=z)
 
 
 class SuperOperatorElement:
