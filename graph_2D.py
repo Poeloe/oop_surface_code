@@ -248,8 +248,8 @@ class toric(object):
         measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
                                                          self.superoperator.weights_s,
                                                          self.superoperator.stabs_s2)
-        self.measure_stab(stabs=self.superoperator.stabs_p1, measurement_errors=measurement_errors_p2)
-        self.measure_stab(stabs=self.superoperator.stabs_s1, measurement_errors=measurement_errors_s2)
+        self.measure_stab(stabs=self.superoperator.stabs_p2, measurement_errors=measurement_errors_p2)
+        self.measure_stab(stabs=self.superoperator.stabs_s2, measurement_errors=measurement_errors_s2)
 
     def superoperator_error(self, superoperator_elements, weights, stabs):
         measurement_errors = []
