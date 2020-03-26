@@ -41,12 +41,12 @@ class SuperOperator:
                 self.weights_p.append(p_prob)
                 self.weights_s.append(s_prob)
 
-        if np.round(np.sum(self.sup_op_elements_p), 6) != 1.0 or np.round(np.sum(self.sup_op_elements_s), 6) != 1.0:
+        if round(sum(self.sup_op_elements_p), 6) != 1.0 or round(sum(self.sup_op_elements_s), 6) != 1.0:
             raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
                              "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
                              "Check your superoperator csv."
-                             .format(np.sum(self.sup_op_elements_p), 1.0-np.sum(self.sup_op_elements_p),
-                                     np.sum(self.sup_op_elements_s), 1.0-np.sum(self.sup_op_elements_s)))
+                             .format(sum(self.sup_op_elements_p), 1.0-sum(self.sup_op_elements_p),
+                                     sum(self.sup_op_elements_s), 1.0-sum(self.sup_op_elements_s)))
 
     def _get_stabilizer_rounds(self, graph, stab_type=None, z=0):
         # if stab_type is not None:
