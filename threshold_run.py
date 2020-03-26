@@ -87,7 +87,7 @@ def run_thresholds(
 
             superop = None
             if superoperator:
-                px = 0
+                pi = 0
                 superop = superoperator[i]
 
             oopsc_args = dict(
