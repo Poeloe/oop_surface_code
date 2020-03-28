@@ -61,15 +61,17 @@ class SuperOperator:
         stabs_s = []
 
         for stab in graph.S[z].values():
-            if stab.sID[0] == 0:
-                stabs_s.append(stab)
+            even_odd = stab.sID[1] % 2
+            if stab.sID[2] % 2 == even_odd:
+                if stab.sID[0] == 0:
+                    self.stabs_s1.append(stab)
+                else:
+                    self.stabs_p1.append(stab)
             else:
-                stabs_p.append(stab)
-
-        self.stabs_p1 = np.array(stabs_p)[::2]
-        self.stabs_p2 = np.array(stabs_p)[1::2]
-        self.stabs_s1 = np.array(stabs_s)[::2]
-        self.stabs_s2 = np.array(stabs_s)[1::2]
+                if stab.sID[0] == 0:
+                    self.stabs_s2.append(stab)
+                else:
+                    self.stabs_p2.append(stab)
 
     def set_stabilizer_rounds(self, z):
         self._get_stabilizer_rounds(z=z)
