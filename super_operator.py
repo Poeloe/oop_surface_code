@@ -14,7 +14,7 @@ class SuperOperator:
         self.weights_s = []
 
         # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
-        self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = [], [], [], []
+        self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
         self._get_stabilizer_rounds(graph)
         self._convert_error_list()
@@ -48,33 +48,30 @@ class SuperOperator:
                              .format(sum(self.sup_op_elements_p), 1.0-sum(self.sup_op_elements_p),
                                      sum(self.sup_op_elements_s), 1.0-sum(self.sup_op_elements_s)))
 
-    def _get_stabilizer_rounds(self, graph, stab_type=None, z=0):
-        # if stab_type is not None:
-        #     if re.match('.*star.*|[0]', str(stab_type), flags=re.IGNORECASE) is not None:
-        #         stab_type = 0
-        #     elif re.match('.*plaq.*|[1]', str(stab_type), flags=re.IGNORECASE) is not None:
-        #         stab_type = 1
-        #     else:
-        #         raise ValueError("No valid stabilizer type provided, expected 'star' or 'plaquette'.")
-
-        stabs_p = []
-        stabs_s = []
+    def _get_stabilizer_rounds(self, graph, z=0):
+        if z in self.stabs_p1:
+            return
+        else:
+            self.stabs_p1[z] = []
+            self.stabs_p2[z] = []
+            self.stabs_s1[z] = []
+            self.stabs_s2[z] = []
 
         for stab in graph.S[z].values():
             even_odd = stab.sID[1] % 2
             if stab.sID[2] % 2 == even_odd:
                 if stab.sID[0] == 0:
-                    self.stabs_s1.append(stab)
+                    self.stabs_s1[z].append(stab)
                 else:
-                    self.stabs_p1.append(stab)
+                    self.stabs_p1[z].append(stab)
             else:
                 if stab.sID[0] == 0:
-                    self.stabs_s2.append(stab)
+                    self.stabs_s2[z].append(stab)
                 else:
-                    self.stabs_p2.append(stab)
+                    self.stabs_p2[z].append(stab)
 
-    def set_stabilizer_rounds(self, z):
-        self._get_stabilizer_rounds(z=z)
+    def set_stabilizer_rounds(self, graph, z):
+        self._get_stabilizer_rounds(graph, z=z)
 
 
 class SuperOperatorElement:
