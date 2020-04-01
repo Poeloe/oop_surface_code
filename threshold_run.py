@@ -98,7 +98,7 @@ def run_thresholds(
                 processes=threads,
                 progressbar=progressbar
             )
-            if measurement_error:
+            if measurement_error and superoperator is None:
                 oopsc_args.update(measurex=pi)
             output = run_oopsc(lati, config, iters, graph=graph, **oopsc_args)
 
