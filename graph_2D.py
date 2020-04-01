@@ -229,29 +229,30 @@ class toric(object):
 
     def init_superoperator_error_per_timestep(self, z=0):
         if z != 0:
-            self.superoperator.set_stabilizer_rounds(z)
+            self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # Apply error and measure stabilizers with according measurement error (round 1)
         measurement_errors_p1 = self.superoperator_error(self.superoperator.sup_op_elements_p,
                                                          self.superoperator.weights_p,
-                                                         self.superoperator.stabs_p1)
+                                                         self.superoperator.stabs_p1[z],
+                                                         z)
         measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
                                                          self.superoperator.weights_s,
-                                                         self.superoperator.stabs_s1)
-        self.measure_stab(stabs=self.superoperator.stabs_p1, measurement_errors=measurement_errors_p1)
-        self.measure_stab(stabs=self.superoperator.stabs_s1, measurement_errors=measurement_errors_s1)
+                                                         self.superoperator.stabs_s1[z])
+        self.measure_stab(stabs=self.superoperator.stabs_p1[z], measurement_errors=measurement_errors_p1, z=z)
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z], measurement_errors=measurement_errors_s1, z=z)
 
         # Apply error and measure stabilizers with according measurement error (round 2)
         measurement_errors_p2 = self.superoperator_error(self.superoperator.sup_op_elements_p,
                                                          self.superoperator.weights_p,
-                                                         self.superoperator.stabs_p2)
+                                                         self.superoperator.stabs_p2[z])
         measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
                                                          self.superoperator.weights_s,
-                                                         self.superoperator.stabs_s2)
-        self.measure_stab(stabs=self.superoperator.stabs_p2, measurement_errors=measurement_errors_p2)
-        self.measure_stab(stabs=self.superoperator.stabs_s2, measurement_errors=measurement_errors_s2)
+                                                         self.superoperator.stabs_s2[z])
+        self.measure_stab(stabs=self.superoperator.stabs_p2[z], measurement_errors=measurement_errors_p2, z=z)
+        self.measure_stab(stabs=self.superoperator.stabs_s2[z], measurement_errors=measurement_errors_s2, z=z)
 
-    def superoperator_error(self, superoperator_elements, weights, stabs):
+    def superoperator_error(self, superoperator_elements, weights, stabs, z=0):
         measurement_errors = []
 
         for stab in stabs:
@@ -263,17 +264,24 @@ class toric(object):
             random_error_array = random_super_op_element.error_array
 
             # Apply 'Twirling' by shuffling the error array for the 4 qubits if not all values are the same
-            if random_error_array == ["I", "I", "I", "I"]:
+            if random_error_array == ["I", "I", "I", "I"] and z == 0:
                 continue
 
             np.random.shuffle(random_error_array)
 
             for i, dir in enumerate(self.dirs):
-                if random_error_array[i] == "I":
-                    continue
 
                 if dir in stab.neighbors:
                     _, edge = stab.neighbors[dir]
+
+                    # In the first round of applying error, the qubits should be updated with the value in the previous
+                    # z dimension
+                    if z != 0:
+                        edge.qubit.E[0].state, edge.qubit.E[1].state = (self.Q[z-1][edge.qubit.qID].E[n].state
+                                                                        for n in [0, 1])
+
+                    if random_error_array[i] == "I":
+                        continue
 
                     if random_error_array[i] == "X":
                         edge.qubit.E[0].state = (1 + edge.qubit.E[0].state) % 2
