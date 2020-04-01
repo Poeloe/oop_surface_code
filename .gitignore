@@ -6,7 +6,9 @@
 *.so
 *.pkl
 *.csv
+*.xlsx
 *.txt
+*.lprof
 __pycache__/
 errors/
 figures/
