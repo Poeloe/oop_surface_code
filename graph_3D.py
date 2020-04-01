@@ -125,12 +125,12 @@ class toric(go.toric):
         # first layers initilized with measurement error
         for z in self.range[:-1]:
             self.init_erasure(pE=pE, z=z)
-            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
+            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z, set_prev_value=True)
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
 
         # final layer initialized with perfect measurements
         self.init_erasure(pE=pE, z=self.decode_layer)
-        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
+        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer, set_prev_value=True)
         self.measure_stab(pmX=0, pmZ=0, z=self.decode_layer)
 
         if self.gl_plot:
@@ -192,7 +192,7 @@ class toric(go.toric):
                     qubitu.E[1].state = 1 - qubitu.E[1].state
 
 
-    def init_pauli(self, pX=0, pZ=0, pE=0, z=0, **kwargs):
+    def init_pauli(self, pX=0, pZ=0, pE=0, z=0, set_prev_value=False, **kwargs):
         """
         initates Pauli X and Z errors on the lattice based on the error rates
         Qubit states from previous layer are copied to this layer, whereafter pauli error is applied.
@@ -204,7 +204,7 @@ class toric(go.toric):
         for qubitu in self.Q[z].values():
 
             # Get qubit state from previous layer if not aleady done
-            if pE == 0 and z != 0:
+            if pE == 0 and z != 0 and set_prev_value:
                 qubitu.E[0].state, qubitu.E[1].state = (self.Q[z-1][qubitu.qID].E[n].state for n in [0, 1])
 
             # Apply errors
@@ -231,18 +231,14 @@ class toric(go.toric):
             stab.parity = 0
             for dir in self.dirs:
                 if dir in stab.neighbors:
-                    vertex, edge = stab.neighbors[dir]
+                    _, edge = stab.neighbors[dir]
                     if edge.state:
                         stab.parity = 1 - stab.parity
 
-            # Apply measurement error
+            # Apply measurement error unless the layer is equal to the decode layer
             pM = pmX if stab.sID[0] == 0 else pmZ
-            if pM != 0 and random.random() < pM:
-                stab.parity = 1 - stab.parity
-                stab.mstate = 1
-
-            # Apply measurement error in case of superoperator
-            if measurement_errors is not None and measurement_errors[i] == -1:
+            if (z != self.decode_layer) and ((pM != 0 and random.random() < pM) or
+                                             (measurement_errors is not None and measurement_errors[i] == -1)):
                 stab.parity = 1 - stab.parity
                 stab.mstate = 1
 
