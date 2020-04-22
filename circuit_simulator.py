@@ -2,14 +2,14 @@ import numpy as np
 from tqdm import tqdm
 from scipy import sparse as sp
 import itertools as it
+import random
 from scipy.linalg import eigh, inv
 from pprint import pprint
 
-
-ket_0 = np.array([[1,0]]).T
-ket_1 = np.array([[0,1]]).T
-ket_p = 1/np.sqrt(2) * (ket_0 + ket_1)
-ket_m = 1/np.sqrt(2) * (ket_0 - ket_1)
+ket_0 = np.array([[1, 0]]).T
+ket_1 = np.array([[0, 1]]).T
+ket_p = 1 / np.sqrt(2) * (ket_0 + ket_1)
+ket_m = 1 / np.sqrt(2) * (ket_0 - ket_1)
 ket_00 = np.array([[1, 0, 0, 0]]).T
 ket_11 = np.array([[0, 0, 0, 1]]).T
 
@@ -17,7 +17,7 @@ X = np.array([[0, 1], [1, 0]])
 Y = np.array([[0, -1j], [1j, 0]])
 Z = np.array([[1, 0], [0, -1]])
 I = np.array([[1, 0], [0, 1]])
-H = 1/np.sqrt(2) * np.array([[1, 1], [1, -1]])
+H = 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]])
 
 
 def state_repr(state):
@@ -53,6 +53,14 @@ def KP(*args):
         result = sp.csr_matrix(sp.kron(result, state))
     return sp.csr_matrix(result)
 
+def _get_value_by_prob(array, p):
+    r = random.random()
+    index = 0
+    while r >= 0 and index < len(p):
+        r -= p[index]
+        index += 1
+    return array[index - 1]
+
 
 def CT(state1, state2=None):
     state2 = state1 if state2 is None else state2
@@ -61,10 +69,12 @@ def CT(state1, state2=None):
 
 class Circuit:
 
-    def __init__(self, num_qubits, init_density=True, pg=0.01):
+    def __init__(self, num_qubits, init_density=True, noise=False, pg=0.01, pm=0.01):
         self.num_qubits = num_qubits
-        self.d = 2**num_qubits
+        self.d = 2 ** num_qubits
+        self.noise = noise
         self.pg = pg
+        self.pm = pm
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
 
@@ -88,17 +98,20 @@ class Circuit:
 
     def get_begin_states(self):
         return KP(*self._qubit_array)
+
     """
         -----------------------------
             One-Qubit Gate Methods
         -----------------------------     
     """
 
-    def apply_1_qubit_gate(self, gate, tqubit, noise=False, pg=None):
+    def apply_1_qubit_gate(self, gate, tqubit, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
-        one_qubit_gate = self._create_1_qubit_gate(gate, tqubit)
 
+        one_qubit_gate = self._create_1_qubit_gate(gate, tqubit)
         self.density_matrix = sp.csr_matrix(one_qubit_gate.dot(CT(self.density_matrix, one_qubit_gate)))
 
         if noise:
@@ -112,27 +125,39 @@ class Circuit:
 
         return sp.csr_matrix(KP(*operations))
 
-    def X(self, tqubit, times=1, noise=False, pg=None):
+    def X(self, tqubit, times=1, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
+
         for _ in range(times):
             self.apply_1_qubit_gate(X, tqubit, noise, pg)
 
-    def Z(self, tqubit, times=1, noise=False, pg=None):
+    def Z(self, tqubit, times=1, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
+
         for _ in range(times):
             self.apply_1_qubit_gate(Z, tqubit, noise, pg)
 
-    def Y(self, tqubit, times=1, noise=False, pg=None):
+    def Y(self, tqubit, times=1, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
+
         for _ in range(times):
             self.apply_1_qubit_gate(Y, tqubit, noise, pg)
 
-    def H(self, tqubit, times=1, noise=False, pg=None):
+    def H(self, tqubit, times=1, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
+
         for _ in range(times):
             self.apply_1_qubit_gate(H, tqubit, noise, pg)
 
@@ -142,7 +167,9 @@ class Circuit:
         -----------------------------     
     """
 
-    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=False, pg=None):
+    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
         two_qubit_gate = self._create_2_qubit_gate(gate, cqubit, tqubit)
@@ -181,16 +208,79 @@ class Circuit:
         gate_2[tqubit] = gate
         return sp.csr_matrix(KP(*gate_1) + KP(*gate_2))
 
-    def CNOT(self, cqubit, tqubit, noise=False, pg=None):
+    def CNOT(self, cqubit, tqubit, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
+
         self.apply_2_qubit_gate(X, cqubit, tqubit, noise, pg)
 
-    def CZ(self, cqubit, tqubit, noise=False, pg=None):
+    def CZ(self, cqubit, tqubit, noise=None, pg=None):
+        if noise is None:
+            noise = self.noise
         if pg is None:
             pg = self.pg
+
         self.apply_2_qubit_gate(Z, cqubit, tqubit, noise, pg)
 
+    """
+        --------------------------------------
+            Density Matrix calculus Methods
+        --------------------------------------     
+    """
+
+    def measure(self, qubit, measure=None, basis="X"):
+        if basis == "X":
+            qc.H(qubit, noise=False)
+
+        # If no specific measurement outcome is given it is chosen by the hand of the probability
+        if measure is None:
+            prob1, density_matrix1 = self._measurement(qubit, measure=0)
+            prob2, density_matrix2 = self._measurement(qubit, measure=1)
+
+            self.density_matrix = _get_value_by_prob([density_matrix1, density_matrix2], [prob1, prob2])
+        else:
+            self.density_matrix = self._measurement(qubit, measure)[1]
+
+        if basis == "X":
+            qc.H(qubit, noise=False)
+
+    def _measurement(self, qubit, measure=0):
+        eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
+
+        iterations = 2**qubit
+        step = int(qc.d/(2**(qubit+1)))
+        prob = 0
+
+        # Let measurement outcome determine the states that 'survive'
+        for j, eigenvector in enumerate(eigenvectors):
+            prob_eigenvector = []
+            for i in range(iterations):
+                start = ((measure + 1) % 2) * step + (i * 2 * step)
+                start2 = measure * step + (i * 2 * step)
+                prob_eigenvector.append(eigenvector[start2: start2 + step, :])
+                eigenvector[start:start+step, :] = 0
+
+            # Get the probability of measurement outcome for the chosen qubit. This is the eigenvalue times the absolute
+            # square of the non-zero value for the qubit present in the eigenvector
+            prob_eigenvector = np.array(prob_eigenvector).flatten()
+            if np.count_nonzero(prob_eigenvector) != 0:
+                non_zero_item = prob_eigenvector[np.nonzero(prob_eigenvector)[0]]
+                print(non_zero_item)
+                prob += eigenvalues[j]*(abs(non_zero_item*np.conj(non_zero_item)))
+        prob = np.round(prob, 10)
+        print(prob)
+
+        # Create the new density matrix that is the result of the measurement outcome
+        result = np.zeros(self.density_matrix.shape)
+        for i, eigenvalue in enumerate(eigenvalues):
+            eigenvector = eigenvectors[i]
+            result += eigenvalue * CT(eigenvector)
+
+        self._draw_order.append({"M"+str(measure): qubit})
+
+        return prob, sp.csr_matrix(np.round(result/np.trace(result), 10))
     """
         --------------------------------------
             Density Matrix calculus Methods
@@ -235,7 +325,7 @@ class Circuit:
         for index in non_zero_eigenvalues_index:
             eigenvectors_list.append(eigenvectors[:, index].reshape(self.d, 1))
 
-        return eigenvalues[non_zero_eigenvalues_index], eigenvectors_list
+        return eigenvalues[non_zero_eigenvalues_index], np.round(eigenvectors_list, 10)
 
     def print_non_zero_prob_eigenvectors(self):
         eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
@@ -259,6 +349,7 @@ class Circuit:
                 kraus_op = kraus_op + CT(one_qubit_state_list[qubit_a], one_qubit_state_list[qubit_b])
 
         return kraus_op
+
     """
         -----------------------------
             Circuit drawing Methods
@@ -300,9 +391,10 @@ class Circuit:
             Gate Noise Methods
         -----------------------------     
     """
+
     def _N_single(self, pg, tqubit):
         self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
-                                            (pg/3) * self._sum_pauli_error_single(tqubit))
+                                            (pg / 3) * self._sum_pauli_error_single(tqubit))
 
     def _N(self, pg, cqubit, tqubit):
 
@@ -334,32 +426,20 @@ class Circuit:
 
     def __repr__(self):
         density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix
-        return "Circuit density matrix:\n\n{}\n\n".format(density_matrix)
+        return "\nCircuit density matrix:\n\n{}\n\n".format(density_matrix)
 
 
 if __name__ == "__main__":
-    # qc = Circuit(3, False)
-    # qc.set_qubit_states({0: ket_p})
-    # qc.CNOT(0, 1)
-    # qc.CNOT(0, 2)
-    # qc.print_non_zero_prob_eigenvectors()
-    # qc.X(1, noise=True, pg=0.01)
-    # qc.draw_circuit()
-    #
-    # print(qc)
-    # print(qc.diagonalise(0))
-    # qc.print_non_zero_prob_eigenvectors()
-    #
-
-    qc = Circuit(5, False, pg=0.09)
+    qc = Circuit(5, init_density=False, noise=True, pg=0.09)
     qc.set_qubit_states({0: ket_p})
-    qc.CNOT(0, 1, True)
-    qc.CNOT(0, 2, True)
-    qc.CNOT(0, 3, True)
-    qc.CNOT(0, 4, True)
-    qc.H(0)
+    qc.CNOT(0, 1)
+    qc.CNOT(0, 2)
+    qc.CNOT(0, 3)
+    qc.CNOT(0, 4)
+    qc.measure(0)
+
 
     qc.draw_circuit()
-
-    qc.print_non_zero_prob_eigenvectors()
     print(qc)
+    qc.print_non_zero_prob_eigenvectors()
+
