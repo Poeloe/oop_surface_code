@@ -139,9 +139,9 @@ class toric(object):
         self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
         self.measure_stab()                       # Measure stabiliziers
 
-    def apply_and_measure_superoperator_error(self, superoperator_filename):
+    def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
-            self.superoperator = so.SuperOperator(superoperator_filename, self)
+            self.superoperator = so.SuperOperator(superoperator_filename, self, GHZ_success)
 
         self.init_superoperator_error_per_timestep()
 
@@ -231,26 +231,40 @@ class toric(object):
         if z != 0:
             self.superoperator.set_stabilizer_rounds(self, z=z)
 
-        # Apply error and measure stabilizers with according measurement error (round 1)
+        # First apply error and measure plaquette stabilizers in two rounds
         measurement_errors_p1 = self.superoperator_error(self.superoperator.sup_op_elements_p,
                                                          self.superoperator.weights_p,
                                                          self.superoperator.stabs_p1[z],
                                                          z)
-        measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.weights_s,
-                                                         self.superoperator.stabs_s1[z])
-        self.measure_stab(stabs=self.superoperator.stabs_p1[z], measurement_errors=measurement_errors_p1, z=z)
-        self.measure_stab(stabs=self.superoperator.stabs_s1[z], measurement_errors=measurement_errors_s1, z=z)
+        self.measure_stab(stabs=self.superoperator.stabs_p1[z],
+                          measurement_errors=measurement_errors_p1,
+                          z=z,
+                          GHZ_success=self.superoperator.GHZ_success)
 
-        # Apply error and measure stabilizers with according measurement error (round 2)
         measurement_errors_p2 = self.superoperator_error(self.superoperator.sup_op_elements_p,
                                                          self.superoperator.weights_p,
                                                          self.superoperator.stabs_p2[z])
+        self.measure_stab(stabs=self.superoperator.stabs_p2[z],
+                          measurement_errors=measurement_errors_p2,
+                          z=z,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # The apply error and measure star stabilizers in two rounds
+        measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
+                                                         self.superoperator.weights_s,
+                                                         self.superoperator.stabs_s1[z])
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
+                          measurement_errors=measurement_errors_s1,
+                          z=z,
+                          GHZ_success=self.superoperator.GHZ_success)
+
         measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
                                                          self.superoperator.weights_s,
                                                          self.superoperator.stabs_s2[z])
-        self.measure_stab(stabs=self.superoperator.stabs_p2[z], measurement_errors=measurement_errors_p2, z=z)
-        self.measure_stab(stabs=self.superoperator.stabs_s2[z], measurement_errors=measurement_errors_s2, z=z)
+        self.measure_stab(stabs=self.superoperator.stabs_s2[z],
+                          measurement_errors=measurement_errors_s2,
+                          z=z,
+                          GHZ_success=self.superoperator.GHZ_success)
 
     def superoperator_error(self, superoperator_elements, weights, stabs, z=0):
         measurement_errors = []

@@ -4,8 +4,9 @@ import pandas as pd
 
 class SuperOperator:
 
-    def __init__(self, file_name, graph):
+    def __init__(self, file_name, graph, GHZ_success=1.1):
         self.file_name = file_name
+        self.GHZ_success = GHZ_success
 
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
@@ -29,6 +30,10 @@ class SuperOperator:
 
         with open(self.file_name) as file:
             reader = pd.read_csv(file, sep=";")
+
+            # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
+            if reader.__contains__('GHZ_success') and self.GHZ_success == 1.1:
+                self.GHZ_success = float(reader.GHZ_success[0].replace(',', '.'))
 
             for i in range(len(list(reader.p_prob))):
                 p_prob = float(reader.p_prob[i].replace(',', '.'))

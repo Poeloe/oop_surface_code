@@ -145,9 +145,9 @@ class toric(go.toric):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
-    def apply_and_measure_superoperator_error(self, superoperator_filename):
+    def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
-            self.superoperator = so.SuperOperator(superoperator_filename, self)
+            self.superoperator = so.SuperOperator(superoperator_filename, self, GHZ_success)
         for z in self.range[:-1]:
             self.init_superoperator_error_per_timestep(z)
 
@@ -214,7 +214,7 @@ class toric(go.toric):
                 qubitu.E[1].state = 1 - qubitu.E[1].state
 
 
-    def measure_stab(self, pmX=0, pmZ=0, z=0, **kwargs):
+    def measure_stab(self, pmX=0, pmZ=0, z=0, GHZ_success=1, **kwargs):
         """
         The measurement outcomes of the stabilizers, which are the vertices on the self are saved to their corresponding vertex objects.
         """
@@ -226,6 +226,11 @@ class toric(go.toric):
             measurement_errors = kwargs["measurement_errors"]
 
         for i, stab in enumerate(stabs):
+
+            # If GHZ state is malformed measurement result will be the result of previous layer and rest will be skipped
+            if (random.random() > GHZ_success):
+                stab.parity = 0 if z == 0 else self.S[z-1][stab.sID[:3]].parity
+                continue
 
             # Get parity of stabilizer
             stab.parity = 0

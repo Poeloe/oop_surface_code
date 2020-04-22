@@ -86,13 +86,17 @@ def run_thresholds(
             print("Calculating for L = ", str(lati), "and p =", str(pi))
 
             superop = None
+            GHZ_success = None
             if superoperator:
                 pi = 0
                 superop = superoperator[i]
+                if "GHZ_success" in kwargs:
+                    GHZ_success = kwargs["GHZ_success"][i]
 
             oopsc_args = dict(
                 paulix=pi,
                 superoperator=superop,
+                GHZ_success=GHZ_success,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,
@@ -189,6 +193,9 @@ if __name__ == "__main__":
         ["-dgc", "--dg_connections", "store_true", "use dg_connections pre-union processing - toggle", dict()],
         ["-dg", "--directed_graph", "store_true", "use directed graph for evengrow - toggle", dict()],
         ["-db", "--debug", "store_true", "enable debugging hearistics - toggle", dict()],
+        ["-GHZ", "--GHZ_success", "store", "specify the percentage of GHZ states that are successfully created "
+                                           "(works only with superoperator) - float [0-1]",
+         dict(type=float, nargs='*', metavar="")]
     ]
 
     add_args(parser, key_arguments)
