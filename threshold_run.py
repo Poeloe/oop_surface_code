@@ -145,7 +145,7 @@ def run_thresholds(
 if __name__ == "__main__":
 
     import argparse
-    from oopsc import add_args
+    from run_oopsc import add_args
 
     parser = argparse.ArgumentParser(
         prog="threshold_run",
