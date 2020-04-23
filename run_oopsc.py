@@ -46,7 +46,7 @@ sim_arguments = [
 
 decoder_arguments = [
     ["-dgc", "--dg_connections", "store_true", "use dg_connections pre-union processing - toggle", dict()],
-    ["-dg", "--directed_graph", "store_true", "use directed graph for evengrow - toggle", dict()],
+    ["-dg", "--directed_graph", "store_true", "use directed graph for balanced bloom - toggle", dict()],
     ["-db", "--debug", "store_true", "enable debugging hearistics - toggle", dict()]
 ]
 
@@ -96,29 +96,31 @@ print(f"{'_' * 75}\n")
 print(f"OOP surface code simulations\n2020 Mark Shui Hu, QuTech\nwww.github.com/watermarkhu/oop_surface_code")
 
 if decoder == "mwpm":
-    import mwpm as decode
+    from oopsc.decoder import mwpm as decode
 
     print(f"{'_' * 75}\n\ndecoder type: minimum weight perfect matching (blossom5)")
 elif decoder == "uf":
-    import unionfind as decode
+    from oopsc.decoder import uf as decode
 
     print(f"{'_' * 75}\n\ndecoder type: unionfind")
     if args["dg_connections"]:
         print(f"{'_' * 75}\n\nusing dg_connections pre-union processing")
-elif decoder == "eg":
-    import unionfind_eg as decode
+elif decoder == "ufbb":
+    from oopsc.decoder import ufbb as decode
 
-    print("{}\n\ndecoder type: unionfind evengrow with {} graph".format("_" * 75, "directed" if args[
-        "directed_graph"] else "undirected"))
+    print("{}\n\ndecoder type: unionfind balanced bloom with {} graph".format("_" * 75, "directed" if args[
+            "directed_graph"] else "undirected"))
+
     if args["dg_connections"]:
         print(f"{'_' * 75}\n\nusing dg_connections pre-union processing")
 
 if (not f3d and config["measurex"] == 0 and config["measurez"] == 0) or f2d:
-    import graph_2D as go
+    from oopsc.graph import graph_2D as go
 
     print(f"{'_' * 75}\n\ngraph type: 2D {config['ltype']}\n{'_' * 75}\n")
+
 else:
-    import graph_3D as go
+    from oopsc.graph import graph_3D as go
 
     print(f"{'_' * 75}\n\ngraph type: 3D {config['ltype']}\n{'_' * 75}\n")
 
