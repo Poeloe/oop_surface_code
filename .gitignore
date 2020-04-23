@@ -16,4 +16,5 @@ data/
 logs/
 batch/
 .idea/
+.python-version
 !requirements.txt
