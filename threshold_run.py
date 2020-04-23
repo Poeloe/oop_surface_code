@@ -6,7 +6,7 @@ _____________________________________________
 
 '''
 
-import oopsc
+import oopsc.oopsc as oopsc
 from threshold_plot import plot_thresholds
 from threshold_fit import fit_data
 from pprint import pprint
@@ -42,9 +42,9 @@ def run_thresholds(
     run_oopsc = oopsc.multiprocess if multithreading else oopsc.multiple
 
     if measurement_error:
-        import graph_3D as go
+        from oopsc.graph import graph_3D as go
     else:
-        import graph_2D as go
+        from oopsc.graph import graph_2D as go
 
     sys.setrecursionlimit(100000)
     r = git.Repo(os.path.dirname(__file__))
@@ -145,7 +145,13 @@ def run_thresholds(
 if __name__ == "__main__":
 
     import argparse
-    from run_oopsc import add_args
+
+
+    def add_args(parser, args, group_name=None, description=None):
+        if group_name:
+            parser = parser.add_argument_group(group_name, description)
+        for sid, lid, action, help, kwargs in args:
+            parser.add_argument(sid, lid, action=action, help=help, **kwargs)
 
     parser = argparse.ArgumentParser(
         prog="threshold_run",
@@ -198,6 +204,8 @@ if __name__ == "__main__":
          dict(type=float, nargs='*', metavar="")]
     ]
 
+    # from run_oopsc import add_args
+
     add_args(parser, key_arguments)
 
     args=vars(parser.parse_args())
@@ -205,15 +213,15 @@ if __name__ == "__main__":
 
 
     if decoder == "mwpm":
-        import mwpm as decode
+        from oopsc.decoder import mwpm as decode
         print(f"{'_'*75}\n\ndecoder type: minimum weight perfect matching (blossom5)")
     elif decoder == "uf":
-        import unionfind as decode
+        from oopsc.decoder import uf as decode
         print(f"{'_'*75}\n\ndecoder type: unionfind")
         if args["dg_connections"]:
             print(f"{'_'*75}\n\nusing dg_connections pre-union processing")
     elif decoder == "eg":
-        import unionfind_eg as decode
+        from oopsc.decoder import ufbb as decode
         print("{}\n\ndecoder type: unionfind evengrow with {} graph".format("_"*75,"directed" if args["directed_graph"] else "undirected"))
         if args["dg_connections"]:
             print(f"{'_'*75}\n\nusing dg_connections pre-union processing")
