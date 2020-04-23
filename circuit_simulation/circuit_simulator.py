@@ -46,12 +46,13 @@ def gate_name(gate):
 
 def KP(*args):
     result = None
-    for state in tqdm(args):
+    for state in args:
         if result is None:
             result = sp.csr_matrix(state)
             continue
         result = sp.csr_matrix(sp.kron(result, state))
     return sp.csr_matrix(result)
+
 
 def _get_value_by_prob(array, p):
     r = random.random()
@@ -243,10 +244,44 @@ class Circuit:
         else:
             self.density_matrix = self._measurement(qubit, measure)[1]
 
+        self._draw_order.append({"M": qubit})
+
         if basis == "X":
             qc.H(qubit, noise=False)
 
     def _measurement(self, qubit, measure=0):
+        """
+        This private method calculates the probability of a certain measurement outcome and calculates the
+        resulting density matrix after the measurement has taken place.
+
+        ----
+        Probability calculation:
+
+        From the eigenvectors and the eigenvalues of the density matrix before the measurement, first the probability
+        of the specified outcome (0 or 1) for the given qubit is calculated. This is done by setting the opposite
+        outcome for the qubit to 0 in the eigenvectors. Remember, the eigenvectors represent a system state and are thus
+        the possible qubit states tensored. Thus an eigenvector is built up as:
+
+        |a_1|   |b_1|   |c_1|   |a_1 b_1 c_1|
+        |   | * |   | * |   | = |a_1 b_1 c_2| (and so on)
+        |a_2|   |b_2|   |c_2|   |a_1 b_2 c_1|
+                                      :
+
+        So lets say that we measure qubit c to be 1, this means that c_1 is zero. For each eigenvector we will set the
+        elements that contain c_2 to zero, which leaves us with the states (if not a zero vector) that survive after
+        the measurement. While setting these elements to zero, the other elements (that contain c_2) are saved to an
+        array. From this array, the non-zero array is obtained which is then absolute squared, summed and multiplied
+        with the eigenvalue for that eigenvector. These values obtained from all the eigenvectors are then summed to
+        obtain the probability for the given outcome.
+
+        ----
+
+        Density matrix calculation:
+
+        The density matrix after the measurement is obtained by taking the CT of the adapted eigenvectors by the
+        probability calculations, multiply the result with the eigenvalue for that eigenvector and add all resulting
+        matrices.
+        """
         eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
 
         iterations = 2**qubit
@@ -266,19 +301,15 @@ class Circuit:
             # square of the non-zero value for the qubit present in the eigenvector
             prob_eigenvector = np.array(prob_eigenvector).flatten()
             if np.count_nonzero(prob_eigenvector) != 0:
-                non_zero_item = prob_eigenvector[np.nonzero(prob_eigenvector)[0]]
-                print(non_zero_item)
-                prob += eigenvalues[j]*(abs(non_zero_item*np.conj(non_zero_item)))
+                non_zero_items = prob_eigenvector[np.flatnonzero(prob_eigenvector)]
+                prob += eigenvalues[j]*np.sum(abs(non_zero_items)**2)
         prob = np.round(prob, 10)
-        print(prob)
 
         # Create the new density matrix that is the result of the measurement outcome
         result = np.zeros(self.density_matrix.shape)
         for i, eigenvalue in enumerate(eigenvalues):
             eigenvector = eigenvectors[i]
             result += eigenvalue * CT(eigenvector)
-
-        self._draw_order.append({"M"+str(measure): qubit})
 
         return prob, sp.csr_matrix(np.round(result/np.trace(result), 10))
     """
@@ -438,8 +469,8 @@ if __name__ == "__main__":
     qc.CNOT(0, 4)
     qc.measure(0)
 
-
+    print(qc.get_kraus_operator(0, 1))
     qc.draw_circuit()
-    print(qc)
-    qc.print_non_zero_prob_eigenvectors()
+    # print(qc)
+    # qc.print_non_zero_prob_eigenvectors()
 
