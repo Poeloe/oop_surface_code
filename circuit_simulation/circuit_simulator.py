@@ -3,6 +3,8 @@ import time
 from scipy import sparse as sp
 import itertools as it
 import random
+import copy
+from multiprocessing.pool import ThreadPool
 from scipy.linalg import eigh
 
 ket_0 = np.array([[1, 0]]).T
@@ -285,10 +287,19 @@ class Circuit:
 
         # If no specific measurement outcome is given it is chosen by the hand of the probability
         if measure is None:
-            prob1, density_matrix1 = self._measurement(qubit, measure=0)
-            prob2, density_matrix2 = self._measurement(qubit, measure=1)
+            eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
 
-            self.density_matrix = _get_value_by_prob([density_matrix1, density_matrix2], [prob1, prob2])
+            pool = ThreadPool(2)
+            results = []
+
+            results.append(pool.apply_async(self._measurement, args=(qubit, 0, eigenvalues, eigenvectors)))
+            results.append(pool.apply_async(self._measurement, args=(qubit, 0, eigenvalues, eigenvectors)))
+
+            pool.close()
+            pool.join()
+            results = [r.get() for r in results]
+            self.density_matrix = _get_value_by_prob([results[0][1], results[1][1]], [results[0][0],
+                                                                                                  results[1][0]])
         else:
             self.density_matrix = self._measurement(qubit, measure)[1]
 
@@ -297,7 +308,7 @@ class Circuit:
         if basis == "X":
             qc.H(qubit, noise=False)
 
-    def _measurement(self, qubit, measure=0):
+    def _measurement(self, qubit, measure=0, eigenval=None, eigenvec=None):
         """
         This private method calculates the probability of a certain measurement outcome and calculates the
         resulting density matrix after the measurement has taken place.
@@ -330,7 +341,10 @@ class Circuit:
         probability calculations, multiply the result with the eigenvalue for that eigenvector and add all resulting
         matrices.
         """
-        eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
+        if eigenval is None:
+            eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
+        else:
+            eigenvalues, eigenvectors = copy.copy(eigenval), copy.copy(eigenvec)
 
         iterations = 2**qubit
         step = int(qc.d/(2**(qubit+1)))
@@ -521,12 +535,12 @@ class Circuit:
 
 if __name__ == "__main__":
     start = time.time()
-    qc = Circuit(20, init_type=2, noise=True, pg=0.09)
+    qc = Circuit(10, init_type=2, noise=True, pg=0.09)
     for i in range(1, qc.num_qubits):
         qc.CNOT(0, i)
-    # qc.measure(0)
-    #
+    qc.measure(0)
+
     # qc.print_non_zero_prob_eigenvectors()
     print("The run took {} seconds".format(time.time() - start))
-    print(qc)
-    qc.draw_circuit()
+    # print(qc)
+    # qc.draw_circuit()
