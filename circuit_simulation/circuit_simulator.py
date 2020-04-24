@@ -152,6 +152,9 @@ class Circuit:
         self._draw_order.append({gate_name(gate): tqubit})
 
     def _create_1_qubit_gate(self, gate, tqubit):
+        if np.array_equal(gate, I):
+            return sp.eye(self.d, self.d)
+
         first_id, second_id = self._create_identity_operations(tqubit)
 
         return sp.csr_matrix(KP(first_id, gate, second_id))
@@ -491,15 +494,23 @@ class Circuit:
 
     def _sum_pauli_error(self, qubit1, qubit2):
         matrices = [X, Y, Z, I]
-        result = np.zeros(self.density_matrix.shape)
+        qubit2_matrices = []
 
-        for i in matrices:
-            for j in matrices:
-                if np.array_equal(i, j) and np.array_equal(i, I):
+        result = sp.csr_matrix(self.density_matrix.shape)
+        for i in range(len(matrices)):
+            # Create the full system 1 qubit gate for qubit1
+            A = self._create_1_qubit_gate(matrices[i], qubit1)
+            for j in range(len(matrices)):
+                # Create full system 1-qubit gate for qubit2, only once for every gate
+                if i == 0:
+                    qubit2_matrices.append(self._create_1_qubit_gate(matrices[j], qubit1))
+
+                # Skip the I*I case
+                if i == j == len(matrices) - 1:
                     continue
-                A = self._create_1_qubit_gate(i, qubit1)
-                B = self._create_1_qubit_gate(j, qubit2)
-                result = result + sp.csr_matrix(A * B).dot(CT(self.density_matrix, sp.csr_matrix(A * B)))
+
+                B = qubit2_matrices[j]
+                result = result + (A * B).dot(CT(self.density_matrix, (A * B)))
 
         return sp.csr_matrix(result)
 
@@ -510,7 +521,7 @@ class Circuit:
 
 if __name__ == "__main__":
     start = time.time()
-    qc = Circuit(14, init_type=2, noise=True, pg=0.09)
+    qc = Circuit(20, init_type=2, noise=True, pg=0.09)
     for i in range(1, qc.num_qubits):
         qc.CNOT(0, i)
     # qc.measure(0)
