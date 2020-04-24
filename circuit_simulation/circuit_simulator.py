@@ -1,10 +1,9 @@
 import numpy as np
-from tqdm import tqdm
+import time
 from scipy import sparse as sp
 import itertools as it
 import random
-from scipy.linalg import eigh, inv
-from pprint import pprint
+from scipy.linalg import eigh
 
 ket_0 = np.array([[1, 0]]).T
 ket_1 = np.array([[0, 1]]).T
@@ -47,10 +46,12 @@ def gate_name(gate):
 def KP(*args):
     result = None
     for state in args:
+        if state is None:
+            continue
         if result is None:
             result = sp.csr_matrix(state)
             continue
-        result = sp.csr_matrix(sp.kron(result, state))
+        result = sp.csr_matrix(sp.kron(result, sp.csr_matrix(state)))
     return sp.csr_matrix(result)
 
 
@@ -65,12 +66,12 @@ def _get_value_by_prob(array, p):
 
 def CT(state1, state2=None):
     state2 = state1 if state2 is None else state2
-    return sp.csr_matrix(state1.dot(state2.conj().T))
+    return sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
 
 
 class Circuit:
 
-    def __init__(self, num_qubits, init_density=True, noise=False, pg=0.01, pm=0.01):
+    def __init__(self, num_qubits, init_type=None, noise=False, pg=0.01, pm=0.01):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -78,15 +79,45 @@ class Circuit:
         self.pm = pm
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
+        self.density_matrix = None
 
-        if init_density:
+        if init_type == 0:
             self._init_density_matrix()
+        elif init_type == 1:
+            self._CNOT_init_density_matrix()
+        elif init_type == 2:
+            self._standard_init_density_matrix()
 
     """
         -------------------------
             Init Methods
         -------------------------     
     """
+
+    def _standard_init_density_matrix(self):
+        self._qubit_array[0] = ket_p
+
+        density_matrix = sp.lil_matrix((self.d, self.d))
+        density_matrix[0, 0] = 1 / 2
+        density_matrix[0, self.d/2] = 1 / 2
+        density_matrix[self.d/2, 0] = 1 / 2
+        density_matrix[self.d/2, self.d/2] = 1 / 2
+
+        self.density_matrix = density_matrix
+
+    def _CNOT_init_density_matrix(self):
+        self._qubit_array[0] = ket_p
+
+        density_matrix = sp.lil_matrix((self.d, self.d))
+        density_matrix[0, 0] = 1 / 2
+        density_matrix[0, self.d-1] = 1 / 2
+        density_matrix[self.d-1, 0] = 1 / 2
+        density_matrix[self.d-1, self.d-1] = 1 / 2
+
+        self.density_matrix = density_matrix
+
+        for i in range(1, self.num_qubits):
+            self._draw_order.append({"X": (0, i)})
 
     def _init_density_matrix(self):
         state_vector = KP(*self._qubit_array)
@@ -121,10 +152,23 @@ class Circuit:
         self._draw_order.append({gate_name(gate): tqubit})
 
     def _create_1_qubit_gate(self, gate, tqubit):
-        operations = self.num_qubits * [I]
-        operations[tqubit] = gate
+        first_id, second_id = self._create_identity_operations(tqubit)
 
-        return sp.csr_matrix(KP(*operations))
+        return sp.csr_matrix(KP(first_id, gate, second_id))
+
+    def _create_identity_operations(self, tqubit):
+        first_id = None
+        second_id = None
+
+        if tqubit == 0:
+            second_id = sp.eye(2**(self.num_qubits - 1 - tqubit), 2**(self.num_qubits - 1 - tqubit))
+        elif tqubit == self.num_qubits - 1:
+            first_id = sp.eye(2**tqubit, 2**tqubit)
+        else:
+            first_id = sp.eye(2 ** tqubit, 2 ** tqubit)
+            second_id = sp.eye(2 ** (self.num_qubits - 1 - tqubit), 2 ** (self.num_qubits - 1 - tqubit))
+
+        return first_id, second_id
 
     def X(self, tqubit, times=1, noise=None, pg=None):
         if noise is None:
@@ -197,17 +241,18 @@ class Circuit:
 
                 1. I*I*I + I*I*I
                 2. I*|0><0|*I + I*|1><1|*I
-                3. I*|0><0|*I + X*|1><1|*X^(dagger)
+                3. I*|0><0|*I + X_t*|1><1|*I
 
         (In which * is the Kronecker Product) (https://quantumcomputing.stackexchange.com/questions/4252/
         how-to-derive-the-cnot-matrix-for-a-3-qbit-system-where-the-control-target-qbi)
         """
-        gate_1 = self.num_qubits * [I]
-        gate_2 = self.num_qubits * [I]
-        gate_1[cqubit] = CT(ket_0, ket_0)
-        gate_2[cqubit] = CT(ket_1, ket_1)
-        gate_2[tqubit] = gate
-        return sp.csr_matrix(KP(*gate_1) + KP(*gate_2))
+        gate_1 = self._create_1_qubit_gate(CT(ket_0), cqubit)
+        gate_2 = self._create_1_qubit_gate(CT(ket_1), cqubit)
+
+        x_gate = self._create_1_qubit_gate(X, tqubit)
+        gate_2 = x_gate.dot(gate_2)
+
+        return sp.csr_matrix(gate_1 + gate_2)
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None):
         if noise is None:
@@ -306,12 +351,15 @@ class Circuit:
         prob = np.round(prob, 10)
 
         # Create the new density matrix that is the result of the measurement outcome
-        result = np.zeros(self.density_matrix.shape)
-        for i, eigenvalue in enumerate(eigenvalues):
-            eigenvector = eigenvectors[i]
-            result += eigenvalue * CT(eigenvector)
+        if prob > 0:
+            result = np.zeros(self.density_matrix.shape)
+            for i, eigenvalue in enumerate(eigenvalues):
+                eigenvector = eigenvectors[i]
+                result += eigenvalue * CT(eigenvector)
 
-        return prob, sp.csr_matrix(np.round(result/np.trace(result), 10))
+            return prob, sp.csr_matrix(np.round(result/np.trace(result), 10))
+
+        return prob, sp.csr_matrix((self.d, self.d))
     """
         --------------------------------------
             Density Matrix calculus Methods
@@ -320,7 +368,7 @@ class Circuit:
 
     def diagonalise(self, option=3):
         if option == 0:
-            return eigh(self.density_matrix.toarray())[0]
+            return eigh(self.density_matrix.toarray(), eigvals_only=True)
         if option == 1:
             return eigh(self.density_matrix.toarray())[1]
         else:
@@ -461,16 +509,13 @@ class Circuit:
 
 
 if __name__ == "__main__":
-    qc = Circuit(5, init_density=False, noise=True, pg=0.09)
-    qc.set_qubit_states({0: ket_p})
-    qc.CNOT(0, 1)
-    qc.CNOT(0, 2)
-    qc.CNOT(0, 3)
-    qc.CNOT(0, 4)
-    qc.measure(0)
-
-    print(qc.get_kraus_operator(0, 1))
-    qc.draw_circuit()
-    # print(qc)
+    start = time.time()
+    qc = Circuit(14, init_type=2, noise=True, pg=0.09)
+    for i in range(1, qc.num_qubits):
+        qc.CNOT(0, i)
+    # qc.measure(0)
+    #
     # qc.print_non_zero_prob_eigenvectors()
-
+    print("The run took {} seconds".format(time.time() - start))
+    print(qc)
+    qc.draw_circuit()
