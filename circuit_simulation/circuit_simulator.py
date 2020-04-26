@@ -1,11 +1,17 @@
+from circuit_simulation.basic_operations import (
+    CT, KP, N_dim_ket_0_or_1_density_matrix, state_repr, get_value_by_prob, trace, gate_name
+)
 import numpy as np
 import time
 from scipy import sparse as sp
 import itertools as it
-import random
 import copy
 from scipy.linalg import eigh
+import faulthandler
 
+
+# These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
+# matrix for a circuit with a large amount of qubits
 ket_0 = np.array([[1, 0]]).T
 ket_1 = np.array([[0, 1]]).T
 ket_p = 1 / np.sqrt(2) * (ket_0 + ket_1)
@@ -18,56 +24,6 @@ Y = np.array([[0, -1j], [1j, 0]])
 Z = np.array([[1, 0], [0, -1]])
 I = np.array([[1, 0], [0, 1]])
 H = 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]])
-
-
-def state_repr(state):
-    if np.array_equal(state, ket_0):
-        return "|0>"
-    if np.array_equal(state, ket_1):
-        return "|1>"
-    if np.array_equal(state, ket_p):
-        return "|+>"
-    if np.array_equal(state, ket_m):
-        return "|->"
-
-
-def gate_name(gate):
-    if np.array_equal(gate, X):
-        return "X"
-    if np.array_equal(gate, Y):
-        return "Y"
-    if np.array_equal(gate, Z):
-        return "Z"
-    if np.array_equal(gate, I):
-        return "I"
-    if np.array_equal(gate, H):
-        return "H"
-
-
-def KP(*args):
-    result = None
-    for state in args:
-        if state is None:
-            continue
-        if result is None:
-            result = sp.csr_matrix(state)
-            continue
-        result = sp.csr_matrix(sp.kron(result, sp.csr_matrix(state)))
-    return sp.csr_matrix(result)
-
-
-def _get_value_by_prob(array, p):
-    r = random.random()
-    index = 0
-    while r >= 0 and index < len(p):
-        r -= p[index]
-        index += 1
-    return array[index - 1]
-
-
-def CT(state1, state2=None):
-    state2 = state1 if state2 is None else state2
-    return sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
 
 
 class Circuit:
@@ -321,6 +277,52 @@ class Circuit:
             Density Matrix calculus Methods
         --------------------------------------     
     """
+    def measure_first_N_qubits(self, N, noise=None, pm=None, keep_qubits=False, basis="X", measure="even"):
+        if noise is None:
+            noise = self.noise
+        if pm is None:
+            pm = self.pm
+
+        for qubit in range(N):
+            if basis == "X":
+                self.H(qubit)
+
+            # if measure != "even" and qubit % 2 == 1:
+            #     self._measurement_first_qubit(measure=1, pm=pm)
+            self._measurement_first_qubit(measure=0, noise=noise, pm=pm)
+
+            self._draw_order.append({"M": qubit})
+
+            if keep_qubits:
+                if basis == "X":
+                    self.H(qubit)
+
+        density_matrix = self.density_matrix
+
+        if keep_qubits:
+            density_matrix = sp.kron(N_dim_ket_0_or_1_density_matrix(N), self.density_matrix)
+            self.num_qubits += N
+            self.d = 2**self.num_qubits
+
+        self.density_matrix = density_matrix / trace(density_matrix)
+
+    def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):
+        density_matrix_0 = self.density_matrix[:int(self.d/2), :int(self.d/2)]
+        density_matrix_1 = self.density_matrix[int(self.d/2):, int(self.d/2):]
+
+        if measure == 0 and noise:
+            density_matrix = (1 - pm) * density_matrix_0 + pm * density_matrix_1
+        elif noise:
+            density_matrix = (1 - pm) * density_matrix_1 + pm * density_matrix_0
+        elif measure == 0:
+            density_matrix = density_matrix_0
+        else:
+            density_matrix = density_matrix_1
+
+        self.density_matrix = density_matrix
+
+        self.num_qubits -= 1
+        self.d = 2**self.num_qubits
 
     def measure(self, qubit, measure=None, basis="X"):
         if basis == "X":
@@ -332,7 +334,7 @@ class Circuit:
             prob1, density_matrix1 = self._measurement(qubit, measure=0)
             prob2, density_matrix2 = self._measurement(qubit, measure=1)
 
-            self.density_matrix = _get_value_by_prob([density_matrix1, density_matrix2], [prob1, prob2])
+            self.density_matrix = get_value_by_prob([density_matrix1, density_matrix2], [prob1, prob2])
         else:
             self.density_matrix = self._measurement(qubit, measure)[1]
 
@@ -340,6 +342,7 @@ class Circuit:
 
         if basis == "X":
             qc.H(qubit, noise=False)
+
 
     def _measurement(self, qubit, measure=0, eigenval=None, eigenvec=None):
         """
@@ -416,12 +419,12 @@ class Circuit:
         --------------------------------------     
     """
 
-    def diagonalise(self, option=3):
+    def diagonalise(self, option=2):
         if option == 0:
             return eigh(self.density_matrix.toarray(), eigvals_only=True)
         if option == 1:
             return eigh(self.density_matrix.toarray())[1]
-        else:
+        if option == 2:
             return eigh(self.density_matrix.toarray())
 
     def get_non_zero_prob_eigenvectors(self):
@@ -430,16 +433,17 @@ class Circuit:
         eigenvectors_list = []
 
         for index in non_zero_eigenvalues_index:
-            eigenvectors_list.append(eigenvectors[:, index].reshape(self.d, 1))
+            eigenvector = sp.csr_matrix(np.round(eigenvectors[:, index].reshape(self.d, 1), 8))
+            eigenvectors_list.append(eigenvector)
 
-        return eigenvalues[non_zero_eigenvalues_index], np.round(eigenvectors_list, 10)
+        return eigenvalues[non_zero_eigenvalues_index], eigenvectors_list
 
     def print_non_zero_prob_eigenvectors(self):
         eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
 
         print_line = "\n\n ---- Eigenvalues and Eigenvectors ---- \n\n"
         for i, eigenvalue in enumerate(eigenvalues):
-            print_line += "eigenvalue: {}\n\neigenvector:\n {}\n---\n".format(eigenvalue, eigenvectors[i])
+            print_line += "eigenvalue: {}\n\neigenvector:\n {}\n---\n".format(eigenvalue, eigenvectors[i].toarray())
 
         print(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
 
@@ -447,37 +451,48 @@ class Circuit:
         # Obtain statevector by diagonalising density matrix and finding the non-zero prob eigenvectors
         non_zero_eigenvalues, non_zero_eigenvectors = self.get_non_zero_prob_eigenvectors()
 
-        solutions = dict()
+        solutions = []
         for k, eigenvector in enumerate(non_zero_eigenvectors):
-            non_zero_eigenvector_value_indices = np.argwhere(eigenvector.flatten() != 0).flatten()
+            non_zero_eigenvector_value_indices = np.argwhere(eigenvector.toarray().flatten() != 0).flatten()
 
-            one_qubit_states = dict()
-            for i, index in enumerate(non_zero_eigenvector_value_indices):
-                result = []
-                check = [k for k in range(0, qc.d, 2)]
-                for j in range(qc.num_qubits):
-                    if int(index / (2 ** (qc.num_qubits - (1 + j)))) not in check:
-                        result.append(ket_1)
+            eigenvector_states = []
+            for index in non_zero_eigenvector_value_indices:
+                eigenvector_states_split = []
+                state_vector_repr = [int(bit) for bit in "{0:b}".format(index).zfill(qc.num_qubits)]
+                for state in state_vector_repr:
+                    if state == 0:
+                        eigenvector_states_split.append(copy.copy(ket_0))
                     else:
-                        result.append(ket_0)
-                result[0] = np.sign(eigenvector[index]) * result[0]
-                one_qubit_states[i] = result
-            solutions[k] = one_qubit_states
+                        eigenvector_states_split.append(copy.copy(ket_1))
+
+                # Save the sign of the non-zero index only on one of the two states. The copy is also used to this end,
+                # such that the ket_1 will not in general be altered
+                eigenvector_states_split[0] *= np.sign(eigenvector[index])
+
+                eigenvector_states.append(eigenvector_states_split)
+            solutions.append(eigenvector_states)
+
         return solutions
 
-    def get_kraus_operator(self, qubit_a, qubit_b):
-        states = self.decompose_statevector()
-        kraus_op = None
+    def get_kraus_operator(self, operation):
+        solutions = self.decompose_statevector()
+        kraus_ops = []
 
-        for key in states:
-            for key2 in states[key]:
-                one_qubit_state_list = states[key][key2]
-                if kraus_op is None:
-                    kraus_op = CT(one_qubit_state_list[qubit_a], one_qubit_state_list[qubit_b])
-                    continue
-                kraus_op = kraus_op + CT(one_qubit_state_list[qubit_a], one_qubit_state_list[qubit_b])
+        for eigenvector_states in solutions:
+            outcome = int(self.num_qubits/2) * [None]
+            for eigenvector_states_split in eigenvector_states:
+                qubit = 0
+                for i in range(0, len(eigenvector_states_split), 2):
+                    if outcome[qubit] is None:
+                        outcome[qubit] = CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
+                    else:
+                        outcome[qubit] += CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
+                    qubit += 1
 
-        return kraus_op
+            for i, op in enumerate(outcome):
+                kraus_ops.append(op)
+
+        return kraus_ops
 
     """
         -----------------------------
@@ -519,6 +534,10 @@ class Circuit:
                     init[a[0]] += "-------"
                 elif len(init[a[0]]) > len(init[b[0]]):
                     init[b[0]] += "-------"
+
+    def _add_draw_operation(self, operation, *args):
+        item = {operation: args}
+        self._draw_order.append(item)
 
     """
         -----------------------------
@@ -573,11 +592,14 @@ class Circuit:
 
 if __name__ == "__main__":
     start = time.time()
-    qc = Circuit(10, init_type=3, noise=True, pg=0.09)
-    for i in range(2, qc.num_qubits, 2):
+    qc = Circuit(3, init_type=2, noise=True, pg=0.09, pm=0.09)
+    for i in range(1, qc.num_qubits, 2):
+        qc.create_bell_pair([(i, i+1)])
+    for i in range(1, qc.num_qubits, 2):
         qc.CNOT(0, i)
-    qc.measure(0, 0)
+    qc.measure_first_N_qubits(1)
 
+    for operator in qc.get_kraus_operator([X]):
+        print(operator.toarray())
     qc.print_non_zero_prob_eigenvectors()
-    qc.draw_circuit()
     print("The run took {} seconds".format(time.time() - start))
