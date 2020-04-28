@@ -274,7 +274,7 @@ class Circuit:
 
     """
         --------------------------------------
-            Density Matrix calculus Methods
+            Measurement Methods
         --------------------------------------     
     """
     def measure_first_N_qubits(self, N, noise=None, pm=None, keep_qubits=False, basis="X", measure="even"):
@@ -293,16 +293,16 @@ class Circuit:
 
             self._draw_order.append({"M": qubit})
 
-            if keep_qubits:
-                if basis == "X":
-                    self.H(qubit)
+            # if keep_qubits:
+            #     if basis == "X":
+            #         self.H(qubit)
 
         density_matrix = self.density_matrix
 
-        if keep_qubits:
-            density_matrix = sp.kron(N_dim_ket_0_or_1_density_matrix(N), self.density_matrix)
-            self.num_qubits += N
-            self.d = 2**self.num_qubits
+        # if keep_qubits:
+        #     density_matrix = sp.kron(N_dim_ket_0_or_1_density_matrix(N), self.density_matrix)
+        #     self.num_qubits += N
+        #     self.d = 2**self.num_qubits
 
         self.density_matrix = density_matrix / trace(density_matrix)
 
@@ -326,7 +326,7 @@ class Circuit:
 
     def measure(self, qubit, measure=None, basis="X"):
         if basis == "X":
-            qc.H(qubit, noise=False)
+            self.H(qubit, noise=False)
 
         # If no specific measurement outcome is given it is chosen by the hand of the probability
         if measure is None:
@@ -341,8 +341,7 @@ class Circuit:
         self._draw_order.append({"M": qubit})
 
         if basis == "X":
-            qc.H(qubit, noise=False)
-
+            self.H(qubit, noise=False)
 
     def _measurement(self, qubit, measure=0, eigenval=None, eigenvec=None):
         """
@@ -383,7 +382,7 @@ class Circuit:
             eigenvalues, eigenvectors = eigenval, copy.copy(eigenvec)
 
         iterations = 2**qubit
-        step = int(qc.d/(2**(qubit+1)))
+        step = int(self.d/(2**(qubit+1)))
         prob = 0
 
         # Let measurement outcome determine the states that 'survive'
@@ -451,14 +450,14 @@ class Circuit:
         # Obtain statevector by diagonalising density matrix and finding the non-zero prob eigenvectors
         non_zero_eigenvalues, non_zero_eigenvectors = self.get_non_zero_prob_eigenvectors()
 
-        solutions = []
+        decomposed_statevector = []
         for k, eigenvector in enumerate(non_zero_eigenvectors):
             non_zero_eigenvector_value_indices = np.argwhere(eigenvector.toarray().flatten() != 0).flatten()
 
             eigenvector_states = []
             for index in non_zero_eigenvector_value_indices:
                 eigenvector_states_split = []
-                state_vector_repr = [int(bit) for bit in "{0:b}".format(index).zfill(qc.num_qubits)]
+                state_vector_repr = [int(bit) for bit in "{0:b}".format(index).zfill(self.num_qubits)]
                 for state in state_vector_repr:
                     if state == 0:
                         eigenvector_states_split.append(copy.copy(ket_0))
@@ -470,29 +469,31 @@ class Circuit:
                 eigenvector_states_split[0] *= np.sign(eigenvector[index])
 
                 eigenvector_states.append(eigenvector_states_split)
-            solutions.append(eigenvector_states)
+            decomposed_statevector.append(eigenvector_states)
 
-        return solutions
+        return non_zero_eigenvalues, decomposed_statevector
 
     def get_kraus_operator(self, operation):
-        solutions = self.decompose_statevector()
+        probabilities, decomposed_statevector = self.decompose_statevector()
         kraus_ops = []
 
-        for eigenvector_states in solutions:
-            outcome = int(self.num_qubits/2) * [None]
+        for eigenvector_states in decomposed_statevector:
+            kraus_op = int(self.num_qubits/2) * [None]
             for eigenvector_states_split in eigenvector_states:
                 qubit = 0
                 for i in range(0, len(eigenvector_states_split), 2):
-                    if outcome[qubit] is None:
-                        outcome[qubit] = CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
-                    else:
-                        outcome[qubit] += CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
+                    if kraus_op[qubit] is None:
+                        kraus_op[qubit] = CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
+                        qubit += 1
+                        continue
+
+                    kraus_op[qubit] += CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
                     qubit += 1
 
-            for i, op in enumerate(outcome):
-                kraus_ops.append(op)
+            for i, op in enumerate(kraus_op):
+                kraus_ops.append({i: (2/(2**int(self.num_qubits/2))) * op})
 
-        return kraus_ops
+        return probabilities, kraus_ops
 
     """
         -----------------------------
@@ -592,14 +593,32 @@ class Circuit:
 
 if __name__ == "__main__":
     start = time.time()
-    qc = Circuit(3, init_type=2, noise=True, pg=0.09, pm=0.09)
+    qc = Circuit(5, init_type=2, noise=False, pg=0.09, pm=0.09)
     for i in range(1, qc.num_qubits, 2):
         qc.create_bell_pair([(i, i+1)])
     for i in range(1, qc.num_qubits, 2):
         qc.CNOT(0, i)
     qc.measure_first_N_qubits(1)
 
-    for operator in qc.get_kraus_operator([X]):
-        print(operator.toarray())
-    qc.print_non_zero_prob_eigenvectors()
+    qc2 = Circuit(8, init_type=3, noise=False, pg=0.09, pm=0.09)
+    qc2.X(0)
+    qc2.X(4)
+
+    print(qc2)
+
+    qc2.draw_circuit()
+    # for prob, operator in qc.get_kraus_operator([X]):
+    #     print("Probability: {}\n{}\n".format(prob, operator.toarray()))
+    qc2.print_non_zero_prob_eigenvectors()
+    prob, ops = qc2.get_kraus_operator([I])
+    for op in ops:
+        for op_echt in op.values():
+            print(op_echt.toarray())
+
     print("The run took {} seconds".format(time.time() - start))
+
+
+    equal = CT(1/2*(KP(ket_0, ket_0, ket_0, ket_0) + KP(ket_0, ket_0, ket_1, ket_1) + KP(ket_1, ket_1, ket_0, ket_0) +
+             KP(ket_1, ket_1, ket_1, ket_1)))
+    print(equal)
+    print(np.array_equal(equal.toarray(), qc2.density_matrix.toarray()))
