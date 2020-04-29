@@ -1,12 +1,13 @@
 from circuit_simulation.basic_operations import (
-    CT, KP, N_dim_ket_0_or_1_density_matrix, state_repr, get_value_by_prob, trace, gate_name
+    CT, KP, N_dim_ket_0_or_1_density_matrix, state_repr, get_value_by_prob, trace, gate_name, fidelity
 )
 import numpy as np
 import time
 from scipy import sparse as sp
 import itertools as it
 import copy
-from scipy.linalg import eigh
+from scipy.linalg import eigh, eig
+from collections import defaultdict
 import faulthandler
 
 
@@ -83,12 +84,11 @@ class Circuit:
         self.density_matrix = sp.csr_matrix(CT(state_vector, state_vector))
 
     def _init_bell_pair_state(self):
-        result = None
         bell_pair_rho = sp.lil_matrix((4, 4))
         bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1/2, 1/2, 1/2, 1/2
+        result = bell_pair_rho
         for i in range(0, self.num_qubits, 2):
-            if result is None:
-                result = bell_pair_rho
+            if i == 0:
                 self._draw_order.append({"#": (i, i+1)})
                 continue
 
@@ -422,9 +422,9 @@ class Circuit:
         if option == 0:
             return eigh(self.density_matrix.toarray(), eigvals_only=True)
         if option == 1:
-            return eigh(self.density_matrix.toarray())[1]
+            return eig(self.density_matrix.toarray())[1]
         if option == 2:
-            return eigh(self.density_matrix.toarray())
+            return eig(self.density_matrix.toarray())
 
     def get_non_zero_prob_eigenvectors(self):
         eigenvalues, eigenvectors = self.diagonalise()
@@ -447,53 +447,72 @@ class Circuit:
         print(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
 
     def decompose_statevector(self):
-        # Obtain statevector by diagonalising density matrix and finding the non-zero prob eigenvectors
+        # Obtain statevector by diagonalising density matrix and finding the non-zero probability eigenvectors
         non_zero_eigenvalues, non_zero_eigenvectors = self.get_non_zero_prob_eigenvectors()
 
         decomposed_statevector = []
-        for k, eigenvector in enumerate(non_zero_eigenvectors):
-            non_zero_eigenvector_value_indices = np.argwhere(eigenvector.toarray().flatten() != 0).flatten()
+        for eigenvector in non_zero_eigenvectors:
+            # non_zero_eigenvector_value_indices = np.argwhere(eigenvector.toarray().flatten() != 0).flatten()
+            non_zero_eigenvector_value_indices, _, values = sp.find(eigenvector)
+            negative_value_indices, negative_qubit_indices = \
+                self._find_negative_contributing_qubit(non_zero_eigenvector_value_indices, values)
 
             eigenvector_states = []
             for index in non_zero_eigenvector_value_indices:
                 eigenvector_states_split = []
                 state_vector_repr = [int(bit) for bit in "{0:b}".format(index).zfill(self.num_qubits)]
-                for state in state_vector_repr:
+                for i, state in enumerate(state_vector_repr):
+                    sign = -1 if i in negative_qubit_indices and index in negative_value_indices else 1
                     if state == 0:
-                        eigenvector_states_split.append(copy.copy(ket_0))
+                        eigenvector_states_split.append(sign * copy.copy(ket_0))
                     else:
-                        eigenvector_states_split.append(copy.copy(ket_1))
-
-                # Save the sign of the non-zero index only on one of the two states. The copy is also used to this end,
-                # such that the ket_1 will not in general be altered
-                eigenvector_states_split[0] *= np.sign(eigenvector[index])
+                        eigenvector_states_split.append(sign * copy.copy(ket_1))
 
                 eigenvector_states.append(eigenvector_states_split)
             decomposed_statevector.append(eigenvector_states)
 
         return non_zero_eigenvalues, decomposed_statevector
 
+    def _find_negative_contributing_qubit(self, indices, values):
+        negative_value_indices = np.where(values < 0)[0]
+        if negative_value_indices.size == 0:
+            return [], []
+
+        bitstrings = []
+        for index in indices[negative_value_indices]:
+            bitstrings.append([int(bit) for bit in "{0:b}".format(index).zfill(self.num_qubits)])
+
+        negative_indices = []
+        for i in range(0, self.num_qubits, 2):
+            row = np.array(bitstrings)[:, i]
+            if len(set(row)) == 1:
+                negative_indices.append(i)
+
+        return indices[negative_value_indices], negative_indices
+
     def get_kraus_operator(self, operation):
         probabilities, decomposed_statevector = self.decompose_statevector()
         kraus_ops = []
 
         for eigenvector_states in decomposed_statevector:
-            kraus_op = int(self.num_qubits/2) * [None]
+            # Initialise a list that will be used to save the total operation matrix per qubit
+            kraus_op_per_qubit = int(self.num_qubits/2) * [None]
+
             for eigenvector_states_split in eigenvector_states:
-                qubit = 0
-                for i in range(0, len(eigenvector_states_split), 2):
-                    if kraus_op[qubit] is None:
-                        kraus_op[qubit] = CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
-                        qubit += 1
+                # For each eigenvector iterate over the one qubit state elements of the data qubits to create the
+                # effective Kraus operators that happened on the specific data qubit
+                for qubit, data_qubit_position in enumerate(range(0, len(eigenvector_states_split), 2)):
+                    if kraus_op_per_qubit[qubit] is None:
+                        kraus_op_per_qubit[qubit] = CT(eigenvector_states_split[data_qubit_position],
+                                                       eigenvector_states_split[data_qubit_position+1])
                         continue
 
-                    kraus_op[qubit] += CT(eigenvector_states_split[i], eigenvector_states_split[i+1])
-                    qubit += 1
+                    kraus_op_per_qubit[qubit] += CT(eigenvector_states_split[data_qubit_position],
+                                                    eigenvector_states_split[data_qubit_position+1])
 
-            for i, op in enumerate(kraus_op):
-                kraus_ops.append({i: (2/(2**int(self.num_qubits/2))) * op})
+                kraus_ops.append(kraus_op_per_qubit)
 
-        return probabilities, kraus_ops
+        return zip(probabilities, kraus_ops)
 
     """
         -----------------------------
@@ -570,7 +589,7 @@ class Circuit:
 
         result = sp.csr_matrix(self.density_matrix.shape)
         for i in range(len(matrices)):
-            # Create the full system 1 qubit gate for qubit1
+            # Create the full system 1-qubit gate for qubit1
             A = self._create_1_qubit_gate(matrices[i], qubit1)
             for j in range(len(matrices)):
                 # Create full system 1-qubit gate for qubit2, only once for every gate
@@ -593,32 +612,25 @@ class Circuit:
 
 if __name__ == "__main__":
     start = time.time()
-    qc = Circuit(5, init_type=2, noise=False, pg=0.09, pm=0.09)
-    for i in range(1, qc.num_qubits, 2):
-        qc.create_bell_pair([(i, i+1)])
-    for i in range(1, qc.num_qubits, 2):
-        qc.CNOT(0, i)
-    qc.measure_first_N_qubits(1)
+    # qc = Circuit(5, init_type=2, noise=False, pg=0.09, pm=0.09)
+    # for i in range(1, qc.num_qubits, 2):
+    #     qc.create_bell_pair([(i, i+1)])
+    # for i in range(1, qc.num_qubits, 2):
+    #     qc.CNOT(0, i)
+    # qc.measure_first_N_qubits(1)
 
-    qc2 = Circuit(8, init_type=3, noise=False, pg=0.09, pm=0.09)
+    qc2 = Circuit(4, init_type=3, noise=True, pg=0.09, pm=0.09)
     qc2.X(0)
-    qc2.X(4)
 
     print(qc2)
+    equal = CT(1 / 2 * (KP(ket_1, ket_0, ket_0, ket_0) + KP(ket_1, ket_0, ket_1, ket_1)
+                        + KP(ket_0, ket_1, ket_0, ket_0) + KP(ket_0, ket_1, ket_1, ket_1)))
+    print((equal.toarray() == qc2.density_matrix.toarray()).all())
 
+    print(fidelity(equal, qc2.density_matrix))
     qc2.draw_circuit()
-    # for prob, operator in qc.get_kraus_operator([X]):
-    #     print("Probability: {}\n{}\n".format(prob, operator.toarray()))
     qc2.print_non_zero_prob_eigenvectors()
-    prob, ops = qc2.get_kraus_operator([I])
-    for op in ops:
-        for op_echt in op.values():
-            print(op_echt.toarray())
-
+    for prob, kraus in qc2.get_kraus_operator([I]):
+        print(prob, kraus)
     print("The run took {} seconds".format(time.time() - start))
-
-
-    equal = CT(1/2*(KP(ket_0, ket_0, ket_0, ket_0) + KP(ket_0, ket_0, ket_1, ket_1) + KP(ket_1, ket_1, ket_0, ket_0) +
-             KP(ket_1, ket_1, ket_1, ket_1)))
-    print(equal)
-    print(np.array_equal(equal.toarray(), qc2.density_matrix.toarray()))
+    print(trace(equal))

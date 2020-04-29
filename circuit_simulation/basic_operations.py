@@ -66,3 +66,9 @@ def N_dim_ket_0_or_1_density_matrix(N, ket=0):
     else:
         rho[0, 0] = 1
     return rho
+
+
+def fidelity(rho, sigma):
+    rho_root = np.sqrt(rho.toarray())
+    resulting_matrix = np.sqrt((rho_root * sigma.toarray() * rho_root))
+    return (trace(resulting_matrix))**2
