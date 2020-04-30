@@ -7,7 +7,7 @@ from scipy import sparse as sp
 import itertools as it
 import copy
 from scipy.linalg import eigh, eig
-from collections import defaultdict
+import pickle
 import faulthandler
 
 
@@ -27,7 +27,7 @@ I = np.array([[1, 0], [0, 1]])
 H = 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]])
 
 
-class Circuit:
+class QuantumCircuit:
 
     def __init__(self, num_qubits, init_type=None, noise=False, pg=0.01, pm=0.01):
         self.num_qubits = num_qubits
@@ -40,13 +40,13 @@ class Circuit:
         self.density_matrix = None
 
         if init_type == 0:
-            self._init_density_matrix()
+            self.density_matrix = self._init_density_matrix()
         elif init_type == 1:
-            self._CNOT_init_density_matrix()
+            self.density_matrix = self._init_density_matrix_ket_p_and_CNOTS()
         elif init_type == 2:
-            self._standard_init_density_matrix()
+            self.density_matrix = self._init_density_matrix_first_qubit_ket_p()
         elif init_type == 3:
-            self._init_bell_pair_state()
+            self.density_matrix = self._init_density_matrix_bell_pair_state()
 
     """
         -------------------------
@@ -54,7 +54,11 @@ class Circuit:
         -------------------------     
     """
 
-    def _standard_init_density_matrix(self):
+    def _init_density_matrix(self):
+        state_vector = KP(*self._qubit_array)
+        return sp.csr_matrix(CT(state_vector, state_vector))
+
+    def _init_density_matrix_first_qubit_ket_p(self):
         self._qubit_array[0] = ket_p
 
         density_matrix = sp.lil_matrix((self.d, self.d))
@@ -63,9 +67,25 @@ class Circuit:
         density_matrix[self.d/2, 0] = 1 / 2
         density_matrix[self.d/2, self.d/2] = 1 / 2
 
-        self.density_matrix = density_matrix
+        return density_matrix
 
-    def _CNOT_init_density_matrix(self):
+    def _init_density_matrix_bell_pair_state(self, draw=True):
+        bell_pair_rho = sp.lil_matrix((4, 4))
+        bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1/2, 1/2, 1/2, 1/2
+        density_matrix = bell_pair_rho
+        for i in range(0, self.num_qubits, 2):
+            if i == 0 and draw:
+                self._draw_order.append({"#": (i, i+1)})
+                continue
+
+            density_matrix = sp.kron(bell_pair_rho, density_matrix)
+            if draw:
+                self._draw_order.append({"#": (i, i+1)})
+
+        return density_matrix
+
+    def _init_density_matrix_ket_p_and_CNOTS(self):
+        # Set ket_p as first qubit of the qubit array (mainly for proper drawing of the citcuit)
         self._qubit_array[0] = ket_p
 
         density_matrix = sp.lil_matrix((self.d, self.d))
@@ -74,28 +94,16 @@ class Circuit:
         density_matrix[self.d-1, 0] = 1 / 2
         density_matrix[self.d-1, self.d-1] = 1 / 2
 
-        self.density_matrix = density_matrix
-
         for i in range(1, self.num_qubits):
             self._draw_order.append({"X": (0, i)})
 
-    def _init_density_matrix(self):
-        state_vector = KP(*self._qubit_array)
-        self.density_matrix = sp.csr_matrix(CT(state_vector, state_vector))
+        return density_matrix
 
-    def _init_bell_pair_state(self):
-        bell_pair_rho = sp.lil_matrix((4, 4))
-        bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1/2, 1/2, 1/2, 1/2
-        result = bell_pair_rho
-        for i in range(0, self.num_qubits, 2):
-            if i == 0:
-                self._draw_order.append({"#": (i, i+1)})
-                continue
-
-            result = sp.kron(bell_pair_rho, result)
-            self._draw_order.append({"#": (i, i+1)})
-
-        self.density_matrix = result
+    """
+        ------------------------------
+            Setter and getter Methods
+        ------------------------------
+    """
 
     def set_qubit_states(self, dict):
         for tqubit, state in dict.items():
@@ -248,6 +256,9 @@ class Circuit:
         (In which * is the Kronecker Product) (https://quantumcomputing.stackexchange.com/questions/4252/
         how-to-derive-the-cnot-matrix-for-a-3-qbit-system-where-the-control-target-qbi)
         """
+        if cqubit == tqubit:
+            raise ValueError("Control qubit cannot be the same as the target qubit!")
+
         gate_1 = self._create_1_qubit_gate(CT(ket_0), cqubit)
         gate_2 = self._create_1_qubit_gate(CT(ket_1), cqubit)
 
@@ -271,6 +282,52 @@ class Circuit:
             pg = self.pg
 
         self.apply_2_qubit_gate(Z, cqubit, tqubit, noise, pg)
+
+    """
+        -----------------------------
+            Gate Noise Methods
+        -----------------------------     
+    """
+
+    def _N_single(self, pg, tqubit):
+        self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
+                                            (pg / 3) * self._sum_pauli_error_single(tqubit))
+
+    def _N(self, pg, cqubit, tqubit):
+
+        self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
+                                            (pg / 15) * self._sum_pauli_error(cqubit, tqubit))
+
+    def _sum_pauli_error_single(self, qubit):
+        matrices = [X, Y, Z]
+        result = np.zeros(self.density_matrix.shape)
+
+        for i in matrices:
+            pauli_error = self._create_1_qubit_gate(i, qubit)
+            result = result + pauli_error.dot(CT(self.density_matrix, pauli_error))
+        return result
+
+    def _sum_pauli_error(self, qubit1, qubit2):
+        matrices = [X, Y, Z, I]
+        qubit2_matrices = []
+
+        result = sp.csr_matrix(self.density_matrix.shape)
+        for i in range(len(matrices)):
+            # Create the full system 1-qubit gate for qubit1
+            A = self._create_1_qubit_gate(matrices[i], qubit1)
+            for j in range(len(matrices)):
+                # Create full system 1-qubit gate for qubit2, only once for every gate
+                if i == 0:
+                    qubit2_matrices.append(self._create_1_qubit_gate(matrices[j], qubit2))
+
+                # Skip the I*I case
+                if i == j == len(matrices) - 1:
+                    continue
+
+                B = qubit2_matrices[j]
+                result = result + (A * B).dot(CT(self.density_matrix, (A * B)))
+
+        return sp.csr_matrix(result)
 
     """
         --------------------------------------
@@ -460,13 +517,14 @@ class Circuit:
             eigenvector_states = []
             for index in non_zero_eigenvector_value_indices:
                 eigenvector_states_split = []
+                eigenvector_index_value = np.sqrt(2*abs(eigenvector[index, 0]))
                 state_vector_repr = [int(bit) for bit in "{0:b}".format(index).zfill(self.num_qubits)]
                 for i, state in enumerate(state_vector_repr):
                     sign = -1 if i in negative_qubit_indices and index in negative_value_indices else 1
                     if state == 0:
-                        eigenvector_states_split.append(sign * copy.copy(ket_0))
+                        eigenvector_states_split.append(sign * eigenvector_index_value * copy.copy(ket_0))
                     else:
-                        eigenvector_states_split.append(sign * copy.copy(ket_1))
+                        eigenvector_states_split.append(sign * eigenvector_index_value * copy.copy(ket_1))
 
                 eigenvector_states.append(eigenvector_states_split)
             decomposed_statevector.append(eigenvector_states)
@@ -490,6 +548,46 @@ class Circuit:
 
         return indices[negative_value_indices], negative_indices
 
+    """
+        -----------------------------
+            Superoperator Methods
+        -----------------------------     
+    """
+
+    def get_superoperator(self, CNOT=False):
+        if self.num_qubits != 8:
+            raise ValueError("Superoperator can only be determined for a system with 4 data qubits with one ancilla "
+                             "qubit each. So the system should contain 8 qubits")
+
+        operations = [X, Y, Z, I]
+
+        with open("density_matrix.pkl", "rb") as f:
+            initial_density_matrix = pickle.load(f)
+
+        superoperator = []
+
+        for qubit1_op in operations:
+            gate_qubit1 = self._create_1_qubit_gate(qubit1_op, 0)
+            for qubit2_op in operations:
+                gate_qubit2 = self._create_1_qubit_gate(qubit2_op, 2)
+                for qubit3_op in operations:
+                    gate_qubit3 = self._create_1_qubit_gate(qubit3_op, 4)
+                    for qubit4_op in operations:
+                        gate_qubit4 = self._create_1_qubit_gate(qubit4_op, 6)
+                        total_error_gate = gate_qubit1 * gate_qubit2 * gate_qubit3 * gate_qubit4
+
+                        error_density_matrix = total_error_gate * CT(initial_density_matrix, total_error_gate)
+
+                        fid = fidelity(self.density_matrix, error_density_matrix)
+
+                        if fid != 0:
+                            uniqueness = np.unique([qubit1_op, qubit2_op, qubit3_op, qubit4_op])
+                            if fid > 0.5 and uniqueness.size < 3 and I in uniqueness:
+                                superoperator.append([fid, gate_name(qubit1_op), gate_name(qubit2_op),
+                                                      gate_name(qubit3_op), gate_name(qubit4_op)])
+
+        return superoperator
+
     def get_kraus_operator(self, operation):
         probabilities, decomposed_statevector = self.decompose_statevector()
         kraus_ops = []
@@ -497,22 +595,39 @@ class Circuit:
         for eigenvector_states in decomposed_statevector:
             # Initialise a list that will be used to save the total operation matrix per qubit
             kraus_op_per_qubit = int(self.num_qubits/2) * [None]
+            correction = 1/np.sqrt(2**int(self.num_qubits/2))
 
             for eigenvector_states_split in eigenvector_states:
                 # For each eigenvector iterate over the one qubit state elements of the data qubits to create the
                 # effective Kraus operators that happened on the specific data qubit
                 for qubit, data_qubit_position in enumerate(range(0, len(eigenvector_states_split), 2)):
                     if kraus_op_per_qubit[qubit] is None:
-                        kraus_op_per_qubit[qubit] = CT(eigenvector_states_split[data_qubit_position],
+                        kraus_op_per_qubit[qubit] = correction * CT(eigenvector_states_split[data_qubit_position],
                                                        eigenvector_states_split[data_qubit_position+1])
                         continue
 
-                    kraus_op_per_qubit[qubit] += CT(eigenvector_states_split[data_qubit_position],
+                    kraus_op_per_qubit[qubit] += correction * CT(eigenvector_states_split[data_qubit_position],
                                                     eigenvector_states_split[data_qubit_position+1])
 
                 kraus_ops.append(kraus_op_per_qubit)
 
         return zip(probabilities, kraus_ops)
+
+    def print_kraus_operators(self):
+        print_lines = ["\n---- Kraus operators per qubit ----\n"]
+        for prob, operators_per_qubit in sorted(self.get_kraus_operator([I])):
+            print_lines.append("\nProbability: {:.8}\n".format(prob.real))
+            for data_qubit, operator in enumerate(operators_per_qubit):
+                data_qubit_line = "Data qubit {}: \n {}\n".format(data_qubit, operator.toarray())
+                operator_name = gate_name(operator.toarray())
+                if operator_name is not None:
+                    data_qubit_line += "which is equal to an {} operation\n\n".format(operator_name)
+                print_lines.append(data_qubit_line)
+        print_lines.append("\n---- End of Kraus operators per qubit ----\n\n")
+
+        print(*print_lines)
+
+
 
     """
         -----------------------------
@@ -522,7 +637,7 @@ class Circuit:
 
     def draw_circuit(self):
         legenda = "--- Circuit ---\n\n @ = noisy Bell-pair, # = perfect Bell-pair, o = control qubit " \
-                           "(with target qubit at same level), [X,Y,Z,H] = gates, M = Measurement\n"
+                  "(with target qubit at same level), [X,Y,Z,H] = gates, M = Measurement\n"
         init = self._draw_init()
         self._draw_gates(init)
         init[-1] += "\n\n"
@@ -559,52 +674,6 @@ class Circuit:
         item = {operation: args}
         self._draw_order.append(item)
 
-    """
-        -----------------------------
-            Gate Noise Methods
-        -----------------------------     
-    """
-
-    def _N_single(self, pg, tqubit):
-        self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
-                                            (pg / 3) * self._sum_pauli_error_single(tqubit))
-
-    def _N(self, pg, cqubit, tqubit):
-
-        self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
-                                            (pg / 15) * self._sum_pauli_error(cqubit, tqubit))
-
-    def _sum_pauli_error_single(self, qubit):
-        matrices = [X, Y, Z]
-        result = np.zeros(self.density_matrix.shape)
-
-        for i in matrices:
-            pauli_error = self._create_1_qubit_gate(i, qubit)
-            result = result + pauli_error.dot(CT(self.density_matrix, pauli_error))
-        return result
-
-    def _sum_pauli_error(self, qubit1, qubit2):
-        matrices = [X, Y, Z, I]
-        qubit2_matrices = []
-
-        result = sp.csr_matrix(self.density_matrix.shape)
-        for i in range(len(matrices)):
-            # Create the full system 1-qubit gate for qubit1
-            A = self._create_1_qubit_gate(matrices[i], qubit1)
-            for j in range(len(matrices)):
-                # Create full system 1-qubit gate for qubit2, only once for every gate
-                if i == 0:
-                    qubit2_matrices.append(self._create_1_qubit_gate(matrices[j], qubit2))
-
-                # Skip the I*I case
-                if i == j == len(matrices) - 1:
-                    continue
-
-                B = qubit2_matrices[j]
-                result = result + (A * B).dot(CT(self.density_matrix, (A * B)))
-
-        return sp.csr_matrix(result)
-
     def __repr__(self):
         density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix
         return "\nCircuit density matrix:\n\n{}\n\n".format(density_matrix)
@@ -619,18 +688,11 @@ if __name__ == "__main__":
     #     qc.CNOT(0, i)
     # qc.measure_first_N_qubits(1)
 
-    qc2 = Circuit(4, init_type=3, noise=True, pg=0.09, pm=0.09)
-    qc2.X(0)
+    qc2 = QuantumCircuit(10, init_type=3, noise=True, pg=0.09, pm=0.09)
+    for i in range(2, qc2.num_qubits, 2):
+        qc2.CNOT(0, i)
+    qc2.measure_first_N_qubits(2)
 
-    print(qc2)
-    equal = CT(1 / 2 * (KP(ket_1, ket_0, ket_0, ket_0) + KP(ket_1, ket_0, ket_1, ket_1)
-                        + KP(ket_0, ket_1, ket_0, ket_0) + KP(ket_0, ket_1, ket_1, ket_1)))
-    print((equal.toarray() == qc2.density_matrix.toarray()).all())
-
-    print(fidelity(equal, qc2.density_matrix))
     qc2.draw_circuit()
-    qc2.print_non_zero_prob_eigenvectors()
-    for prob, kraus in qc2.get_kraus_operator([I]):
-        print(prob, kraus)
+    print(qc2.get_superoperator())
     print("The run took {} seconds".format(time.time() - start))
-    print(trace(equal))

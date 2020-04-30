@@ -26,6 +26,7 @@ def gate_name(gate):
         return "I"
     if np.array_equal(gate, H):
         return "H"
+    return None
 
 
 def get_value_by_prob(array, p):
