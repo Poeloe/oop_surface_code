@@ -62,7 +62,6 @@ class QuantumCircuit:
             pm : float [0-1], optional, default=0.01
                 The overall amount of measurement error that will be applied when 'noise' set to
                 True.
-
     """
 
     def __init__(self, num_qubits, init_type=None, noise=False, pg=0.01, pm=0.01):
@@ -166,40 +165,88 @@ class QuantumCircuit:
             Example
             -------
             qc.set_qubit_state({0 : ket_1}) --> This sets the first qubit to the ket_1 state
-
         """
         for tqubit, state in dict.items():
             self._qubit_array[tqubit] = state
         self._init_density_matrix()
 
     def get_begin_states(self):
-        """ Returns the initial states of the qubits """
+        """ Returns the initial state vector of the qubits """
         return KP(*self._qubit_array)
 
-    def create_bell_pair(self, qubits):
+    def create_bell_pairs(self, qubits):
         """
-        Only usable at initialisation and when init_type of the Circuit is set to 0
+        qc.create_bell_pair(qubits)
+
+            Creates Bell pairs between the specified qubits.
+            *** THIS WILL ONLY WORK PROPERLY WHEN THE SPECIFIED QUBITS ARE IN NO WAY ENTANGLED AND THE
+            STATE OF THE QUBITS IS |0> ***
+
+            Parameters
+            ----------
+            qubits : list
+                List containing tuples with the pairs of qubits that should form a Bell pair
+
+            Example
+            -------
+            qc.create_bell_pairs([(0, 1), (2, 3), (4,5)]) --> Creates Bell pairs between qubit 0 and 1,
+            between qubit 2 and 3 and between qubit 4 and 5.
         """
         for qubit1, qubit2 in qubits:
             self.H(qubit1, noise=False, draw=False)
             self.CNOT(qubit1, qubit2, noise=False, draw=False)
             self._draw_order.append({"#": (qubit1, qubit2)})
 
-    def create_noisy_bell_pair(self, qubits, pn=0.1, new=True):
-        for qubit1, qubit2 in qubits:
-            if new:
-                self._qubit_array.insert(0, ket_0)
-                self._qubit_array.insert(0, ket_0)
-                self.num_qubits += 2
-                self.d = self.num_qubits**2
-                rho = sp.lil_matrix((4, 4))
-                rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1/2, 1/2, 1/2, 1/2
+    def create_N_noisy_bell_pairs(self, N, pn=0.1):
+        """
+        qc.create_bell_pair(N, pn=0.1)
 
-                self.density_matrix = sp.kron((1 - 4*pn/3) * rho + pn/3 * sp.eye(4, 4), self.density_matrix)
+            This appends noisy Bell pairs on the top of the system. The noise is based on network noise
+            modeled as (paper: https://www.nature.com/articles/ncomms2773.pdf)
 
-            self._draw_order.append({"@": (qubit1, qubit2)})
+                rho_raw = (1 - 4/3*pn) |psi><psi| + pn/3 * I,
+
+            in which |psi> is a perfect Bell state.
+            *** THIS METHOD APPENDS THE QUBITS TO THE TOP OF THE SYSTEM. THIS MEANS THAT THE AMOUNT OF
+            QUBITS IN THE SYSTEM WILL GROW WITH '2N' ***
+
+            Parameters
+            ----------
+            N : int
+                Number of noisy Bell pairs that should be added to the top of the system.
+            pn : float [0-1], optional, default=0.1
+                The amount of network noise present
+
+            Example
+            -------
+            qc.create_bell_pairs([(0, 1), (2, 3), (4,5)]) --> Creates Bell pairs between qubit 0 and 1,
+            between qubit 2 and 3 and between qubit 4 and 5.
+        """
+        for i in range(0, 2*N, 2):
+            self._qubit_array.insert(0, ket_0)
+            self._qubit_array.insert(0, ket_0)
+            self.num_qubits += 2
+            self.d = self.num_qubits**2
+            rho = sp.lil_matrix((4, 4))
+            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1/2, 1/2, 1/2, 1/2
+
+            self.density_matrix = sp.kron((1 - 4*pn/3) * rho + pn/3 * sp.eye(4, 4), self.density_matrix)
+
+            self._draw_order.append({"@": (i, i+1)})
 
     def add_top_qubit(self, qubit_state=ket_0):
+        """
+        qc.add_top_qubit(qubit_state=ket_0)
+
+            Method appends a qubit with a given state to the top of the system.
+            *** THE METHOD APPENDS A QUBIT, WHICH MEANS THAT THE AMOUNT OF QUBITS IN THE SYSTEM WILL
+            GROW WITH 1 ***
+
+            Parameters
+            ----------
+            qubit_state : array, optional, default=ket_0
+                Qubit state, a normalised vector of dimension 2x1
+        """
         self._qubit_array.insert(0, qubit_state)
         self.num_qubits += 1
         self.d = 2**self.num_qubits
@@ -213,6 +260,29 @@ class QuantumCircuit:
     """
 
     def apply_1_qubit_gate(self, gate, tqubit, noise=None, pg=None, draw=True):
+        """
+            qc.apply_1_qubit_gate(gate, tqubit, noise=None, pg=None, draw=True)
+
+                Applies a one qubit gate to the specified target qubit. This will update the density
+                matrix of the system accordingly.
+
+                Parameters
+                ----------
+                gate : array
+                    Array of dimension 2x2, examples are the well-known pauli matrices (X, Y, Z)
+                tqubit : int
+                    Integer that indicates the target qubit. Note that the qubit counting starts at
+                    0.
+                noise : bool, optional, default=None
+                    Determines if the gate is noisy. When the QuantumCircuit object is initialised
+                    with the 'noise' parameter to True, this parameter will also evaluate to True if
+                    not specified otherwise.
+                pg : float [0-1], optional, default=None
+                    Specifies the amount of gate noise if present. If the QuantumCircuit object is
+                    initialised with a 'pg' parameter, this will be used if not specified otherwise
+                draw : bool, optional, default=True
+                    If true, the specified gate will appear when the circuit is visualised.
+        """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -228,6 +298,24 @@ class QuantumCircuit:
             self._draw_order.append({gate_name(gate): tqubit})
 
     def _create_1_qubit_gate(self, gate, tqubit):
+        """
+            Private method that is used to create the 1 qubit gate matrix used in for eaxmple the
+            apply_1_qubit_gate method.
+
+            Parameters
+            ----------
+            gate : array
+                Array of dimension 2x2, examples are the well-known pauli matrices (X, Y, Z)
+            tqubit : int
+                Integer that indicates the target qubit. Note that the qubit counting starts at
+                0.
+
+            Returns
+            -------
+            1_qubit_gate : sparse matrix with dimensions equal to the density_matirx attribute
+                Returns a matrix with dimensions equal to the dimensions of the density matrix of
+                the system.
+        """
         if np.array_equal(gate, I):
             return sp.eye(self.d, self.d)
 
@@ -236,6 +324,25 @@ class QuantumCircuit:
         return sp.csr_matrix(KP(first_id, gate, second_id))
 
     def _create_identity_operations(self, tqubit):
+        """
+            Private method that is used to efficiently create identity matrices, based on the target
+            qubit specified. These matrices will work on the qubits other than the target qubit
+
+            Parameters
+            ----------
+            tqubit : int
+                Integer that indicates the target qubit. Note that the qubit counting starts at
+                0.
+
+            Returns
+            -------
+            first_id : sparse identity matrix
+                Sparse identity matrix that will work on the qubits prior to the target qubit. If the target
+                qubit is the first qubit, the value will be 'None'
+            second_id : sparse identity matrix
+                Sparse identity matrix that will work on the qubits following after the target qubit. If the
+                target qubit is the last qubit, the value will be 'None'
+        """
         first_id = None
         second_id = None
 
@@ -250,6 +357,7 @@ class QuantumCircuit:
         return first_id, second_id
 
     def X(self, tqubit, times=1, noise=None, pg=None, draw=True):
+        """ Applies the pauli X gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -259,6 +367,7 @@ class QuantumCircuit:
             self.apply_1_qubit_gate(X, tqubit, noise, pg, draw)
 
     def Z(self, tqubit, times=1, noise=None, pg=None, draw=True):
+        """ Applies the pauli Z gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -268,6 +377,7 @@ class QuantumCircuit:
             self.apply_1_qubit_gate(Z, tqubit, noise, pg, draw)
 
     def Y(self, tqubit, times=1, noise=None, pg=None, draw=True):
+        """ Applies the pauli Y gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -277,6 +387,7 @@ class QuantumCircuit:
             self.apply_1_qubit_gate(Y, tqubit, noise, pg, draw)
 
     def H(self, tqubit, times=1, noise=None, pg=None, draw=True):
+        """ Applies the Hadamard gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
