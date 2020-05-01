@@ -8,6 +8,7 @@ import itertools as it
 import copy
 from scipy.linalg import eigh, eig
 import pickle
+from pprint import pprint
 import faulthandler
 
 
@@ -28,6 +29,41 @@ H = 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]])
 
 
 class QuantumCircuit:
+    """
+        QuantumCircuit(num_qubits, init_type=0, noise=False, pg=0.01, pm=0.01)
+
+            Create a QuantumCircuit object
+
+            A QuantumCircuit consists of qubits on which various operations can be applied.
+            From this information about the density matrix of the system and others can be
+            gathered.
+
+            Parameters
+            ----------
+            num_qubits : int
+                The amount of qubits the system contains.
+            init_type : int [0-3], optional, default=0
+                Determines how the system is initialised. All these options do NOT include noise.
+                The options are:
+
+                0 ->    The system is initialised with all qubits being in the |0> state.
+                1 ->    Almost the same as 0, but the first qubit is in the |+> state
+                2 ->    The system is initialised with a perfect Bell-pair between all adjacent
+                        qubits.
+                3 ->    The system is initialised with the first qubit being the |+> state and the
+                        rest of the qubits is in the |0> state. The on every qubit a CNOT gate is
+                        applied with the first qubit being the control qubit.
+
+            noise : bool, optional, default=False
+                Will apply noise on every operation that is applied to the QuantumCircuit object,
+                unless specified otherwise.
+            pg : float [0-1], optional, default=0.01
+                The overall amount of gate noise that will be applied when 'noise' is set to True.
+            pm : float [0-1], optional, default=0.01
+                The overall amount of measurement error that will be applied when 'noise' set to
+                True.
+
+    """
 
     def __init__(self, num_qubits, init_type=None, noise=False, pg=0.01, pm=0.01):
         self.num_qubits = num_qubits
@@ -42,11 +78,11 @@ class QuantumCircuit:
         if init_type == 0:
             self.density_matrix = self._init_density_matrix()
         elif init_type == 1:
-            self.density_matrix = self._init_density_matrix_ket_p_and_CNOTS()
-        elif init_type == 2:
             self.density_matrix = self._init_density_matrix_first_qubit_ket_p()
-        elif init_type == 3:
+        elif init_type == 2:
             self.density_matrix = self._init_density_matrix_bell_pair_state()
+        elif init_type == 3:
+            self.density_matrix = self._init_density_matrix_ket_p_and_CNOTS()
 
     """
         -------------------------
@@ -55,10 +91,14 @@ class QuantumCircuit:
     """
 
     def _init_density_matrix(self):
+        """ Realises init_type option 0. See class description for more info, """
+
         state_vector = KP(*self._qubit_array)
         return sp.csr_matrix(CT(state_vector, state_vector))
 
     def _init_density_matrix_first_qubit_ket_p(self):
+        """ Realises init_type option 1. See class description for more info, """
+
         self._qubit_array[0] = ket_p
 
         density_matrix = sp.lil_matrix((self.d, self.d))
@@ -70,6 +110,8 @@ class QuantumCircuit:
         return density_matrix
 
     def _init_density_matrix_bell_pair_state(self, draw=True):
+        """ Realises init_type option 2. See class description for more info, """
+
         bell_pair_rho = sp.lil_matrix((4, 4))
         bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1/2, 1/2, 1/2, 1/2
         density_matrix = bell_pair_rho
@@ -85,6 +127,8 @@ class QuantumCircuit:
         return density_matrix
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
+        """ Realises init_type option 3. See class description for more info, """
+
         # Set ket_p as first qubit of the qubit array (mainly for proper drawing of the citcuit)
         self._qubit_array[0] = ket_p
 
@@ -106,11 +150,30 @@ class QuantumCircuit:
     """
 
     def set_qubit_states(self, dict):
+        """
+        qc.set_qubit_states(dict)
+
+            Sets the initial state of the specified qubits in the dict according to the specified state.
+            *** METHOD SHOULD ONLY BE USED IN THE INITIALISATION PHASE OF THE CIRCUIT. SHOULD NOT BE USED
+            AFTER OPERATIONS HAVE BEEN APPLIED TO THE CIRCUIT IN ORDER TO PREVENT ERRORS. ***
+
+            Parameters
+            ----------
+            dict : dict
+                Dictionary with the keys being the number of the qubits to be modified (first qubit is 0)
+                and the value being the state the qubit should be in
+
+            Example
+            -------
+            qc.set_qubit_state({0 : ket_1}) --> This sets the first qubit to the ket_1 state
+
+        """
         for tqubit, state in dict.items():
             self._qubit_array[tqubit] = state
         self._init_density_matrix()
 
     def get_begin_states(self):
+        """ Returns the initial states of the qubits """
         return KP(*self._qubit_array)
 
     def create_bell_pair(self, qubits):
@@ -135,6 +198,13 @@ class QuantumCircuit:
                 self.density_matrix = sp.kron((1 - 4*pn/3) * rho + pn/3 * sp.eye(4, 4), self.density_matrix)
 
             self._draw_order.append({"@": (qubit1, qubit2)})
+
+    def add_top_qubit(self, qubit_state=ket_0):
+        self._qubit_array.insert(0, qubit_state)
+        self.num_qubits += 1
+        self.d = 2**self.num_qubits
+
+        self.density_matrix = KP(CT(qubit_state), self.density_matrix)
 
     """
         -----------------------------
@@ -334,7 +404,7 @@ class QuantumCircuit:
             Measurement Methods
         --------------------------------------     
     """
-    def measure_first_N_qubits(self, N, noise=None, pm=None, keep_qubits=False, basis="X", measure="even"):
+    def measure_first_N_qubits(self, N, noise=None, pm=None, basis="X", keep_qubits=False, measure="even"):
         if noise is None:
             noise = self.noise
         if pm is None:
@@ -477,7 +547,7 @@ class QuantumCircuit:
 
     def diagonalise(self, option=2):
         if option == 0:
-            return eigh(self.density_matrix.toarray(), eigvals_only=True)
+            return eig(self.density_matrix.toarray(), eigvals_only=True)
         if option == 1:
             return eig(self.density_matrix.toarray())[1]
         if option == 2:
@@ -564,7 +634,7 @@ class QuantumCircuit:
         with open("density_matrix.pkl", "rb") as f:
             initial_density_matrix = pickle.load(f)
 
-        superoperator = []
+        superoperator = {}
 
         for qubit1_op in operations:
             gate_qubit1 = self._create_1_qubit_gate(qubit1_op, 0)
@@ -578,15 +648,36 @@ class QuantumCircuit:
 
                         error_density_matrix = total_error_gate * CT(initial_density_matrix, total_error_gate)
 
-                        fid = fidelity(self.density_matrix, error_density_matrix)
+                        fid = round(fidelity(self.density_matrix, error_density_matrix).real, 6)
 
-                        if fid != 0:
-                            uniqueness = np.unique([qubit1_op, qubit2_op, qubit3_op, qubit4_op])
-                            if fid > 0.5 and uniqueness.size < 3 and I in uniqueness:
-                                superoperator.append([fid, gate_name(qubit1_op), gate_name(qubit2_op),
-                                                      gate_name(qubit3_op), gate_name(qubit4_op)])
+                        operators = [gate_name(qubit1_op), gate_name(qubit2_op), gate_name(qubit3_op),
+                                     gate_name(qubit4_op)]
+
+                        if fid != 0 and operators.count("I") >= 2:
+                            if fid in superoperator:
+                                current_value = superoperator[fid]
+                                current_value.append(operators)
+                                superoperator[fid] = current_value
+                            else:
+                                superoperator[fid] = [operators]
+
+                            # uniqueness = np.unique(operators)
+                            # if fid > 0.5 and uniqueness.size < 3 and I in uniqueness:
+                            #     superoperator.append([fid, gate_name(qubit1_op), gate_name(qubit2_op),
+                            #                           gate_name(qubit3_op), gate_name(qubit4_op)])
+        for key, ops in superoperator.items():
+            superoperator[key] = self._return_most_likely_option(ops)
 
         return superoperator
+
+    def _return_most_likely_option(self, operators):
+        id_count = []
+        for op in operators:
+            id_count.append(op.count("I"))
+
+        most_likely_indices = np.argwhere(id_count == np.amax(id_count)).flatten()
+
+        return np.array(operators)[most_likely_indices]
 
     def get_kraus_operator(self, operation):
         probabilities, decomposed_statevector = self.decompose_statevector()
@@ -666,9 +757,9 @@ class QuantumCircuit:
 
             for a, b in it.combinations(enumerate(init), 2):
                 if len(init[a[0]]) < len(init[b[0]]):
-                    init[a[0]] += "-------"
+                    init[a[0]] += (len(init[b[0]]) - len(init[a[0]])) * "-"
                 elif len(init[a[0]]) > len(init[b[0]]):
-                    init[b[0]] += "-------"
+                    init[b[0]] += (len(init[a[0]]) - len(init[b[0]])) * "-"
 
     def _add_draw_operation(self, operation, *args):
         item = {operation: args}
@@ -694,5 +785,9 @@ if __name__ == "__main__":
     qc2.measure_first_N_qubits(2)
 
     qc2.draw_circuit()
-    print(qc2.get_superoperator())
+    superoperator = qc2.get_superoperator()
+    for prob in sorted(superoperator):
+        print("Probability: {}\n".format(prob))
+        print(superoperator[prob])
+        print("")
     print("The run took {} seconds".format(time.time() - start))
