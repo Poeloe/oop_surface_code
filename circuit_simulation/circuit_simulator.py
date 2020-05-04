@@ -1,15 +1,13 @@
 from circuit_simulation.basic_operations import (
-    CT, KP, N_dim_ket_0_or_1_density_matrix, state_repr, get_value_by_prob, trace, gate_name, fidelity
+    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity
 )
 import numpy as np
 import time
 from scipy import sparse as sp
 import itertools as it
 import copy
-from scipy.linalg import eigh, eig
+from scipy.linalg import eig
 import pickle
-from pprint import pprint
-import faulthandler
 
 
 # These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
@@ -62,6 +60,21 @@ class QuantumCircuit:
             pm : float [0-1], optional, default=0.01
                 The overall amount of measurement error that will be applied when 'noise' set to
                 True.
+
+            Attributes
+            ----------
+            num_qubits : int
+                The number of qubits present in the system.
+                *** NUMBER IS NOT DEFINITE AND CAN AND WILL BE CHANGED BY SOME METHODS ***
+            d : int
+                Dimension of the system. This is 2**num_qubits
+            noise: bool, optional, default=False
+                If there is general noise present in the system. This will add noise to the gate
+                and measurement operations applied to the system.
+            pg : float [0-1], optional, default=0.01
+                The amount of gate noise present in the system. Will only be applied if 'noise' is True.
+            pm: float [0-1], optional, default=0.01
+                The amount of measurement noise present in the system. Will only be applied if 'noise' is True.
     """
 
     def __init__(self, num_qubits, init_type=None, noise=False, pg=0.01, pm=0.01):
@@ -148,7 +161,7 @@ class QuantumCircuit:
         ------------------------------
     """
 
-    def set_qubit_states(self, dict):
+    def set_qubit_states(self, qubit_dict):
         """
         qc.set_qubit_states(dict)
 
@@ -158,7 +171,7 @@ class QuantumCircuit:
 
             Parameters
             ----------
-            dict : dict
+            qubit_dict : dict
                 Dictionary with the keys being the number of the qubits to be modified (first qubit is 0)
                 and the value being the state the qubit should be in
 
@@ -166,7 +179,7 @@ class QuantumCircuit:
             -------
             qc.set_qubit_state({0 : ket_1}) --> This sets the first qubit to the ket_1 state
         """
-        for tqubit, state in dict.items():
+        for tqubit, state in qubit_dict.items():
             self._qubit_array[tqubit] = state
         self._init_density_matrix()
 
@@ -268,7 +281,7 @@ class QuantumCircuit:
 
                 Parameters
                 ----------
-                gate : array
+                gate : ndarray
                     Array of dimension 2x2, examples are the well-known pauli matrices (X, Y, Z)
                 tqubit : int
                     Integer that indicates the target qubit. Note that the qubit counting starts at
@@ -304,7 +317,7 @@ class QuantumCircuit:
 
             Parameters
             ----------
-            gate : array
+            gate : ndarray
                 Array of dimension 2x2, examples are the well-known pauli matrices (X, Y, Z)
             tqubit : int
                 Integer that indicates the target qubit. Note that the qubit counting starts at
@@ -403,6 +416,28 @@ class QuantumCircuit:
     """
 
     def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True):
+        """
+            Applies a two qubit gate according to the specified control and target qubits. This will update the density
+            matrix of the system accordingly.
+
+            Parameters
+            ----------
+            gate : ndarray
+                Array of dimension 2x2, examples are the well-known pauli matrices (X, Y, Z)
+            cqubit : int
+                Integer that indicates the control qubit. Note that the qubit counting starts at 0
+            tqubit : int
+                Integer that indicates the target qubit. Note that the qubit counting starts at 0.
+            noise : bool, optional, default=None
+                Determines if the gate is noisy. When the QuantumCircuit object is initialised
+                with the 'noise' parameter to True, this parameter will also evaluate to True if
+                not specified otherwise.
+            pg : float [0-1], optional, default=None
+                Specifies the amount of gate noise if present. If the QuantumCircuit object is
+                initialised with a 'pg' parameter, this will be used if not specified otherwise
+            draw : bool, optional, default=True
+                If true, the specified gate will appear when the circuit is visualised.
+        """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -430,12 +465,21 @@ class QuantumCircuit:
         So for creating a CNOT gate with the control on the 2nd qubit and target on the first qubit on a system with 3
         qubits one will get:
 
-                1. I*I*I + I*I*I
-                2. I*|0><0|*I + I*|1><1|*I
-                3. I*|0><0|*I + X_t*|1><1|*I
+                1. I#I#I + I#I#I
+                2. I#|0><0|#I + I#|1><1|#I
+                3. I#|0><0|#I + X_t#|1><1|#I
 
-        (In which * is the Kronecker Product) (https://quantumcomputing.stackexchange.com/questions/4252/
+        (In which '#' is the Kronecker Product) (https://quantumcomputing.stackexchange.com/questions/4252/
         how-to-derive-the-cnot-matrix-for-a-3-qbit-system-where-the-control-target-qbi)
+
+        Parameters
+        ----------
+        gate : array
+            Array of dimension 2x2, examples are the well-known pauli matrices (X, Y, Z)
+        cqubit : int
+            Integer that indicates the control qubit. Note that the qubit counting starts at 0.
+        tqubit : int
+            Integer that indicates the target qubit. Note that the qubit counting starts at 0.
         """
         if cqubit == tqubit:
             raise ValueError("Control qubit cannot be the same as the target qubit!")
@@ -443,12 +487,13 @@ class QuantumCircuit:
         gate_1 = self._create_1_qubit_gate(CT(ket_0), cqubit)
         gate_2 = self._create_1_qubit_gate(CT(ket_1), cqubit)
 
-        x_gate = self._create_1_qubit_gate(X, tqubit)
-        gate_2 = x_gate.dot(gate_2)
+        one_qubit_gate = self._create_1_qubit_gate(gate, tqubit)
+        gate_2 = one_qubit_gate.dot(gate_2)
 
         return sp.csr_matrix(gate_1 + gate_2)
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True):
+        """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -457,6 +502,7 @@ class QuantumCircuit:
         self.apply_2_qubit_gate(X, cqubit, tqubit, noise, pg, draw)
 
     def CZ(self, cqubit, tqubit, noise=None, pg=None):
+        """ Applies the CZ gate to the specified target qubit. See apply_2_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -471,24 +517,90 @@ class QuantumCircuit:
     """
 
     def _N_single(self, pg, tqubit):
+        """
+            Private method to apply noise to the single qubit gates. This is done according to the equation
+
+                N(rho) = (1-pg) * rho + pg/3 SUM_A [A * rho * A^], --> A in {X, Y, Z}
+
+            in which '#' is the Kronecker product and ^ is the dagger (Hermitian conjugate).
+
+            Parameters
+            ----------
+            pg : float [0-1]
+                Indicates the amount of gate noise applied
+            tqubit: int
+                Integer that indicates the target qubit. Note that the qubit counting starts at 0.
+        """
         self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
                                             (pg / 3) * self._sum_pauli_error_single(tqubit))
 
     def _N(self, pg, cqubit, tqubit):
+        """
+            Private method to apply noise to the single qubit gates. This is done according to the equation
 
+                N(rho) = (1-pg)*rho + pg/15 SUM_A SUM_B [(A # B) rho (A # B)^], --> {A, B} in {X, Y, Z, I}
+
+            in which '#' is the Kronecker product and ^ is the dagger (Hermitian conjugate).
+
+            Parameters
+            ----------
+            pg : float [0-1]
+                Indicates the amount of gate noise applied
+            cqubit: int
+                Integer that indicates the control qubit. Note that the qubit counting starts at 0.
+            tqubit: int
+                Integer that indicates the target qubit. Note that the qubit counting starts at 0.
+        """
         self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
-                                            (pg / 15) * self._sum_pauli_error(cqubit, tqubit))
+                                            (pg / 15) * self._double_sum_pauli_error(cqubit, tqubit))
 
-    def _sum_pauli_error_single(self, qubit):
+    def _sum_pauli_error_single(self, tqubit):
+        """
+            Private method that calculates the pauli gate sum part of the equation specified in _N_single
+            method, namely
+
+                SUM_A [A * rho * A^], --> A in {X, Y, Z}
+
+            Parameters
+            ----------
+            tqubit: int
+                Integer that indicates the target qubit. Note that the qubit counting starts at 0.
+
+            Returns
+            -------
+            summed_matrix : sparse matrix
+                Returns a sparse matrix which is the result of the equation mentioned above.
+        """
         matrices = [X, Y, Z]
-        result = np.zeros(self.density_matrix.shape)
+        summed_matrix = sp.csr_matrix((self.d, self.d))
 
         for i in matrices:
-            pauli_error = self._create_1_qubit_gate(i, qubit)
-            result = result + pauli_error.dot(CT(self.density_matrix, pauli_error))
-        return result
+            pauli_error = self._create_1_qubit_gate(i, tqubit)
+            summed_matrix = summed_matrix + pauli_error.dot(CT(self.density_matrix, pauli_error))
+        return summed_matrix
 
-    def _sum_pauli_error(self, qubit1, qubit2):
+    def _double_sum_pauli_error(self, qubit1, qubit2):
+        """
+            Private method that calculates the double pauli matrices sum part of the equation specified in _N
+            method, namely
+
+                SUM_B SUM_A [(A # B) * rho * (A # B)^], --> {A, B} in {X, Y, Z, I}
+
+            in which '#' is the Kronecker product and ^ is the dagger (Hermitian conjugate).
+
+            Parameters
+            ----------
+            qubit1: int
+                Integer that indicates the either the target qubit or the control qubit. Note that the qubit counting
+                starts at 0.
+            qubit2 : int
+                Integer that indicates the either the target qubit or the control qubit. Note that the qubit counting
+                starts at 0.
+            Returns
+            -------
+            summed_matrix : sparse matrix
+                Returns a sparse matrix which is the result of the equation mentioned above.
+        """
         matrices = [X, Y, Z, I]
         qubit2_matrices = []
 
@@ -515,7 +627,29 @@ class QuantumCircuit:
             Measurement Methods
         --------------------------------------     
     """
-    def measure_first_N_qubits(self, N, noise=None, pm=None, basis="X", keep_qubits=False, measure="even"):
+    def measure_first_N_qubits(self, N, measure=0, noise=None, pm=None, basis="X"):
+        """
+            Method measures the first N qubits, given by the user, all in the 0 or 1 state.
+            This will thus result in an even parity measurement. To also be able to enforce uneven
+            parity measurements this should still be built!
+            The density matrix of the system will be changed according to the measurement outcomes.
+            *** MEASURED QUBITS WILL BE ERASED FROM THE SYSTEM AFTER MEASUREMENT, THIS WILL THUS
+            DECREASE THE AMOUNT OF QUBITS IN THE SYSTEM WITH N ***
+
+            Parameters
+            ----------
+            N : int
+                Specifies the first n qubits that should be measured.
+            measure : int [0 or 1], optional, default=0
+                The measurement outcome for the qubits, either 0 or 1.
+            noise : bool, optional, default=None
+                 Whether or not the measurement contains noise.
+            pm : float [0-1], optional, default=None
+                The amount of measurement noise that is present (if noise is present).
+            basis : str ["X" or "Z"], optional, default="X"
+                Whether the measurement should be done in the X-basis or in the computational (Z) basis
+
+        """
         if noise is None:
             noise = self.noise
         if pm is None:
@@ -525,26 +659,35 @@ class QuantumCircuit:
             if basis == "X":
                 self.H(qubit)
 
-            # if measure != "even" and qubit % 2 == 1:
-            #     self._measurement_first_qubit(measure=1, pm=pm)
-            self._measurement_first_qubit(measure=0, noise=noise, pm=pm)
+            self._measurement_first_qubit(measure, noise=noise, pm=pm)
 
             self._draw_order.append({"M": qubit})
 
-            # if keep_qubits:
-            #     if basis == "X":
-            #         self.H(qubit)
-
-        density_matrix = self.density_matrix
-
-        # if keep_qubits:
-        #     density_matrix = sp.kron(N_dim_ket_0_or_1_density_matrix(N), self.density_matrix)
-        #     self.num_qubits += N
-        #     self.d = 2**self.num_qubits
-
-        self.density_matrix = density_matrix / trace(density_matrix)
+        self.density_matrix = self.density_matrix / trace(self.density_matrix)
 
     def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):
+        """
+            Private method that is used to measure the first qubit (qubit 0) in the system and removing it
+            afterwards. If a 0 is measured, the upper left quarter of the density matrix 'survives'
+            and if a 1 is measured the lower right quarter of the density matrix 'survives'.
+            Noise is applied according to the equation
+
+                (1-pm) * rho_p-correct + pm * rho_p-incorrect,
+
+            where 'rho_p-correct' is the density matrix that should result after the measurement and
+            'rho_p-incorrect' is the density matrix that results when the opposite measurement outcome
+            is measured.
+
+            Parameters
+            ----------
+            measure : int [0 or 1], optional, default=0
+                The measurement outcome for the qubit, either 0 or 1.
+            noise : bool, optional, default=None
+                 Whether or not the measurement contains noise.
+            pm : float [0-1], optional, default=0.
+                The amount of measurement noise that is present (if noise is present).
+        """
+
         density_matrix_0 = self.density_matrix[:int(self.d/2), :int(self.d/2)]
         density_matrix_1 = self.density_matrix[int(self.d/2):, int(self.d/2):]
 
@@ -559,10 +702,27 @@ class QuantumCircuit:
 
         self.density_matrix = density_matrix
 
+        # Remove the measured qubit from the system characteristics
         self.num_qubits -= 1
         self.d = 2**self.num_qubits
 
     def measure(self, qubit, measure=None, basis="X"):
+        """
+            Measurement that can be applied to any qubit and does NOT remove the qubit from the system.
+            *** THIS METHOD IS VERY SLOW FOR LARGER SYSTEMS, SINCE IT DETERMINES THE SYSTEM STATE AFTER
+            THE MEASUREMENT BY DIAGONALISING THE DENSITY MATRIX ***
+
+            Parameters
+            ----------
+            qubit : int
+                Indicates the qubit to be measured (qubit count starts at 0)
+            measure : int [0 or 1], optional, default=None
+                The measurement outcome for the qubit, either 0 or 1. If None, the method will choose
+                randomly according to the probability of the outcome.
+            basis : str ["X" or "Z"], optional, default="X"
+                Whether the qubit is measured in the X-basis or in the computational basis (Z-basis)
+
+        """
         if basis == "X":
             self.H(qubit, noise=False)
 
@@ -613,6 +773,26 @@ class QuantumCircuit:
         The density matrix after the measurement is obtained by taking the CT of the adapted eigenvectors by the
         probability calculations, multiply the result with the eigenvalue for that eigenvector and add all resulting
         matrices.
+
+        Parameters
+        ----------
+        qubit : int
+            Indicates the qubit to be measured (qubit count starts at 0)
+        measure : int [0 or 1], optional, default=0
+            The measurement outcome for the qubit, either 0 or 1.
+        eigenval : sparse matrix, optional, default=None
+            For speedup purposes, the eigenvalues of the density matrix can be passed to the method. *** Keep in mind that
+            this does require more memory and can therefore cause the program to stop working. ***
+        eigenvec : sparse matrix, optional, deafault=None
+            For speedup purposes, the eigenvectors of the density matrix can be passed to the method. *** Keep in mind that
+            this does require more memory and can therefore cause the program to stop working. ***
+
+        Returns
+        -------
+        prob = float [0-1]
+            The probability of the specified measurement outcome.
+        resulting_density_matrix : sparse matrix
+            The density matrix that is the result of the specified measurement outcome
         """
         if eigenvec is None:
             eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
@@ -735,7 +915,7 @@ class QuantumCircuit:
         -----------------------------     
     """
 
-    def get_superoperator(self, CNOT=False):
+    def get_superoperator(self):
         if self.num_qubits != 8:
             raise ValueError("Superoperator can only be determined for a system with 4 data qubits with one ancilla "
                              "qubit each. So the system should contain 8 qubits")
@@ -764,7 +944,7 @@ class QuantumCircuit:
                         operators = [gate_name(qubit1_op), gate_name(qubit2_op), gate_name(qubit3_op),
                                      gate_name(qubit4_op)]
 
-                        if fid != 0 and operators.count("I") >= 2:
+                        if fid != 0 and operators.count("I") >= 1:
                             if fid in superoperator:
                                 current_value = superoperator[fid]
                                 current_value.append(operators)
@@ -883,22 +1063,17 @@ class QuantumCircuit:
 
 if __name__ == "__main__":
     start = time.time()
-    # qc = Circuit(5, init_type=2, noise=False, pg=0.09, pm=0.09)
-    # for i in range(1, qc.num_qubits, 2):
-    #     qc.create_bell_pair([(i, i+1)])
-    # for i in range(1, qc.num_qubits, 2):
-    #     qc.CNOT(0, i)
-    # qc.measure_first_N_qubits(1)
 
-    qc2 = QuantumCircuit(10, init_type=3, noise=True, pg=0.09, pm=0.09)
-    for i in range(2, qc2.num_qubits, 2):
-        qc2.CNOT(0, i)
-    qc2.measure_first_N_qubits(2)
+    qc = QuantumCircuit(10, init_type=2, noise=True, pg=0.09, pm=0.09)
+    for z in range(2, qc.num_qubits, 2):
+        qc.CNOT(0, z)
+    qc.measure_first_N_qubits(2)
 
-    qc2.draw_circuit()
-    superoperator = qc2.get_superoperator()
+    qc.draw_circuit()
+    superoperator = qc.get_superoperator()
     for prob in sorted(superoperator):
-        print("Probability: {}\n".format(prob))
+        print("Probability: {}\n".format(prob/sum(superoperator.keys())))
         print(superoperator[prob])
         print("")
+    print(sum(superoperator.keys()))
     print("The run took {} seconds".format(time.time() - start))

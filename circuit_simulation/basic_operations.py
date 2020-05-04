@@ -2,6 +2,7 @@ from circuit_simulation.states_and_gates import *
 import numpy as np
 from scipy import sparse as sp
 import random
+import qiskit
 
 
 def state_repr(state):
@@ -56,6 +57,9 @@ def CT(state1, state2=None):
 
 
 def trace(sparse_matrix):
+    if not sp.issparse(sparse_matrix):
+        sp.csr_matrix(sparse_matrix)
+
     return sparse_matrix.diagonal().sum()
 
 
@@ -70,6 +74,11 @@ def N_dim_ket_0_or_1_density_matrix(N, ket=0):
 
 
 def fidelity(rho, sigma):
-    rho_root = np.sqrt(rho.toarray())
-    resulting_matrix = np.sqrt((rho_root * sigma.toarray() * rho_root))
+    if not sp.issparse(rho):
+        rho = sp.csr_matrix(rho)
+    if not sp.issparse(sigma):
+        sigma = sp.csr_matrix(sigma)
+
+    rho_root = sp.csr_matrix(np.sqrt(rho.toarray()))
+    resulting_matrix = np.sqrt((rho_root * sigma * rho_root).toarray())
     return (trace(resulting_matrix))**2
