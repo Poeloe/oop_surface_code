@@ -1,5 +1,5 @@
 from circuit_simulation.basic_operations import (
-    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity, gate_name_to_array
+    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity, fidelity_elementwise, gate_name_to_array
 )
 import numpy as np
 import time
@@ -140,12 +140,12 @@ class QuantumCircuit:
         bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
         density_matrix = bell_pair_rho
         if draw:
-            self._draw_order.append({"#": (0, 1)})
+            self._add_draw_operation("#", (0, 1))
 
         for i in range(2, self.num_qubits, 2):
             density_matrix = sp.kron(bell_pair_rho, density_matrix)
             if draw:
-                self._draw_order.append({"#": (i, i + 1)})
+                self._add_draw_operation("#", (i, i + 1))
 
         return density_matrix
 
@@ -162,7 +162,7 @@ class QuantumCircuit:
         density_matrix[self.d - 1, self.d - 1] = 1 / 2
 
         for i in range(1, self.num_qubits):
-            self._draw_order.append({"X": (0, i)})
+            self._add_draw_operation("X", (0, i))
 
         return density_matrix
 
@@ -233,7 +233,7 @@ class QuantumCircuit:
         for qubit1, qubit2 in qubits:
             self.H(qubit1, noise=False, draw=False)
             self.CNOT(qubit1, qubit2, noise=False, draw=False)
-            self._draw_order.append({"#": (qubit1, qubit2)})
+            self._add_draw_operation("#", (qubit1, qubit2))
 
     def create_N_noisy_bell_pairs(self, N, pn=0.1):
         """
@@ -271,7 +271,7 @@ class QuantumCircuit:
 
             self.density_matrix = sp.kron((1 - 4 * pn / 3) * rho + pn / 3 * sp.eye(4, 4), self.density_matrix)
 
-            self._draw_order.append({"@": (i, i + 1)})
+            self._add_draw_operation("@", (i, i + 1))
 
     def add_top_qubit(self, qubit_state=ket_0):
         """
@@ -334,7 +334,7 @@ class QuantumCircuit:
             self._N_single(pg, tqubit)
 
         if draw:
-            self._draw_order.append({gate_name(gate): tqubit})
+            self._add_draw_operation(gate_name(gate), tqubit)
 
     def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None):
         """
@@ -482,7 +482,7 @@ class QuantumCircuit:
             self._N(pg, cqubit, tqubit)
 
         if draw:
-            self._draw_order.append({gate_name(gate): (cqubit, tqubit)})
+            self._add_draw_operation(gate_name(gate), (cqubit, tqubit))
 
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         """
@@ -694,11 +694,10 @@ class QuantumCircuit:
         for qubit in range(N):
             if basis == "X":
                 self.H(0, draw=False)
-                self._draw_order.append({"H": qubit})
+                self._add_draw_operation("H", qubit)
 
             self._measurement_first_qubit(measure, noise=noise, pm=pm)
-
-            self._draw_order.append({"M{}".format(measure): qubit})
+            self._add_draw_operation("M{}".format(measure), qubit)
 
         self.density_matrix = self.density_matrix / trace(self.density_matrix)
 
@@ -774,7 +773,7 @@ class QuantumCircuit:
         else:
             self.density_matrix = self._measurement(qubit, measure)[1]
 
-        self._draw_order.append({"M": qubit})
+        self._add_draw_operation("M", qubit)
 
         if basis == "X":
             self.H(qubit, noise=False)
@@ -929,6 +928,10 @@ class QuantumCircuit:
 
             in which '#' is the Kronecker product.
 
+            *** DOES NOT WORK PROPERLY WHEN MULTIPLE QUBITS OBTAINED AN EFFECTIVE PHASE, SINCE IT IS NOT YET
+            FIGURED OUT HOW THESE MULTIPLE NEGATIVE CONTRIBUTIONS CAN BE TRACED BACK --> SEE MORE INFORMATION AT
+            THE _FIND_NEGATIVE_CONTRIBUTING_QUBIT' METHOD ***
+
             Returns
             -------
             non_zero_eigenvalues : list
@@ -967,25 +970,56 @@ class QuantumCircuit:
 
         return non_zero_eigenvalues, decomposed_eigenvectors
 
-    def _find_negative_contributing_qubit(self, indices, values):
+    def _find_negative_contributing_qubit(self, non_zero_eigenvector_elements_indices,
+                                          non_zero_eigenvector_elements_values):
         """
+            returns the index of the qubit that obtained a phase (negative value). So for a
+            4 qubit system (2 data qubits (_d), 2 ancilla qubits (_a))
 
+            (|0_d, 0_a> -|1_d, 1_a>) # (|0_d, 0_a> + |1_d, 1_a>) = |0000> + |0011> - |1100> - |1111>
+
+            Comparing the data qubits of the negative N-qubit states, we see that the first data qubit
+            is always in the |1>, which is indeed the qubit that obtained the phase.
+
+            *** THIS ONLY WORKS WHEN ONE QUBIT HAS OBTAINED A PHASE. SO ONLY ONE EFFECTIVE
+            Z (OR Y) ON ONE OF THE QUBITS IN THE SYSTEM. SHOULD BE CHECKED IF IT IS POSSIBLE
+            TO DETERMINE THIS IN EVERY SITUATION ***
+
+            Parameters
+            ----------
+            non_zero_eigenvector_elements_indices : list
+                List with the indices of non-zero elements of the eigenvector.
+            non_zero_eigenvector_elements_values : list
+                List that contains the values of the elements that are non-zero.
+
+            Returns
+            -------
+            negative_value_indices : list
+                List of indices that correspond to the negative elements in the Eigenvector
+            negative_qubit_indices : list
+                List of qubits that obtained a phase (negative value). For now this will only
+                contain one qubit or no qubit index
         """
-        negative_value_indices = np.where(values < 0)[0]
+        # Get the indices of the negative values in the eigenvector
+        negative_value_indices = np.where(non_zero_eigenvector_elements_values < 0)[0]
         if negative_value_indices.size == 0:
             return [], []
 
+        # Get the N-qubit states that corresponds to the negative value indices
         bitstrings = []
-        for index in indices[negative_value_indices]:
-            bitstrings.append([int(bit) for bit in "{0:b}".format(index).zfill(self.num_qubits)])
+        for negative_value_index in non_zero_eigenvector_elements_indices[negative_value_indices]:
+            bitstrings.append([int(bit) for bit in "{0:b}".format(negative_value_index).zfill(self.num_qubits)])
 
-        negative_indices = []
+        # Check for each data qubits (all the even qubits) if it is in the same state in each N-qubit state.
+        # If this is the case then this data qubit is the negative contributing qubits (if only one qubit
+        # has obtained an effective phase).
+        negative_qubit_indices = []
         for i in range(0, self.num_qubits, 2):
             row = np.array(bitstrings)[:, i]
             if len(set(row)) == 1:
-                negative_indices.append(i)
+                negative_qubit_indices.append(i)
 
-        return indices[negative_value_indices], negative_indices
+        return non_zero_eigenvector_elements_indices[negative_value_indices], negative_qubit_indices
 
     """
         -----------------------------
@@ -994,6 +1028,26 @@ class QuantumCircuit:
     """
 
     def get_superoperator(self, save_noiseless_density_matrix=True):
+        """
+            Returns the superoperator for the system. The superoperator is determined by taking the fidelities
+            of the density matrix of the system [rho_real] and the density matrices obtained with any possible
+            combination of error on the 4 data qubits in a noiseless version of the system [(ABCD) rho_ideal (ABCD)^].
+            Thus in equation form
+
+            F[rho_real, (ABCD) rho_ideal (ABCD)^], {A, B, C, D} in {X, Y, Z, I}
+
+            The fidelity is equal to the probability of this specific error, the combination of (ABCD), happening.
+
+            *** THIS ONLY WORKS FOR A (RESULTING) SYSTEM WITH 8 QUBITS THAT IS INITIALLY IN THE MAXIMALLY ENTANGLED
+            STATE (DATA QUBIT AND CORRESPONDING ANCILLA QUBIT IN A PERFECT BELL STATE) AND WHERE THE ANCILLA QUBIT
+            IS PERFECT AND UNTOUCHED. ***
+
+            Parameters
+            __________
+            save_noiseless_density_matrix : bool, optional, default=True
+                Whether or not the calculated noiseless (ideal) version of the circuit should be saved.
+                This saved matrix will a next time be used for speedup if the same system is analysed with this method.
+        """
         if self.num_qubits != 8:
             raise ValueError("Superoperator can only be determined for a system with 4 data qubits with one ancilla "
                              "qubit each. So the system should contain 8 qubits")
@@ -1016,7 +1070,7 @@ class QuantumCircuit:
 
                         error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
 
-                        fid = round(fidelity(self.density_matrix, error_density_matrix).real, 6)
+                        fid = round(fidelity_elementwise(self.density_matrix, error_density_matrix).real, 6)
 
                         operators = [gate_name(qubit1_op), gate_name(qubit2_op), gate_name(qubit3_op),
                                      gate_name(qubit4_op)]
@@ -1036,6 +1090,23 @@ class QuantumCircuit:
 
     @staticmethod
     def _return_most_likely_option(operators):
+        """
+            Static private method that picks the most likely set of operators, based on the amount of
+            identity matrices it contains. In other words, the sets of operators containing the most
+            identity matrices will survive since these are the most likely to have happened.
+            The method is used in the determination of the superoperator, see the 'get_superoperator' method.
+
+            Parameters
+            ----------
+            operators : list
+                List containing the sets of operators that correspond to one probability value
+
+            Returns
+            -------
+            most_likely_operators : list
+                List of operators that are the most likely to happen
+
+        """
         id_count = []
         for op in operators:
             id_count.append(op.count("I"))
@@ -1122,7 +1193,20 @@ class QuantumCircuit:
 
             return noiseless_density_matrix
 
-    def get_kraus_operator(self, operation):
+    def get_kraus_operator(self):
+        """
+            Returns the effective operator per qubit. Works onl for a system that is initially in the maximally
+            entangled state (data qubits in a perfect Bell state with their corresponding ancilla qubit). This is
+            because it is based on the Choi-Jamiolkowski Isomorphism.
+
+            *** METHOD ONLY WORKS PROPERLY WHEN ONLY ONE QUBIT OBTAINED AN EFFECTIVE PHASE. FOR MORE INFORMATION
+            ON WHY, SEE THE 'DECOMPOSE_NON_ZERO_EIGENVECTORS' METHOD ***
+
+            Returns
+            -------
+            probabilities_operators : zip
+                zip containing the probabilities with the corresponding operators on the qubits
+        """
         probabilities, decomposed_statevector = self.decompose_non_zero_eigenvectors()
         kraus_ops = []
 
@@ -1148,6 +1232,7 @@ class QuantumCircuit:
         return zip(probabilities, kraus_ops)
 
     def print_kraus_operators(self):
+        """ Prints a clear overview of the effective operations that have happened on the individual qubits """
         print_lines = ["\n---- Kraus operators per qubit ----\n"]
         for prob, operators_per_qubit in sorted(self.get_kraus_operator([I])):
             print_lines.append("\nProbability: {:.8}\n".format(prob.real))
@@ -1168,6 +1253,8 @@ class QuantumCircuit:
     """
 
     def draw_circuit(self):
+        """ Draws the circuit that corresponds to the operation that have been applied on the system,
+        up untill the moment of calling. """
         legenda = "--- Circuit ---\n\n @ = noisy Bell-pair, # = perfect Bell-pair, o = control qubit " \
                   "(with target qubit at same level), [X,Y,Z,H] = gates, M = Measurement\n"
         init = self._draw_init()
@@ -1176,12 +1263,14 @@ class QuantumCircuit:
         print(legenda, *init)
 
     def _draw_init(self):
+        """ Returns an array containing the visual representation of the initial state of the qubits. """
         init_state_repr = []
         for i in self._qubit_array:
             init_state_repr.append("\n\n{} ---".format(state_repr(i)))
         return init_state_repr
 
     def _draw_gates(self, init):
+        """ Adds the visual representation of the operations applied on the qubits """
         for gate_item in self._draw_order:
             gate = next(iter(gate_item))
             value = gate_item[gate]
@@ -1202,8 +1291,9 @@ class QuantumCircuit:
                 elif len(init[a[0]]) > len(init[b[0]]):
                     init[b[0]] += (len(init[a[0]]) - len(init[b[0]])) * "-"
 
-    def _add_draw_operation(self, operation, *args):
-        item = {operation: args}
+    def _add_draw_operation(self, operation, qubits):
+        """ Add an operation to the draw order list """
+        item = {operation: qubits}
         self._draw_order.append(item)
 
     def __repr__(self):
@@ -1222,7 +1312,7 @@ if __name__ == "__main__":
     qc.draw_circuit()
     superoperator = qc.get_superoperator()
     for probability in sorted(superoperator):
-        print("Probability: {}\n".format(probability / sum(superoperator.keys())))
+        print("Probability: {}\n".format(probability))
         print(superoperator[probability])
         print("")
     print(sum(superoperator.keys()))
