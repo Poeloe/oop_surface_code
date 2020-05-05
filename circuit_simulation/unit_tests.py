@@ -2,7 +2,9 @@ import unittest
 from circuit_simulation.circuit_simulator import QuantumCircuit as QC
 import numpy as np
 import scipy.sparse as sp
-from circuit_simulation.basic_operations import (KP, CT, fidelity, trace, ket_0, ket_1, ket_p, X, Z, Y, H)
+from circuit_simulation.basic_operations import (
+    KP, CT, fidelity, fidelity_elementwise, trace, ket_0, ket_1, ket_p, X, Z, Y, H
+)
 
 
 class TestBasicOperations(unittest.TestCase):
@@ -21,11 +23,26 @@ class TestBasicOperations(unittest.TestCase):
         id_2 = sp.eye(4, 4)
         self.assertEqual(trace(id_2), 4)
 
-    def test_fidelity(self):
+    def test_fidelity_1(self):
         rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
         fid = fidelity(rho_0, rho_0)
         self.assertEqual(fid, 1)
 
+    def test_fidelity_0(self):
+        rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
+        rho_1 = sp.lil_matrix([[0, 0], [0, 1]])
+        self.assertEqual(fidelity(rho_0, rho_1), 0)
+
+    def test_fidelity_half(self):
+        rho_p = sp.lil_matrix([[1/2, 1/2], [1/2, 1/2]])
+        rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
+        self.assertAlmostEqual(fidelity(rho_p, rho_0), 1/2)
+
+    def test_fidelity_elementwise_half(self):
+        rho_p = sp.lil_matrix([[1/2, 1/2], [1/2, 1/2]])
+        rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
+        self.assertAlmostEqual(fidelity_elementwise(rho_0, rho_p), 1/2)
+        self.assertAlmostEqual(fidelity_elementwise(rho_p, rho_0), 1/2)
 
 class TestQuantumCircuitInit(unittest.TestCase):
 
