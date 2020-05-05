@@ -9,6 +9,7 @@
 *.xlsx
 *.txt
 *.lprof
+*.npz
 __pycache__/
 errors/
 figures/
