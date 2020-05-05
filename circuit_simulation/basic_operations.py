@@ -96,3 +96,14 @@ def fidelity(rho, sigma):
     rho_root = sp.csr_matrix(np.sqrt(rho.toarray()))
     resulting_matrix = np.sqrt((rho_root * sigma * rho_root).toarray())
     return (trace(resulting_matrix))**2
+
+
+def fidelity_elementwise(rho, sigma):
+    if not sp.issparse(rho):
+        rho = sp.csr_matrix(rho)
+    if not sp.issparse(sigma):
+        sigma = sp.csr_matrix(sigma)
+
+    rho_root = np.sqrt(rho.toarray())
+    resulting_matrix = np.sqrt(rho_root * sigma.toarray() * rho_root)
+    return trace(resulting_matrix)**2
