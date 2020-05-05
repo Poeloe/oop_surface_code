@@ -17,5 +17,6 @@ data/
 logs/
 batch/
 .idea/
+_trial_temp/
 .python-version
 !requirements.txt
