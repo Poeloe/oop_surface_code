@@ -30,6 +30,20 @@ def gate_name(gate):
     return None
 
 
+def gate_name_to_array(gate_name):
+    if gate_name == "X":
+        return X
+    if gate_name == "Y":
+        return Y
+    if gate_name == "Z":
+        return Z
+    if gate_name == "I":
+        return I
+    if gate_name == "H":
+        return H
+    return None
+
+
 def get_value_by_prob(array, p):
     r = random.random()
     index = 0
