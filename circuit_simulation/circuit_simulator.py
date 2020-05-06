@@ -359,7 +359,7 @@ class QuantumCircuit:
             num_qubits = self.num_qubits
 
         if np.array_equal(gate, I):
-            return sp.eye(2**num_qubits, 2**num_qubits)
+            return sp.eye(2 ** num_qubits, 2 ** num_qubits)
 
         first_id, second_id = self._create_identity_operations(tqubit, num_qubits=num_qubits)
 
@@ -1054,7 +1054,8 @@ class QuantumCircuit:
 
         operations = [X, Y, Z, I]
 
-        noiseless_density_matrix = self._get_noiseless_density_matrix(save_noiseless_density_matrix)
+        noiseless_density_matrix, measerror_density_matrix = \
+            self._get_noiseless_density_matrix(save_noiseless_density_matrix)
 
         superoperator = {}
 
@@ -1069,19 +1070,25 @@ class QuantumCircuit:
                         total_error_gate = gate_qubit1 * gate_qubit2 * gate_qubit3 * gate_qubit4
 
                         error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
+                        me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
-                        fid = round(fidelity_elementwise(self.density_matrix, error_density_matrix).real, 6)
+                        fid_no_me = round(fidelity(self.density_matrix, error_density_matrix).real, 6)
+                        fid_me = round(fidelity(self.density_matrix, me_error_density_matrix).real, 6)
 
                         operators = [gate_name(qubit1_op), gate_name(qubit2_op), gate_name(qubit3_op),
-                                     gate_name(qubit4_op)]
+                                     gate_name(qubit4_op), "no_me"]
 
-                        if fid != 0 and operators.count("I") >= 1:
-                            if fid in superoperator:
-                                current_value = superoperator[fid]
-                                current_value.append(operators)
-                                superoperator[fid] = current_value
-                            else:
-                                superoperator[fid] = [operators]
+                        for i, fid in enumerate([fid_no_me, fid_me]):
+                            if i == 1:
+                                operators = operators.copy()
+                                operators[4] = "me"
+                            if fid != 0:
+                                if fid in superoperator:
+                                    current_value = superoperator[fid]
+                                    current_value.append(operators)
+                                    superoperator[fid] = current_value
+                                else:
+                                    superoperator[fid] = [operators]
 
         for key, ops in superoperator.items():
             superoperator[key] = self._return_most_likely_option(ops)
@@ -1140,22 +1147,25 @@ class QuantumCircuit:
         # Create an hash id, based on the operation and there order on the system and use this for the filename
         system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._draw_order])
         hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
-        file_name = "density_matrix_{}.npz".format(hash_id)
+        file_name_noiseless = "density_matrix_{}.npz".format(hash_id)
+        file_name_measerror = "density_matrix_me_{}.npz".format(hash_id)
 
         # Check if the noiseless system has been calculated before
-        if os.path.exists(file_name):
-            return sp.load_npz(file_name)
+        if os.path.exists(file_name_noiseless) and os.path.exists(file_name_measerror):
+            return sp.load_npz(file_name_noiseless), sp.load_npz(file_name_measerror)
         else:
             # Get the initial parameters of the current QuantumCircuit
             init_type = self._init_parameters['init_type']
             num_qubits = self._init_parameters['num_qubits']
             d = self._init_parameters['d']
             noiseless_density_matrix = self._init_parameters['density_matrix']
+            measerror_density_matrix = noiseless_density_matrix
             operation_start = 0
+            measurement_applied = False
 
             # Since the initial density matrix is already present, the traversal of the operations should start after.
             if init_type == 2:
-                operation_start = int(num_qubits/2)
+                operation_start = int(num_qubits / 2)
             if init_type == 3:
                 operation_start = num_qubits - 1
 
@@ -1170,32 +1180,45 @@ class QuantumCircuit:
                         gate = self._create_2_qubit_gate(one_qubit_gate, qubits[0], qubits[1],
                                                          num_qubits=num_qubits)
                     else:
-                        if self._init_parameters['num_qubits'] != num_qubits:
-                            qubits -= self._init_parameters['num_qubits'] - num_qubits
+                        if (diff := self._init_parameters['num_qubits'] - num_qubits) != 0:
+                            qubits -= diff
                         gate = self._create_1_qubit_gate(one_qubit_gate, qubits, num_qubits=num_qubits)
 
                     noiseless_density_matrix = gate * CT(noiseless_density_matrix, gate)
 
+                    if measurement_applied:
+                        measerror_density_matrix = gate * CT(measerror_density_matrix, gate)
+                    else:
+                        measerror_density_matrix = noiseless_density_matrix
+
                 # If gate does not exist, it is now taken as ONLY option that it must be a measurement on the first
                 # qubit and the measurement outcome is taken from the gate (NOTE THAT THIS WILL, AT THE MOMENT, LEAD
-                # TO AN ERROR ON THE NEXT LINE IF IT DOES NOT CONCERN A MEASUREMENT!)
+                # TO AN ERROR ON THE NEXT LINE IF IT DOES NOT CONCERN A MEASUREMENT ON THE FIRST QUBIT!)
                 else:
+                    measurement_applied = True
                     measure = int((list(operation_dict.keys())[0])[1])
+                    measure_0_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
+                    measure_1_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
+
                     if measure == 0:
-                        noiseless_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
+                        noiseless_density_matrix = measure_0_density_matrix
+                        measerror_density_matrix = measure_1_density_matrix
                     elif measure == 1:
-                        noiseless_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
+                        noiseless_density_matrix = measure_1_density_matrix
+                        measerror_density_matrix = measure_0_density_matrix
+
                     num_qubits -= 1
-                    d = 2**num_qubits
+                    d = 2 ** num_qubits
 
             if save:
-                sp.save_npz(file_name, noiseless_density_matrix)
+                sp.save_npz(file_name_noiseless, noiseless_density_matrix)
+                sp.save_npz(file_name_measerror, measerror_density_matrix)
 
-            return noiseless_density_matrix
+            return noiseless_density_matrix, measerror_density_matrix
 
     def get_kraus_operator(self):
         """
-            Returns the effective operator per qubit. Works onl for a system that is initially in the maximally
+            Returns the effective operator per qubit. Works only for a system that is initially in the maximally
             entangled state (data qubits in a perfect Bell state with their corresponding ancilla qubit). This is
             because it is based on the Choi-Jamiolkowski Isomorphism.
 
@@ -1205,7 +1228,7 @@ class QuantumCircuit:
             Returns
             -------
             probabilities_operators : zip
-                zip containing the probabilities with the corresponding operators on the qubits
+                Zip containing the probabilities with the corresponding operators on the qubits
         """
         probabilities, decomposed_statevector = self.decompose_non_zero_eigenvectors()
         kraus_ops = []
@@ -1234,7 +1257,7 @@ class QuantumCircuit:
     def print_kraus_operators(self):
         """ Prints a clear overview of the effective operations that have happened on the individual qubits """
         print_lines = ["\n---- Kraus operators per qubit ----\n"]
-        for prob, operators_per_qubit in sorted(self.get_kraus_operator([I])):
+        for prob, operators_per_qubit in sorted(self.get_kraus_operator()):
             print_lines.append("\nProbability: {:.8}\n".format(prob.real))
             for data_qubit, operator in enumerate(operators_per_qubit):
                 data_qubit_line = "Data qubit {}: \n {}\n".format(data_qubit, operator.toarray())
@@ -1306,14 +1329,14 @@ if __name__ == "__main__":
 
     qc = QuantumCircuit(10, init_type=2, noise=True, pg=0.09, pm=0.09)
     for z in range(2, qc.num_qubits, 2):
-        qc.CNOT(0, z)
+        qc.CZ(0, z)
     qc.measure_first_N_qubits(2)
 
     qc.draw_circuit()
-    superoperator = qc.get_superoperator()
-    for probability in sorted(superoperator):
-        print("Probability: {}\n".format(probability))
-        print(superoperator[probability])
+    superoperator_qc = qc.get_superoperator(False)
+    for probability in sorted(superoperator_qc):
+        print("Probability: {}\n".format(probability/sum(superoperator_qc.keys())))
+        print(superoperator_qc[probability])
         print("")
-    print(sum(superoperator.keys()))
+    print(sum(superoperator_qc.keys()))
     print("The run took {} seconds".format(time.time() - begin))
