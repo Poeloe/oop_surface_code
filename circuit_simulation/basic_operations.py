@@ -2,7 +2,6 @@ from circuit_simulation.states_and_gates import *
 import numpy as np
 from scipy import sparse as sp
 import random
-import qiskit
 
 
 def state_repr(state):
