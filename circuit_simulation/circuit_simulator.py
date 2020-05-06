@@ -1143,6 +1143,8 @@ class QuantumCircuit:
             -------
             noiseless_density_matrix : sparse matrix
                 The density matrix of the current system, but without noise
+            measerror_density_matrix : sparse matrix
+                The density matrix of the current system, with the only noise source being the measurement errors
         """
         # Create an hash id, based on the operation and there order on the system and use this for the filename
         system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._draw_order])
@@ -1176,20 +1178,8 @@ class QuantumCircuit:
 
                 # Apply the noiseless gate to the density matrix if the gate is an existing gate
                 if one_qubit_gate is not None:
-                    if type(qubits) == tuple:
-                        gate = self._create_2_qubit_gate(one_qubit_gate, qubits[0], qubits[1],
-                                                         num_qubits=num_qubits)
-                    else:
-                        if (diff := self._init_parameters['num_qubits'] - num_qubits) != 0:
-                            qubits -= diff
-                        gate = self._create_1_qubit_gate(one_qubit_gate, qubits, num_qubits=num_qubits)
-
-                    noiseless_density_matrix = gate * CT(noiseless_density_matrix, gate)
-
-                    if measurement_applied:
-                        measerror_density_matrix = gate * CT(measerror_density_matrix, gate)
-                    else:
-                        measerror_density_matrix = noiseless_density_matrix
+                    measerror_density_matrix, noiseless_density_matrix = self._reconstruct_gate(one_qubit_gate,
+                            measerror_density_matrix, noiseless_density_matrix, measurement_applied, num_qubits, qubits)
 
                 # If gate does not exist, it is now taken as ONLY option that it must be a measurement on the first
                 # qubit and the measurement outcome is taken from the gate (NOTE THAT THIS WILL, AT THE MOMENT, LEAD
@@ -1197,16 +1187,8 @@ class QuantumCircuit:
                 else:
                     measurement_applied = True
                     measure = int((list(operation_dict.keys())[0])[1])
-                    measure_0_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
-                    measure_1_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
-
-                    if measure == 0:
-                        noiseless_density_matrix = measure_0_density_matrix
-                        measerror_density_matrix = measure_1_density_matrix
-                    elif measure == 1:
-                        noiseless_density_matrix = measure_1_density_matrix
-                        measerror_density_matrix = measure_0_density_matrix
-
+                    measerror_density_matrix, noiseless_density_matrix = \
+                        self._reconstruct_measurement(measure, measerror_density_matrix, noiseless_density_matrix, d)
                     num_qubits -= 1
                     d = 2 ** num_qubits
 
@@ -1215,6 +1197,91 @@ class QuantumCircuit:
                 sp.save_npz(file_name_measerror, measerror_density_matrix)
 
             return noiseless_density_matrix, measerror_density_matrix
+
+    def _reconstruct_gate(self, one_qubit_gate, measerror_density_matrix, noiseless_density_matrix, measurement_applied,
+                          num_qubits, qubits):
+        """
+            Private method that is used to apply a gate, that has been applied on the real system, to the ideal
+            system and the system with the only source of noise being measurement errors.
+
+             Parameters
+             ----------
+             one_qubit_gate : ndarray
+                The matrix that represents the gate that should be applied.
+             measerror_density_matrix : sparse matrix
+                The density matrix of the current system, with the only noise source being the measurement errors.
+             noiseless_density_matrix : sparse matrix
+                The density matrix of the current system, but without noise.
+             measurement_applied : bool
+                Boolean that indicates if a measurement has been applied to the reconstructed systems.
+             num_qubits : int
+                The number of qubits in the system.
+             qubits : tuple or int
+                When a tuple, the first argument is the control qubit, second argument the target qubit of the
+                two-qubit gate that will be applied. If an int, it specifies the target qubit of the one-qubit gate.
+
+             Returns
+             -------
+             measerror_density_matrix : sparse matrix
+                The density matrix of the current system, with the only noise source being the measurement errors,
+                where a new gate has been applied.
+             noiseless_density_matrix : sparse matrix
+                The density matrix of the current system, but without noise,
+                where a new gate has been applied.
+        """
+        if type(qubits) == tuple:
+            gate = self._create_2_qubit_gate(one_qubit_gate, qubits[0], qubits[1], num_qubits=num_qubits)
+        else:
+            if (diff := self._init_parameters['num_qubits'] - num_qubits) != 0:
+                qubits -= diff
+            gate = self._create_1_qubit_gate(one_qubit_gate, qubits, num_qubits=num_qubits)
+
+        noiseless_density_matrix = gate * CT(noiseless_density_matrix, gate)
+
+        # If a measurement has been applied, the error measurement density matrix should be calculated separately
+        if measurement_applied:
+            measerror_density_matrix = gate * CT(measerror_density_matrix, gate)
+        else:
+            measerror_density_matrix = noiseless_density_matrix
+
+        return measerror_density_matrix, noiseless_density_matrix
+
+    @staticmethod
+    def _reconstruct_measurement(measure, measerror_density_matrix, noiseless_density_matrix, d):
+        """
+            Private method is used to apply a measurement, that has been done on the real system, to the ideal system
+            and the system with the only sources of error being measurement errors.
+
+            Parameters
+            ----------
+            measure : int [0 or 1]
+                The measurement outcome that is observed.
+            measerror_density_matrix : sparse matrix
+                The density matrix of the current system, with the only noise source being the measurement errors.
+            noiseless_density_matrix : sparse matrix
+                The density matrix of the current system, but without noise.
+            d : int
+                The dimension of the two density matrices mentioned above.
+            
+            Returns
+            -------
+            measerror_density_matrix : sparse matrix
+                The density matrix of the current system, with the only noise source being the measurement errors,
+                where a new measurement has been applied on the first qubit.
+            noiseless_density_matrix : sparse matrix
+                The density matrix of the current system, but without noise,
+                where a new measurement has been applied on the first qubit.
+        """
+        measure_0_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
+        measure_1_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
+        if measure == 0:
+            noiseless_density_matrix = measure_0_density_matrix
+            measerror_density_matrix = measure_1_density_matrix
+        elif measure == 1:
+            noiseless_density_matrix = measure_1_density_matrix
+            measerror_density_matrix = measure_0_density_matrix
+
+        return measerror_density_matrix, noiseless_density_matrix
 
     def get_kraus_operator(self):
         """
