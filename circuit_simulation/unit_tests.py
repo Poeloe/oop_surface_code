@@ -32,17 +32,20 @@ class TestBasicOperations(unittest.TestCase):
         rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
         rho_1 = sp.lil_matrix([[0, 0], [0, 1]])
         self.assertEqual(fidelity(rho_0, rho_1), 0)
+        self.assertEqual(fidelity(rho_1, rho_0), 0)
 
     def test_fidelity_half(self):
         rho_p = sp.lil_matrix([[1/2, 1/2], [1/2, 1/2]])
         rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
         self.assertAlmostEqual(fidelity(rho_p, rho_0), 1/2)
+        self.assertAlmostEqual(fidelity(rho_0, rho_p), 1 / 2)
 
     def test_fidelity_elementwise_half(self):
         rho_p = sp.lil_matrix([[1/2, 1/2], [1/2, 1/2]])
         rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
         self.assertAlmostEqual(fidelity_elementwise(rho_0, rho_p), 1/2)
         self.assertAlmostEqual(fidelity_elementwise(rho_p, rho_0), 1/2)
+
 
 class TestQuantumCircuitInit(unittest.TestCase):
 
@@ -129,6 +132,26 @@ class TestQuantumCircuitGates(unittest.TestCase):
 
         gate_result = qc._create_2_qubit_gate(Z, 1, 0)
         np.testing.assert_array_equal(gate_result.toarray(), CZ_gate)
+
+
+class TestErrorImplementation(unittest.TestCase):
+
+    def test_single_gate_error(self):
+        qc = QC(1, 0, noise=True, pg=0.01)
+        qc.X(0)
+
+        expected_density_matrix = np.array([[2/3*0.01, 0], [0, (1-0.01)+0.01/3]])
+        np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, expected_density_matrix)
+
+    def test_two_qubit_gate_error(self):
+        qc = QC(2, 0, noise=True, pg=0.01)
+        qc.CNOT(0, 1)
+
+        expected_density_matrix = np.array([[(1-(0.01*12/15)), 0, 0, 0],
+                                            [0, 0.04/15, 0, 0],
+                                            [0, 0, 0.04/15, 0],
+                                            [0, 0, 0, 0.04/15]])
+        np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, expected_density_matrix)
 
 
 if __name__ == '__main__':
