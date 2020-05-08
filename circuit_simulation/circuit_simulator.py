@@ -608,8 +608,8 @@ class QuantumCircuit:
         matrices = [X, Y, Z]
         summed_matrix = sp.csr_matrix((self.d, self.d))
 
-        for i in matrices:
-            pauli_error = self._create_1_qubit_gate(i, tqubit)
+        for matrix in matrices:
+            pauli_error = self._create_1_qubit_gate(matrix, tqubit)
             summed_matrix = summed_matrix + pauli_error.dot(CT(self.density_matrix, pauli_error))
         return summed_matrix
 
@@ -693,7 +693,7 @@ class QuantumCircuit:
 
         for qubit in range(N):
             if basis == "X":
-                self.H(0, draw=False)
+                self.H(0, noise=False, draw=False)
                 self._add_draw_operation("H", qubit)
 
             self._measurement_first_qubit(measure, noise=noise, pm=pm)
@@ -1027,7 +1027,7 @@ class QuantumCircuit:
         -----------------------------     
     """
 
-    def get_superoperator(self, save_noiseless_density_matrix=True):
+    def get_superoperator(self, save_noiseless_density_matrix=True, print_to_console=True):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1057,6 +1057,9 @@ class QuantumCircuit:
         noiseless_density_matrix, measerror_density_matrix = \
             self._get_noiseless_density_matrix(save_noiseless_density_matrix)
 
+        print(trace(noiseless_density_matrix))
+        print(trace(measerror_density_matrix))
+
         superoperator = {}
 
         for qubit1_op in operations:
@@ -1067,13 +1070,13 @@ class QuantumCircuit:
                     gate_qubit3 = self._create_1_qubit_gate(qubit3_op, 4)
                     for qubit4_op in operations:
                         gate_qubit4 = self._create_1_qubit_gate(qubit4_op, 6)
-                        total_error_gate = gate_qubit1 * gate_qubit2 * gate_qubit3 * gate_qubit4
+                        total_error_gate = gate_qubit1 * (gate_qubit2 * (gate_qubit3 * gate_qubit4))
 
                         error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
                         me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
-                        fid_no_me = round(fidelity(self.density_matrix, error_density_matrix).real, 6)
-                        fid_me = round(fidelity(self.density_matrix, me_error_density_matrix).real, 6)
+                        fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 6)
+                        fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 6)
 
                         operators = [gate_name(qubit1_op), gate_name(qubit2_op), gate_name(qubit3_op),
                                      gate_name(qubit4_op), "no_me"]
@@ -1092,6 +1095,9 @@ class QuantumCircuit:
 
         for key, ops in superoperator.items():
             superoperator[key] = self._return_most_likely_option(ops)
+
+        if print_to_console:
+            self._print_superoperator(superoperator)
 
         return superoperator
 
@@ -1156,7 +1162,7 @@ class QuantumCircuit:
         if os.path.exists(file_name_noiseless) and os.path.exists(file_name_measerror):
             return sp.load_npz(file_name_noiseless), sp.load_npz(file_name_measerror)
         else:
-            # Get the initial parameters of the current QuantumCircuit
+            # Get the initial parameters of the current QuantumCircuit object
             init_type = self._init_parameters['init_type']
             num_qubits = self._init_parameters['num_qubits']
             d = self._init_parameters['d']
@@ -1179,7 +1185,10 @@ class QuantumCircuit:
                 # Apply the noiseless gate to the density matrix if the gate is an existing gate
                 if one_qubit_gate is not None:
                     measerror_density_matrix, noiseless_density_matrix = self._reconstruct_gate(one_qubit_gate,
-                            measerror_density_matrix, noiseless_density_matrix, measurement_applied, num_qubits, qubits)
+                                                                                                measerror_density_matrix,
+                                                                                                noiseless_density_matrix,
+                                                                                                measurement_applied,
+                                                                                                num_qubits, qubits)
 
                 # If gate does not exist, it is now taken as ONLY option that it must be a measurement on the first
                 # qubit and the measurement outcome is taken from the gate (NOTE THAT THIS WILL, AT THE MOMENT, LEAD
@@ -1281,7 +1290,8 @@ class QuantumCircuit:
             noiseless_density_matrix = measure_1_density_matrix
             measerror_density_matrix = measure_0_density_matrix
 
-        return measerror_density_matrix, noiseless_density_matrix
+        return measerror_density_matrix / trace(measerror_density_matrix), \
+               noiseless_density_matrix / trace(noiseless_density_matrix)
 
     def get_kraus_operator(self):
         """
@@ -1320,6 +1330,16 @@ class QuantumCircuit:
                 kraus_ops.append(kraus_op_per_qubit)
 
         return zip(probabilities, kraus_ops)
+
+    @staticmethod
+    def _print_superoperator(superoperator_qc):
+        operators_total_prob = []
+        for probability in sorted(superoperator_qc):
+            print("Probability: {}\n".format(probability / sum(superoperator_qc.keys())))
+            print(superoperator_qc[probability])
+            operators_total_prob.append(superoperator_qc[probability].shape[0]*probability)
+            print("")
+        print("Sum of the probabilities is: {}\n".format(sum(operators_total_prob)))
 
     def print_kraus_operators(self):
         """ Prints a clear overview of the effective operations that have happened on the individual qubits """
@@ -1394,16 +1414,12 @@ class QuantumCircuit:
 if __name__ == "__main__":
     begin = time.time()
 
-    qc = QuantumCircuit(10, init_type=2, noise=True, pg=0.09, pm=0.09)
+    qc = QuantumCircuit(10, init_type=0, noise=True, pg=0.1, pm=0.09)
     for z in range(2, qc.num_qubits, 2):
-        qc.CZ(0, z)
+        qc.CNOT(0, z)
     qc.measure_first_N_qubits(2)
 
     qc.draw_circuit()
-    superoperator_qc = qc.get_superoperator(False)
-    for probability in sorted(superoperator_qc):
-        print("Probability: {}\n".format(probability/sum(superoperator_qc.keys())))
-        print(superoperator_qc[probability])
-        print("")
-    print(sum(superoperator_qc.keys()))
+    print(trace(qc.density_matrix))
+    qc.get_superoperator()
     print("The run took {} seconds".format(time.time() - begin))
