@@ -1027,71 +1027,66 @@ class QuantumCircuit:
         -----------------------------     
     """
 
-    def get_superoperator(self, save_noiseless_density_matrix=True, print_to_console=True):
+    def get_superoperator(self, qubits, save_noiseless_density_matrix=True, print_to_console=True):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
-            combination of error on the 4 data qubits in a noiseless version of the system [(ABCD) rho_ideal (ABCD)^].
-            Thus in equation form
+            combination of error on the 4 data qubits in a noiseless version of the system
+            [(ABCD) rho_ideal (ABCD)^]. Thus in equation form
 
-            F[rho_real, (ABCD) rho_ideal (ABCD)^], {A, B, C, D} in {X, Y, Z, I}
+            F[rho_real, (ABCD) * rho_ideal * (ABCD)^], {A, B, C, D} in {X, Y, Z, I}
 
             The fidelity is equal to the probability of this specific error, the combination of (ABCD), happening.
 
-            *** THIS ONLY WORKS FOR A (RESULTING) SYSTEM WITH 8 QUBITS THAT IS INITIALLY IN THE MAXIMALLY ENTANGLED
-            STATE (DATA QUBIT AND CORRESPONDING ANCILLA QUBIT IN A PERFECT BELL STATE) AND WHERE THE ANCILLA QUBIT
-            IS PERFECT AND UNTOUCHED. ***
-
             Parameters
             __________
+            qubits : list
+                List of qubits of which the superoperator should be calculated. This is necessary to specify
+                in case the circuit contains ancilla qubits. **The index of the qubits should be the index of the
+                resulting density matrix, thus in case of measurements this will differ from the initial indices!!**
             save_noiseless_density_matrix : bool, optional, default=True
                 Whether or not the calculated noiseless (ideal) version of the circuit should be saved.
                 This saved matrix will a next time be used for speedup if the same system is analysed with this method.
+            print_to_console : bool, optional, default=True
+                Whether the result should be printed in a clear overview to the console.
         """
-        if self.num_qubits != 8:
-            raise ValueError("Superoperator can only be determined for a system with 4 data qubits with one ancilla "
-                             "qubit each. So the system should contain 8 qubits")
-
-        operations = [X, Y, Z, I]
-
         noiseless_density_matrix, measerror_density_matrix = \
             self._get_noiseless_density_matrix(save_noiseless_density_matrix)
 
-        print(trace(noiseless_density_matrix))
-        print(trace(measerror_density_matrix))
-
         superoperator = {}
 
-        for qubit1_op in operations:
-            gate_qubit1 = self._create_1_qubit_gate(qubit1_op, 0)
-            for qubit2_op in operations:
-                gate_qubit2 = self._create_1_qubit_gate(qubit2_op, 2)
-                for qubit3_op in operations:
-                    gate_qubit3 = self._create_1_qubit_gate(qubit3_op, 4)
-                    for qubit4_op in operations:
-                        gate_qubit4 = self._create_1_qubit_gate(qubit4_op, 6)
-                        total_error_gate = gate_qubit1 * (gate_qubit2 * (gate_qubit3 * gate_qubit4))
+        # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
+        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits)
 
-                        error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
-                        me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
+        for combination in all_gate_combinations:
+            total_error_gate = None
+            for gate_dict in combination:
+                gate = list(gate_dict.values())[0]
+                if total_error_gate is None:
+                    total_error_gate = gate
+                    continue
+                total_error_gate = total_error_gate * gate
 
-                        fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 6)
-                        fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 6)
+            error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
+            me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
-                        operators = [gate_name(qubit1_op), gate_name(qubit2_op), gate_name(qubit3_op),
-                                     gate_name(qubit4_op), "no_me"]
+            fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 6)
+            fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 6)
 
-                        for i, fid in enumerate([fid_no_me, fid_me]):
-                            if i == 1:
-                                operators = operators.copy()
-                                operators[4] = "me"
-                            if fid != 0:
-                                if fid in superoperator:
-                                    current_value = superoperator[fid]
-                                    current_value.append(operators)
-                                    superoperator[fid] = current_value
-                                else:
-                                    superoperator[fid] = [operators]
+            operators = [list(applied_gate.keys())[0] for applied_gate in combination]
+            operators.append("no_me")
+
+            for i, fid in enumerate([fid_no_me, fid_me]):
+                if i == 1:
+                    operators = operators.copy()
+                    operators[-1] = "me"
+                if fid != 0:
+                    if fid in superoperator:
+                        current_value = superoperator[fid]
+                        current_value.append(operators)
+                        superoperator[fid] = current_value
+                    else:
+                        superoperator[fid] = [operators]
 
         for key, ops in superoperator.items():
             superoperator[key] = self._return_most_likely_option(ops)
@@ -1100,6 +1095,89 @@ class QuantumCircuit:
             self._print_superoperator(superoperator)
 
         return superoperator
+
+    def _all_single_qubit_gate_possibilities(self, qubits):
+        """
+            Method returns a list containing all the possible combinations of Pauli matrix gates
+            that can be applied to the specified qubits.
+
+            Parameters
+            ----------
+            qubits : list
+                A list of the qubit indices for which all the possible combinations of Pauli matrix gates
+                should be returned.
+
+            Returns
+            -------
+            all_gate_combinations : list
+                list of all the qubit gate arrangements that are possible for the specified qubits.
+
+            Examples
+            --------
+            self._all_single_qubit_gate_possibilities([0, 1]), then the method will return
+
+            [[X, X], [X, Y], [X, Z], [X, I], [Y, X], [Y, Y], [Y, Z] ....]
+
+            in which, in general, A -> {"A": single_qubit_A_gate_object} where A in {X, Y, Z, I}.
+        """
+        operations = [X, Y, Z, I]
+        gate_combinations = []
+
+        for qubit in qubits:
+            gates = []
+            for operation in operations:
+                gates.append({gate_name(operation): self._create_1_qubit_gate(operation, qubit)})
+            gate_combinations.append(gates)
+
+        return self._all_combinations(gate_combinations)
+
+    @staticmethod
+    def _all_combinations(arr):
+        """
+            Method returns all the possible combinations of the elements of the lists within the
+            passed array. So when assuming all 'n' lists inside 'arr' are of equal size 'N' (does not necessarily
+            have to be the case), then the method will return a list with N^n possible combinations
+
+            Parameters
+            ----------
+            arr : list
+                The list containing the lists of elements that should be combined in all possible combinations
+
+            Returns
+            -------
+            combinations : list
+                A list of all possible combinations that can be made with the elements of the lists inside the
+                passed list.
+
+            Examples
+            --------
+
+            self._all_combinations([[0, 1], [2, 3], [4, 5]) will return
+
+            [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
+        """
+        n = len(arr)
+        combinations = []
+
+        indices = [0 for i in range(n)]
+
+        while True:
+            combination = []
+            for i in range(n):
+                combination.append(arr[i][indices[i]])
+            combinations.append(combination)
+
+            next_element = n - 1
+            while (next_element >= 0 and
+                   (indices[next_element] + 1 >= len(arr[next_element]))):
+                next_element -= 1
+
+            if next_element < 0:
+                return combinations
+
+            indices[next_element] += 1
+            for i in range(next_element + 1, n):
+                indices[i] = 0
 
     @staticmethod
     def _return_most_likely_option(operators):
@@ -1117,8 +1195,7 @@ class QuantumCircuit:
             Returns
             -------
             most_likely_operators : list
-                List of operators that are the most likely to happen
-
+                List of operators that are the most likely to happen.
         """
         id_count = []
         for op in operators:
@@ -1414,12 +1491,20 @@ class QuantumCircuit:
 if __name__ == "__main__":
     begin = time.time()
 
-    qc = QuantumCircuit(10, init_type=0, noise=True, pg=0.1, pm=0.09)
-    for z in range(2, qc.num_qubits, 2):
+    qc = QuantumCircuit(5, init_type=1, noise=True, pg=0.09, pm=0.09)
+    for z in range(1, qc.num_qubits):
         qc.CNOT(0, z)
-    qc.measure_first_N_qubits(2)
+    qc.measure_first_N_qubits(1)
 
     qc.draw_circuit()
-    print(trace(qc.density_matrix))
-    qc.get_superoperator()
+    qc.get_superoperator([0, 1, 2, 3])
+    print("The run took {} seconds".format(time.time() - begin))
+
+    qc2 = QuantumCircuit(10, init_type=2, noise=True, pg=0.09, pm=0.09)
+    for z in range(2, qc2.num_qubits, 2):
+        qc2.CNOT(0, z)
+    qc2.measure_first_N_qubits(2)
+
+    qc2.draw_circuit()
+    qc2.get_superoperator([0, 2, 4, 6])
     print("The run took {} seconds".format(time.time() - begin))
