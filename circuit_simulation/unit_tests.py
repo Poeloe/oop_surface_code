@@ -154,5 +154,42 @@ class TestErrorImplementation(unittest.TestCase):
         np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, expected_density_matrix)
 
 
+class TestMeasurement(unittest.TestCase):
+
+    def test_measure_first_N_qubit(self):
+        # Initialise system in |+0> state, CNOT on 2nd qubit and measure |+> on first qubit
+        qc = QC(2, 1)
+        qc.CNOT(0, 1)
+        qc.measure_first_N_qubits(1, measure=0)
+
+        correct_result = np.array([[0.5, 0.5], [0.5, 0.5]])
+        np.testing.assert_array_equal(qc.density_matrix.toarray(), correct_result)
+
+        # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
+        qc2 = QC(2, 1)
+        qc2.CNOT(0, 1)
+        qc2.measure_first_N_qubits(1, measure=1)
+
+        correct_result_2 = np.array([[0.5, -0.5], [-0.5, 0.5]])
+        np.testing.assert_array_equal(qc2.density_matrix.toarray(), correct_result_2)
+
+    def test_measure_qubit(self):
+        # Initialise system in |+0> state, CNOT on 2nd qubit and measure |+> on first qubit
+        qc = QC(2, 1)
+        qc.CNOT(0, 1)
+        qc.measure(1, measure=0)
+
+        correct_result = 1/4 * np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])
+        np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, correct_result)
+
+        # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
+        qc2 = QC(2, 1)
+        qc2.CNOT(0, 1)
+        qc2.measure(1, measure=1)
+
+        correct_result_2 = 1/4 * np.array([[1, -1, -1, 1], [-1, 1, 1, -1], [-1, 1, 1, -1], [1, -1, -1, 1]])
+        np.testing.assert_array_almost_equal(qc2.density_matrix.toarray().real, correct_result_2)
+
+
 if __name__ == '__main__':
     unittest.main()
