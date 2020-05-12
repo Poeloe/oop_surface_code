@@ -93,6 +93,7 @@ class QuantumCircuit:
         self.noise = noise
         self.pg = pg
         self.pm = pm
+        self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
         self.density_matrix = None
@@ -106,7 +107,7 @@ class QuantumCircuit:
         elif init_type == 3:
             self.density_matrix = self._init_density_matrix_ket_p_and_CNOTS()
 
-        self._init_parameters = self._save_init_parameters(init_type)
+        self._init_parameters = self._save_init_parameters()
 
     """
         -------------------------
@@ -166,10 +167,10 @@ class QuantumCircuit:
 
         return density_matrix
 
-    def _save_init_parameters(self, init_type):
+    def _save_init_parameters(self):
         init_params = {'num_qubits': self.num_qubits,
                        'd': self.d,
-                       'init_type': init_type,
+                       'init_type': self._init_type,
                        'noise': True,
                        'pm': self.pm,
                        'pg': self.pg,
@@ -235,7 +236,7 @@ class QuantumCircuit:
             self.CNOT(qubit1, qubit2, noise=False, draw=False)
             self._add_draw_operation("#", (qubit1, qubit2))
 
-    def create_N_noisy_bell_pairs(self, N, pn=0.1):
+    def create_N_noisy_bell_pairs(self, N, pn=0.1, reset_init_parameters=True):
         """
         qc.create_bell_pair(N, pn=0.1)
 
@@ -255,6 +256,9 @@ class QuantumCircuit:
                 Number of noisy Bell pairs that should be added to the top of the system.
             pn : float [0-1], optional, default=0.1
                 The amount of network noise present
+            reset_init_parameters : bool, optional, default=True
+                If True, the saved initial parameters of the system will be overwritten by the state of
+                the system due to the addition of a top qubit.
 
             Example
             -------
@@ -266,6 +270,7 @@ class QuantumCircuit:
             self._qubit_array.insert(0, ket_0)
             self.num_qubits += 2
             self.d = self.num_qubits ** 2
+            self._correct_for_n_top_qubit_additions(n=2)
             rho = sp.lil_matrix((4, 4))
             rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
 
@@ -273,7 +278,10 @@ class QuantumCircuit:
 
             self._add_draw_operation("@", (i, i + 1))
 
-    def add_top_qubit(self, qubit_state=ket_0):
+            if reset_init_parameters:
+                self._init_parameters = self._save_init_parameters()
+
+    def add_top_qubit(self, qubit_state=ket_0, reset_init_parameters=True):
         """
         qc.add_top_qubit(qubit_state=ket_0)
 
@@ -285,12 +293,19 @@ class QuantumCircuit:
             ----------
             qubit_state : array, optional, default=ket_0
                 Qubit state, a normalised vector of dimension 2x1
+            reset_init_parameters : bool, optional, default=True
+                If True, the saved initial parameters of the system will be overwritten by the state of
+                the system due to the addition of a top qubit.
         """
         self._qubit_array.insert(0, qubit_state)
         self.num_qubits += 1
         self.d = 2 ** self.num_qubits
+        self._correct_for_n_top_qubit_additions()
 
         self.density_matrix = KP(CT(qubit_state), self.density_matrix)
+
+        if reset_init_parameters:
+            self._init_parameters = self._save_init_parameters()
 
     """
         -----------------------------
@@ -1412,7 +1427,7 @@ class QuantumCircuit:
     def _print_superoperator(superoperator_qc):
         operators_total_prob = []
         for probability in sorted(superoperator_qc):
-            print("Probability: {}\n".format(probability / sum(superoperator_qc.keys())))
+            print("Probability: {}\n".format(probability))
             print(superoperator_qc[probability])
             operators_total_prob.append(superoperator_qc[probability].shape[0]*probability)
             print("")
@@ -1442,8 +1457,8 @@ class QuantumCircuit:
     def draw_circuit(self):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up untill the moment of calling. """
-        legenda = "--- Circuit ---\n\n @ = noisy Bell-pair, # = perfect Bell-pair, o = control qubit " \
-                  "(with target qubit at same level), [X,Y,Z,H] = gates, M = Measurement\n"
+        legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
+                  "(with target qubit at same level), [X,Y,Z,H]: gates, M: Measurement\n"
         init = self._draw_init()
         self._draw_gates(init)
         init[-1] += "\n\n"
@@ -1483,6 +1498,16 @@ class QuantumCircuit:
         item = {operation: qubits}
         self._draw_order.append(item)
 
+    def _correct_for_n_top_qubit_additions(self, n=1):
+        """ Corrects the draw order list for addition of n top qubits """
+        for i, draw_item in enumerate(self._draw_order):
+            operation = list(draw_item.keys())[0]
+            qubits = list(draw_item.values())[0]
+            if type(qubits) == tuple:
+                self._draw_order[i] = {operation: (qubits[0] + n, qubits[1] + n)}
+            else:
+                self._draw_order[i] = {operation: qubits + n}
+
     def __repr__(self):
         density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix
         return "\nCircuit density matrix:\n\n{}\n\n".format(density_matrix)
@@ -1491,20 +1516,22 @@ class QuantumCircuit:
 if __name__ == "__main__":
     begin = time.time()
 
-    qc = QuantumCircuit(5, init_type=1, noise=True, pg=0.09, pm=0.09)
-    for z in range(1, qc.num_qubits):
-        qc.CNOT(0, z)
+    qc = QuantumCircuit(8, init_type=2, noise=True, pg=0.09, pm=0.09)
+    state = (1 - qc.pm) * ket_p + qc.pm * ket_m
+    qc.add_top_qubit(state)
+    for z in range(1, qc.num_qubits, 2):
+        qc.CZ(0, z)
     qc.measure_first_N_qubits(1)
 
     qc.draw_circuit()
-    qc.get_superoperator([0, 1, 2, 3])
+    qc.get_superoperator([0, 2, 4, 6], save_noiseless_density_matrix=False)
     print("The run took {} seconds".format(time.time() - begin))
 
-    qc2 = QuantumCircuit(10, init_type=2, noise=True, pg=0.09, pm=0.09)
-    for z in range(2, qc2.num_qubits, 2):
-        qc2.CNOT(0, z)
-    qc2.measure_first_N_qubits(2)
-
-    qc2.draw_circuit()
-    qc2.get_superoperator([0, 2, 4, 6])
-    print("The run took {} seconds".format(time.time() - begin))
+    # qc2 = QuantumCircuit(5, init_type=1, noise=True, pg=0.09, pm=0.09)
+    # for z in range(1, qc2.num_qubits):
+    #     qc2.CZ(0, z)
+    # qc2.measure_first_N_qubits(1)
+    #
+    # qc2.draw_circuit()
+    # qc2.get_superoperator([0, 1, 2, 3], save_noiseless_density_matrix=False)
+    # print("The run took {} seconds".format(time.time() - begin))
