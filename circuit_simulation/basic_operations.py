@@ -15,6 +15,7 @@ def state_repr(state):
         return "|+>"
     if np.array_equal(state, ket_m):
         return "|->"
+    return "|?>"
 
 
 def gate_name(gate):
