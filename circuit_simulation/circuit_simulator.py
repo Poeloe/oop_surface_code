@@ -110,9 +110,9 @@ class QuantumCircuit:
         self._init_parameters = self._save_init_parameters()
 
     """
-        -------------------------
-            Init Methods
-        -------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                                    Init Methods
+        ---------------------------------------------------------------------------------------------------------     
     """
 
     def _init_density_matrix(self):
@@ -180,9 +180,9 @@ class QuantumCircuit:
         return init_params
 
     """
-        ------------------------------
-            Setter and getter Methods
-        ------------------------------
+        ---------------------------------------------------------------------------------------------------------
+                                                Setter and getter Methods
+        ---------------------------------------------------------------------------------------------------------
     """
 
     def set_qubit_states(self, qubit_dict):
@@ -308,9 +308,9 @@ class QuantumCircuit:
             self._init_parameters = self._save_init_parameters()
 
     """
-        -----------------------------
-            One-Qubit Gate Methods
-        -----------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                                One-Qubit Gate Methods
+        ---------------------------------------------------------------------------------------------------------     
     """
 
     def apply_1_qubit_gate(self, gate, tqubit, noise=None, pg=None, draw=True):
@@ -457,9 +457,9 @@ class QuantumCircuit:
             self.apply_1_qubit_gate(H, tqubit, noise, pg, draw)
 
     """
-        -----------------------------
-            Two-Qubit Gate Methods
-        -----------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                                Two-Qubit Gate Methods
+        ---------------------------------------------------------------------------------------------------------     
     """
 
     def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True):
@@ -560,9 +560,9 @@ class QuantumCircuit:
         self.apply_2_qubit_gate(Z, cqubit, tqubit, noise, pg)
 
     """
-        -----------------------------
-            Gate Noise Methods
-        -----------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                            Gate Noise Methods
+        ---------------------------------------------------------------------------------------------------------  
     """
 
     def _N_single(self, pg, tqubit):
@@ -672,9 +672,9 @@ class QuantumCircuit:
         return sp.csr_matrix(result)
 
     """
-        --------------------------------------
-            Measurement Methods
-        --------------------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                                Measurement Methods
+        ---------------------------------------------------------------------------------------------------------   
     """
 
     def measure_first_N_qubits(self, N, measure=0, noise=None, pm=None, basis="X"):
@@ -884,9 +884,9 @@ class QuantumCircuit:
         return prob, sp.csr_matrix((self.d, self.d))
 
     """
-        --------------------------------------
-            Density Matrix calculus Methods
-        --------------------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                            Density Matrix calculus Methods
+        ---------------------------------------------------------------------------------------------------------     
     """
 
     def diagonalise(self, option=0):
@@ -1037,12 +1037,12 @@ class QuantumCircuit:
         return non_zero_eigenvector_elements_indices[negative_value_indices], negative_qubit_indices
 
     """
-        -----------------------------
-            Superoperator Methods
-        -----------------------------     
+        ---------------------------------------------------------------------------------------------------------
+                                                Superoperator Methods
+        ---------------------------------------------------------------------------------------------------------     
     """
 
-    def get_superoperator(self, qubits, save_noiseless_density_matrix=True, print_to_console=True):
+    def get_superoperator(self, qubits, save_noiseless_density_matrix=False, print_to_console=True):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1056,8 +1056,9 @@ class QuantumCircuit:
             Parameters
             __________
             qubits : list
-                List of qubits of which the superoperator should be calculated. This is necessary to specify
-                in case the circuit contains ancilla qubits. **The index of the qubits should be the index of the
+                List of qubits of which the superoperator should be calculated. Only for these qubits it will be
+                checked if certain errors occured on them. This is necessary to specify in case the circuit contains
+                ancilla qubits that should not be evaluated. **The index of the qubits should be the index of the
                 resulting density matrix, thus in case of measurements this will differ from the initial indices!!**
             save_noiseless_density_matrix : bool, optional, default=True
                 Whether or not the calculated noiseless (ideal) version of the circuit should be saved.
@@ -1067,6 +1068,8 @@ class QuantumCircuit:
         """
         noiseless_density_matrix, measerror_density_matrix = \
             self._get_noiseless_density_matrix(save_noiseless_density_matrix)
+
+        measurement_applied = not np.array_equal(noiseless_density_matrix.toarray(), measerror_density_matrix.toarray())
 
         superoperator = {}
 
@@ -1086,22 +1089,23 @@ class QuantumCircuit:
             me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
             fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 6)
-            fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 6)
+            fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 6) \
+                if measurement_applied else 0
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
-            operators.append("no_me")
+            operators.append("no me")
 
             for i, fid in enumerate([fid_no_me, fid_me]):
+                if fid == 0: continue
                 if i == 1:
                     operators = operators.copy()
                     operators[-1] = "me"
-                if fid != 0:
-                    if fid in superoperator:
-                        current_value = superoperator[fid]
-                        current_value.append(operators)
-                        superoperator[fid] = current_value
-                    else:
-                        superoperator[fid] = [operators]
+                if fid in superoperator:
+                    current_value = superoperator[fid]
+                    current_value.append(operators)
+                    superoperator[fid] = current_value
+                else:
+                    superoperator[fid] = [operators]
 
         for key, ops in superoperator.items():
             superoperator[key] = self._return_most_likely_option(ops)
@@ -1166,7 +1170,6 @@ class QuantumCircuit:
 
             Examples
             --------
-
             self._all_combinations([[0, 1], [2, 3], [4, 5]) will return
 
             [[0, 2, 4], [0, 2, 5], [0, 3, 4], [0, 3, 5], [1, 2, 4], [1, 2, 5], [1, 3, 4], [1, 3, 5]]
@@ -1174,7 +1177,7 @@ class QuantumCircuit:
         n = len(arr)
         combinations = []
 
-        indices = [0 for i in range(n)]
+        indices = n * [0]
 
         while True:
             combination = []
@@ -1253,51 +1256,51 @@ class QuantumCircuit:
         # Check if the noiseless system has been calculated before
         if os.path.exists(file_name_noiseless) and os.path.exists(file_name_measerror):
             return sp.load_npz(file_name_noiseless), sp.load_npz(file_name_measerror)
-        else:
-            # Get the initial parameters of the current QuantumCircuit object
-            init_type = self._init_parameters['init_type']
-            num_qubits = self._init_parameters['num_qubits']
-            d = self._init_parameters['d']
-            noiseless_density_matrix = self._init_parameters['density_matrix']
-            measerror_density_matrix = noiseless_density_matrix
-            operation_start = 0
-            measurement_applied = False
 
-            # Since the initial density matrix is already present, the traversal of the operations should start after.
-            if init_type == 2:
-                operation_start = int(num_qubits / 2)
-            if init_type == 3:
-                operation_start = num_qubits - 1
+        # Get the initial parameters of the current QuantumCircuit object
+        init_type = self._init_parameters['init_type']
+        num_qubits = self._init_parameters['num_qubits']
+        d = self._init_parameters['d']
+        noiseless_density_matrix = self._init_parameters['density_matrix']
+        measerror_density_matrix = noiseless_density_matrix
+        operation_start = 0
+        measurement_applied = False
 
-            for operation_index in range(operation_start, len(self._draw_order)):
-                operation_dict = self._draw_order[operation_index]
-                one_qubit_gate = gate_name_to_array(list(operation_dict.keys())[0])
-                qubits = list(operation_dict.values())[0]
+        # Since the initial density matrix is already present, the traversal of the operations should start after.
+        if init_type == 2:
+            operation_start = int(num_qubits / 2)
+        if init_type == 3:
+            operation_start = num_qubits - 1
 
-                # Apply the noiseless gate to the density matrix if the gate is an existing gate
-                if one_qubit_gate is not None:
-                    measerror_density_matrix, noiseless_density_matrix = self._reconstruct_gate(one_qubit_gate,
-                                                                                                measerror_density_matrix,
-                                                                                                noiseless_density_matrix,
-                                                                                                measurement_applied,
-                                                                                                num_qubits, qubits)
+        for operation_index in range(operation_start, len(self._draw_order)):
+            operation_dict = self._draw_order[operation_index]
+            one_qubit_gate = gate_name_to_array(list(operation_dict.keys())[0])
+            qubits = list(operation_dict.values())[0]
 
-                # If gate does not exist, it is now taken as ONLY option that it must be a measurement on the first
-                # qubit and the measurement outcome is taken from the gate (NOTE THAT THIS WILL, AT THE MOMENT, LEAD
-                # TO AN ERROR ON THE NEXT LINE IF IT DOES NOT CONCERN A MEASUREMENT ON THE FIRST QUBIT!)
-                else:
-                    measurement_applied = True
-                    measure = int((list(operation_dict.keys())[0])[1])
-                    measerror_density_matrix, noiseless_density_matrix = \
-                        self._reconstruct_measurement(measure, measerror_density_matrix, noiseless_density_matrix, d)
-                    num_qubits -= 1
-                    d = 2 ** num_qubits
+            # Apply the noiseless gate to the density matrix if the gate is an existing gate
+            if one_qubit_gate is not None:
+                measerror_density_matrix, noiseless_density_matrix = self._reconstruct_gate(one_qubit_gate,
+                                                                                            measerror_density_matrix,
+                                                                                            noiseless_density_matrix,
+                                                                                            measurement_applied,
+                                                                                            num_qubits, qubits)
 
-            if save:
-                sp.save_npz(file_name_noiseless, noiseless_density_matrix)
-                sp.save_npz(file_name_measerror, measerror_density_matrix)
+            # If gate does not exist, it is now taken as ONLY option that it must be a measurement on the first
+            # qubit and the measurement outcome is taken from the gate (NOTE THAT THIS WILL, AT THE MOMENT, LEAD
+            # TO AN ERROR ON THE NEXT LINE IF IT DOES NOT CONCERN A MEASUREMENT ON THE FIRST QUBIT!)
+            else:
+                measurement_applied = True
+                measure = int((list(operation_dict.keys())[0])[1])
+                measerror_density_matrix, noiseless_density_matrix = \
+                    self._reconstruct_measurement(measure, measerror_density_matrix, noiseless_density_matrix, d)
+                num_qubits -= 1
+                d = 2 ** num_qubits
 
-            return noiseless_density_matrix, measerror_density_matrix
+        if save:
+            sp.save_npz(file_name_noiseless, noiseless_density_matrix)
+            sp.save_npz(file_name_measerror, measerror_density_matrix)
+
+        return noiseless_density_matrix, measerror_density_matrix
 
     def _reconstruct_gate(self, one_qubit_gate, measerror_density_matrix, noiseless_density_matrix, measurement_applied,
                           num_qubits, qubits):
@@ -1333,7 +1336,7 @@ class QuantumCircuit:
         if type(qubits) == tuple:
             gate = self._create_2_qubit_gate(one_qubit_gate, qubits[0], qubits[1], num_qubits=num_qubits)
         else:
-            if (diff := self._init_parameters['num_qubits'] - num_qubits) != 0:
+            if (diff := self._init_parameters['num_qubits'] - num_qubits) != 0 and np.array_equal(one_qubit_gate, H):
                 qubits -= diff
             gate = self._create_1_qubit_gate(one_qubit_gate, qubits, num_qubits=num_qubits)
 
@@ -1373,14 +1376,12 @@ class QuantumCircuit:
                 The density matrix of the current system, but without noise,
                 where a new measurement has been applied on the first qubit.
         """
-        measure_0_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
-        measure_1_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
         if measure == 0:
-            noiseless_density_matrix = measure_0_density_matrix
-            measerror_density_matrix = measure_1_density_matrix
+            noiseless_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
+            measerror_density_matrix = measerror_density_matrix[int(d / 2):, int(d / 2):]
         elif measure == 1:
-            noiseless_density_matrix = measure_1_density_matrix
-            measerror_density_matrix = measure_0_density_matrix
+            noiseless_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
+            measerror_density_matrix = measerror_density_matrix[:int(d / 2), :int(d / 2)]
 
         return measerror_density_matrix / trace(measerror_density_matrix), \
                noiseless_density_matrix / trace(noiseless_density_matrix)
@@ -1425,13 +1426,11 @@ class QuantumCircuit:
 
     @staticmethod
     def _print_superoperator(superoperator_qc):
-        operators_total_prob = []
         for probability in sorted(superoperator_qc):
-            print("Probability: {}\n".format(probability))
+            print("Probability: {}\n".format(probability/sum(superoperator_qc.keys())))
             print(superoperator_qc[probability])
-            operators_total_prob.append(superoperator_qc[probability].shape[0]*probability)
             print("")
-        print("Sum of the probabilities is: {}\n".format(sum(operators_total_prob)))
+        print("Sum of the probabilities is: {}\n".format(sum(superoperator_qc.keys())))
 
     def print_kraus_operators(self):
         """ Prints a clear overview of the effective operations that have happened on the individual qubits """
@@ -1449,9 +1448,9 @@ class QuantumCircuit:
         print(*print_lines)
 
     """
-        -----------------------------
-            Circuit drawing Methods
-        -----------------------------     
+        ----------------------------------------------------------------------------------------------------------
+                                            Circuit drawing Methods
+        ----------------------------------------------------------------------------------------------------------     
     """
 
     def draw_circuit(self):
@@ -1488,10 +1487,10 @@ class QuantumCircuit:
                 init[value] += "---{}---".format(gate)
 
             for a, b in it.combinations(enumerate(init), 2):
-                if len(init[a[0]]) < len(init[b[0]]):
-                    init[a[0]] += (len(init[b[0]]) - len(init[a[0]])) * "-"
-                elif len(init[a[0]]) > len(init[b[0]]):
-                    init[b[0]] += (len(init[a[0]]) - len(init[b[0]])) * "-"
+                if (diff := len(init[b[0]]) - len(init[a[0]])) > 0:
+                    init[a[0]] += diff * "-"
+                elif (diff := len(init[a[0]]) - len(init[b[0]])) > 0:
+                    init[b[0]] += diff * "-"
 
     def _add_draw_operation(self, operation, qubits):
         """ Add an operation to the draw order list """
@@ -1517,8 +1516,7 @@ if __name__ == "__main__":
     begin = time.time()
 
     qc = QuantumCircuit(8, init_type=2, noise=True, pg=0.09, pm=0.09)
-    state = (1 - qc.pm) * ket_p + qc.pm * ket_m
-    qc.add_top_qubit(state)
+    qc.add_top_qubit(ket_p)
     for z in range(1, qc.num_qubits, 2):
         qc.CZ(0, z)
     qc.measure_first_N_qubits(1)
