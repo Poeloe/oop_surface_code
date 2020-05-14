@@ -9,6 +9,8 @@ import copy
 from scipy.linalg import eig, eigh
 import hashlib
 import os
+from termcolor import colored
+from itertools import combinations
 
 # These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
 # matrix for a circuit with a large amount of qubits
@@ -1042,7 +1044,8 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def get_superoperator(self, qubits, save_noiseless_density_matrix=False, print_to_console=True):
+    def get_superoperator(self, qubits, save_noiseless_density_matrix=False, return_most_likely=True,
+                          print_to_console=True):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1088,8 +1091,8 @@ class QuantumCircuit:
             error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
             me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
-            fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 6)
-            fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 6) \
+            fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 12)
+            fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 12) \
                 if measurement_applied else 0
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
@@ -1107,8 +1110,9 @@ class QuantumCircuit:
                 else:
                     superoperator[fid] = [operators]
 
-        for key, ops in superoperator.items():
-            superoperator[key] = self._return_most_likely_option(ops)
+        if return_most_likely:
+            for key, ops in superoperator.items():
+                superoperator[key] = self._return_most_likely_option(ops)
 
         if print_to_console:
             self._print_superoperator(superoperator)
@@ -1196,6 +1200,12 @@ class QuantumCircuit:
             indices[next_element] += 1
             for i in range(next_element + 1, n):
                 indices[i] = 0
+
+    # @staticmethod
+    # def _find_degenerate_options(operators):
+    #     operators = np.array(operators)
+    #     for op in operators:
+
 
     @staticmethod
     def _return_most_likely_option(operators):
@@ -1424,13 +1434,136 @@ class QuantumCircuit:
 
         return zip(probabilities, kraus_ops)
 
-    @staticmethod
-    def _print_superoperator(superoperator_qc):
+    def _print_superoperator(self, superoperator_qc, filtered=True):
+        print("\n---- Superoperator ----\n")
+        superoperator_qc_filtered = superoperator_qc
+        total = sum([len(superoperator_qc_filtered[prob]) * prob for prob in superoperator_qc_filtered])
+        if filtered:
+            superoperator_qc_filtered = self._find_degenerate_configurations(superoperator_qc)
+
+        for key in sorted(superoperator_qc_filtered):
+            probability = float(key.split(":")[0])
+            summed_prob = len(superoperator_qc_filtered[key]) * (probability/total)
+            print("\nIndividual probability: {}".format(probability/total))
+            print("Summed probability: {}\n".format(summed_prob))
+            for option in superoperator_qc_filtered[key]:
+                gates = ""
+                for gate in option:
+                    if gate == "X":
+                        gates += (colored(gate, 'red') + " ")
+                    elif gate == "Z":
+                        gates += (colored(gate, 'cyan') + " ")
+                    elif gate == "Y":
+                        gates += (colored(gate, 'magenta') + " ")
+                    elif gate == "I":
+                        gates += (colored(gate, 'yellow') + " ")
+                    else:
+                        gates += (gate + " ")
+                print(gates)
+        print("\nSum of the probabilities is: {}\n".format(round(total, 6)))
+        print("\n---- End of Superoperator ----\n")
+
+    def _find_degenerate_configurations(self, superoperator_qc):
+        """
+            Method finds the configurations that are degenerate within configurations with the same
+            probability. For example, the configurations of [[IIIX], [IXII], [YIII], [IYII]] with the same
+            probability in essence has two configurations with a degeneracy of 2. So this will become
+            [[IIIX], [IIIY]] with twice the probability.
+
+            Parameters
+            ----------
+            superoperator_qc : dict
+                dict containing probabilities as key values and a list of corresponding configurations as
+                values.
+
+            Returns
+            -------
+            filtered_superoperator : dict
+                dict containing the filtered superoperator configurations. Probability and configurations are
+                updated accordingly
+        """
+        result = {}
+
         for probability in sorted(superoperator_qc):
-            print("Probability: {}\n".format(probability/sum(superoperator_qc.keys())))
-            print(superoperator_qc[probability])
-            print("")
-        print("Sum of the probabilities is: {}\n".format(sum(superoperator_qc.keys())))
+            filtered_operators = np.array(superoperator_qc[probability])
+            filtered_operators.sort()
+            filtered_operators, counts = np.unique(filtered_operators, return_counts=True, axis=0)
+            for i in range(len(filtered_operators)):
+                # Multiply the probability with the amount of counts, to compensate for the degeneracy
+                key = str(counts[i] * probability) + ":" + filtered_operators[i][-1]
+                configuration = list(filtered_operators[i])
+                if key in result:
+                    current_value = result[key]
+                    current_value.append(configuration)
+                    result[key] = current_value
+                else:
+                    result[key] = [configuration]
+        result = self._add_up_same_configurations(result)
+        return result
+
+    @staticmethod
+    def _add_up_same_configurations(superoperator):
+        """
+            Method checks the entire superoperator for configurations that are equal. If so, the method
+            will fuse these configurations and updates the probability accordingly.
+
+            Parameters
+            ----------
+            superoperator : dict
+                dict containing probabilities as key values and a list of corresponding configurations as
+                values.
+
+           Returns
+           _______
+           ordered_superoperator : dict
+                Returns the more ordered superoperator. Same configurations are now fused and probability
+                is updated accordingly
+        """
+        new_probability = 0
+        deleted = []
+
+        # First check if the configurations corresponding to a certain probability are a subset of
+        # configurations for other probabilities. If so, add the probability of the larger set to the probability
+        # of the subset and remove the subset from the larger set.
+        for config_a, config_b in combinations(superoperator.items(), 2):
+            if config_a in deleted: continue
+            if all(x in config_b[1] for x in config_a[1]) and not all(x in config_a[1] for x in config_b[1]):
+                new_config_b = [x for x in config_b[1] if x not in config_a[1]]
+                new_probability = float(config_a[0].split(":")[0]) + float(config_b[0].split(":")[0])
+                superoperator[config_b[0]] = new_config_b
+                new_key = str(new_probability) + ":" + config_a[0].split(":")[1]
+                superoperator[new_key] = config_a[1]
+                if config_a[0] in superoperator:
+                    superoperator.pop(config_a[0])
+                deleted.append(config_b)
+
+        old_value = None
+        new_probability = 0
+        deleted = []
+
+        # Now check the superoperator again for configurations of the one probability that completely
+        # match configurations of another probability. If so, add the one probability to the other probability
+        # and delete that other entry from the superoperator.
+        # This 'complete' check is done after the first 'overlap' check, since the removed overlap may cause a
+        # new configuration that is a completely match with configurations of another probability. This will
+        # otherwise be missed.
+        for config_a, config_b in combinations(superoperator.items(), 2):
+            if config_a in deleted or config_b in deleted: continue
+            if config_a != old_value and new_probability != 0:
+                new_key = str(new_probability) + ":" + old_value[0].split(":")[1]
+                superoperator[new_key] = old_value[1]
+                if old_value[0] in superoperator:
+                    superoperator.pop(old_value[0])
+                new_probability = 0
+            if np.array_equal(config_a[1], config_b[1]):
+                new_probability += float(config_a[0].split(":")[0]) + float(config_b[0].split(":")[0])
+                if config_b[0] in superoperator:
+                    deleted.append(config_b)
+                    superoperator.pop(config_b[0])
+
+            old_value = config_a
+
+        return superoperator
 
     def print_kraus_operators(self):
         """ Prints a clear overview of the effective operations that have happened on the individual qubits """
@@ -1455,7 +1588,7 @@ class QuantumCircuit:
 
     def draw_circuit(self):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
-        up untill the moment of calling. """
+        up until the moment of calling. """
         legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
                   "(with target qubit at same level), [X,Y,Z,H]: gates, M: Measurement\n"
         init = self._draw_init()
