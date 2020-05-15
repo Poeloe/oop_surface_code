@@ -1044,8 +1044,8 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def get_superoperator(self, qubits, save_noiseless_density_matrix=False, return_most_likely=True,
-                          print_to_console=True):
+    def get_superoperator(self, qubits, save_noiseless_density_matrix=False, combine_degenerate=True,
+                          fuse_same_configurations=True, print_to_console=True):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1110,12 +1110,8 @@ class QuantumCircuit:
                 else:
                     superoperator[fid] = [operators]
 
-        if return_most_likely:
-            for key, ops in superoperator.items():
-                superoperator[key] = self._return_most_likely_option(ops)
-
         if print_to_console:
-            self._print_superoperator(superoperator)
+            self._print_superoperator(superoperator, combine_degenerate, fuse_same_configurations)
 
         return superoperator
 
@@ -1434,15 +1430,20 @@ class QuantumCircuit:
 
         return zip(probabilities, kraus_ops)
 
-    def _print_superoperator(self, superoperator_qc, filtered=True):
+    def _print_superoperator(self, superoperator_qc, combine_degenerate, fuse_same_configurations):
         print("\n---- Superoperator ----\n")
         superoperator_qc_filtered = superoperator_qc
-        total = sum([len(superoperator_qc_filtered[prob]) * prob for prob in superoperator_qc_filtered])
-        if filtered:
-            superoperator_qc_filtered = self._find_degenerate_configurations(superoperator_qc)
 
-        for key in sorted(superoperator_qc_filtered):
-            probability = float(key.split(":")[0])
+        # Possible post-processing options for the superoperator
+        if combine_degenerate:
+            superoperator_qc_filtered = self._find_degenerate_configurations(superoperator_qc)
+        if fuse_same_configurations and combine_degenerate:
+            superoperator_qc_filtered = self._add_up_same_configurations(superoperator_qc_filtered)
+
+        total = sum([len(superoperator_qc_filtered[prob]) * float(str(prob).split(":")[0])
+                     for prob in superoperator_qc_filtered])
+        for key in sorted(superoperator_qc_filtered, key=self._filter_by_probability):
+            probability = float(str(key).split(":")[0])
             summed_prob = len(superoperator_qc_filtered[key]) * (probability/total)
             print("\nIndividual probability: {}".format(probability/total))
             print("Summed probability: {}\n".format(summed_prob))
@@ -1463,7 +1464,12 @@ class QuantumCircuit:
         print("\nSum of the probabilities is: {}\n".format(round(total, 6)))
         print("\n---- End of Superoperator ----\n")
 
-    def _find_degenerate_configurations(self, superoperator_qc):
+    @staticmethod
+    def _filter_by_probability(element):
+        return float(str(element).split(":")[0])
+
+    @staticmethod
+    def _find_degenerate_configurations(superoperator_qc):
         """
             Method finds the configurations that are degenerate within configurations with the same
             probability. For example, the configurations of [[IIIX], [IXII], [YIII], [IYII]] with the same
@@ -1498,7 +1504,7 @@ class QuantumCircuit:
                     result[key] = current_value
                 else:
                     result[key] = [configuration]
-        result = self._add_up_same_configurations(result)
+
         return result
 
     @staticmethod
