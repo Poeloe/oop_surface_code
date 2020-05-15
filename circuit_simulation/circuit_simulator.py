@@ -9,6 +9,7 @@ import copy
 from scipy.linalg import eig, eigh
 import hashlib
 import os
+from super_operator import SuperOperatorElement
 from termcolor import colored
 from itertools import combinations
 
@@ -1045,7 +1046,7 @@ class QuantumCircuit:
     """
 
     def get_superoperator(self, qubits, save_noiseless_density_matrix=False, combine_degenerate=True,
-                          fuse_same_configurations=True, print_to_console=True):
+                          most_likely=True, print_to_console=True):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1074,7 +1075,7 @@ class QuantumCircuit:
 
         measurement_applied = not np.array_equal(noiseless_density_matrix.toarray(), measerror_density_matrix.toarray())
 
-        superoperator = {}
+        superoperator = []
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
         all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits)
@@ -1096,22 +1097,12 @@ class QuantumCircuit:
                 if measurement_applied else 0
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
-            operators.append("no me")
 
-            for i, fid in enumerate([fid_no_me, fid_me]):
-                if fid == 0: continue
-                if i == 1:
-                    operators = operators.copy()
-                    operators[-1] = "me"
-                if fid in superoperator:
-                    current_value = superoperator[fid]
-                    current_value.append(operators)
-                    superoperator[fid] = current_value
-                else:
-                    superoperator[fid] = [operators]
+            superoperator.append(SuperOperatorElement(fid_me, True, operators))
+            superoperator.append(SuperOperatorElement(fid_no_me, False, operators))
 
         if print_to_console:
-            self._print_superoperator(superoperator, combine_degenerate, fuse_same_configurations)
+            self._print_superoperator(superoperator, combine_degenerate, most_likely)
 
         return superoperator
 
@@ -1430,38 +1421,35 @@ class QuantumCircuit:
 
         return zip(probabilities, kraus_ops)
 
-    def _print_superoperator(self, superoperator_qc, combine_degenerate, fuse_same_configurations):
+    def _print_superoperator(self, superoperator_qc, combine_degenerate, most_likely):
         print("\n---- Superoperator ----\n")
         superoperator_qc_filtered = superoperator_qc
 
         # Possible post-processing options for the superoperator
         if combine_degenerate:
-            superoperator_qc_filtered = self._find_degenerate_configurations(superoperator_qc)
-        if fuse_same_configurations and combine_degenerate:
-            superoperator_qc_filtered = self._add_up_same_configurations(superoperator_qc_filtered)
+            superoperator_qc_filtered = self._fuse_equal_config_up_to_permutation(superoperator_qc_filtered)
+        if combine_degenerate and most_likely:
+            superoperator_qc_filtered = self._remove_not_likely_configurations(superoperator_qc_filtered)
 
-        total = sum([len(superoperator_qc_filtered[prob]) * float(str(prob).split(":")[0])
-                     for prob in superoperator_qc_filtered])
-        for key in sorted(superoperator_qc_filtered, key=self._filter_by_probability):
-            probability = float(str(key).split(":")[0])
-            summed_prob = len(superoperator_qc_filtered[key]) * (probability/total)
-            print("\nIndividual probability: {}".format(probability/total))
-            print("Summed probability: {}\n".format(summed_prob))
-            for option in superoperator_qc_filtered[key]:
-                gates = ""
-                for gate in option:
-                    if gate == "X":
-                        gates += (colored(gate, 'red') + " ")
-                    elif gate == "Z":
-                        gates += (colored(gate, 'cyan') + " ")
-                    elif gate == "Y":
-                        gates += (colored(gate, 'magenta') + " ")
-                    elif gate == "I":
-                        gates += (colored(gate, 'yellow') + " ")
-                    else:
-                        gates += (gate + " ")
-                print(gates)
-        print("\nSum of the probabilities is: {}\n".format(round(total, 6)))
+        total = sum([supop_el.p for supop_el in superoperator_qc_filtered])
+        for supop_el in sorted(superoperator_qc_filtered):
+            probability = supop_el.p
+            print("\nProbability: {}".format(probability/total))
+            config = ""
+            for gate in supop_el.error_array:
+                if gate == "X":
+                    config += (colored(gate, 'red') + " ")
+                elif gate == "Z":
+                    config += (colored(gate, 'cyan') + " ")
+                elif gate == "Y":
+                    config += (colored(gate, 'magenta') + " ")
+                elif gate == "I":
+                    config += (colored(gate, 'yellow') + " ")
+                else:
+                    config += (gate + " ")
+            me = "me" if supop_el.lie else "No me"
+            print("{} - {}".format(config, me))
+        print("\nSum of the probabilities is: {}\n".format(total))
         print("\n---- End of Superoperator ----\n")
 
     @staticmethod
@@ -1469,7 +1457,56 @@ class QuantumCircuit:
         return float(str(element).split(":")[0])
 
     @staticmethod
-    def _find_degenerate_configurations(superoperator_qc):
+    def _fuse_equal_config_up_to_permutation(superoperator):
+        sorted_config = {}
+        checked = []
+        sorted_superoperator = []
+
+        # Check for same configurations up to permutations by comparing the sorted error_arrays of each
+        # SuperOperatorElement and the lie attribute.
+        for supop_el_a, supop_el_b in combinations(superoperator, 2):
+            if supop_el_b in checked: continue
+            supop_el_a.error_array.sort()
+            supop_el_b.error_array.sort()
+            if supop_el_a.error_array == supop_el_b.error_array and supop_el_a.lie == supop_el_b.lie:
+                key = "".join(supop_el_b.error_array) + ":" + str(int(supop_el_b.lie))
+                if key not in sorted_config:
+                    sorted_config[key] = (supop_el_a.p + supop_el_b.p)/2
+                else:
+                    current_value = sorted_config[key]
+                    current_value += (supop_el_a.p + supop_el_b.p)/2
+                    sorted_config[key] = current_value
+                checked.append(supop_el_b)
+                if supop_el_a in superoperator:
+                    superoperator.remove(supop_el_a)
+                if supop_el_b in superoperator:
+                    superoperator.remove(supop_el_b)
+
+        for key, prob in sorted_config.items():
+            error_array = list(key.split(":")[0])
+            lie = bool(int(key.split(":")[1]))
+            sorted_superoperator.append(SuperOperatorElement(prob, lie, error_array))
+
+        for supop_el in superoperator:
+            sorted_superoperator.append(supop_el)
+
+        return sorted_superoperator
+
+    @staticmethod
+    def _remove_not_likely_configurations(superoperator):
+        for supop_el_a, supop_el_b in combinations(superoperator, 2):
+            if supop_el_a.p == supop_el_b.p and supop_el_a.lie == supop_el_b.lie:
+                if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") \
+                        and supop_el_b in superoperator:
+                    superoperator.remove(supop_el_b)
+                elif supop_el_a.error_array.count("I") < supop_el_b.error_array.count("I") \
+                        and supop_el_a in superoperator:
+                    superoperator.remove(supop_el_a)
+
+        return superoperator
+
+    @staticmethod
+    def _find_degenerate_configurations_deprecated(superoperator_qc):
         """
             Method finds the configurations that are degenerate within configurations with the same
             probability. For example, the configurations of [[IIIX], [IXII], [YIII], [IYII]] with the same
@@ -1508,7 +1545,7 @@ class QuantumCircuit:
         return result
 
     @staticmethod
-    def _add_up_same_configurations(superoperator):
+    def _add_up_same_configurations_deprecated(superoperator):
         """
             Method checks the entire superoperator for configurations that are equal. If so, the method
             will fuse these configurations and updates the probability accordingly.
