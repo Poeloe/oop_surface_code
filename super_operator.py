@@ -50,8 +50,8 @@ class SuperOperator:
             raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
                              "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
                              "Check your superoperator csv."
-                             .format(sum(self.sup_op_elements_p), 1.0-sum(self.sup_op_elements_p),
-                                     sum(self.sup_op_elements_s), 1.0-sum(self.sup_op_elements_s)))
+                             .format(sum(self.sup_op_elements_p), 1.0 - sum(self.sup_op_elements_p),
+                                     sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
 
     def _get_stabilizer_rounds(self, graph, z=0):
         if z in self.stabs_p1:
@@ -85,6 +85,7 @@ class SuperOperatorElement:
         self.p = p
         self.lie = lie
         self.error_array = error_array
+        self.id = str(p) + str(lie) + str(error_array)
 
     def __repr__(self):
         return "SuperOperatorElement(p:{}, lie:{}, errors:{})".format(self.p, self.lie, self.error_array)
@@ -109,3 +110,20 @@ class SuperOperatorElement:
 
     def __radd__(self, other):
         return self.p + other
+
+    def full_equals(self, other, sort_array=True):
+        if sort_array:
+            self.error_array.sort()
+            other.error_array.sort()
+
+        return self.p == other.p and self.lie == other.lie and self.error_array == other.error_array
+
+    def error_array_lie_equals(self, other, sort_array=True):
+        if sort_array:
+            self.error_array.sort()
+            other.error_array.sort()
+
+        return self.lie == other.lie and self.error_array == other.error_array
+
+    def probability_lie_equals(self, other):
+        return self.p == other.p and self.lie == other.lie
