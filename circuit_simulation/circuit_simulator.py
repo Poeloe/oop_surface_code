@@ -1,8 +1,9 @@
+import sys
+sys.path.insert(1, '/Users/Paul/Documents/TU/Master/Afstuderen/forked_surface_code/oop_surface_code/')
 from circuit_simulation.basic_operations import (
     CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity, fidelity_elementwise, gate_name_to_array
 )
 import numpy as np
-import time
 from scipy import sparse as sp
 import itertools as it
 import copy
@@ -11,7 +12,8 @@ import hashlib
 import os
 from super_operator import SuperOperatorElement
 from termcolor import colored
-from itertools import combinations
+from itertools import combinations, permutations
+
 
 # These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
 # matrix for a circuit with a large amount of qubits
@@ -711,7 +713,8 @@ class QuantumCircuit:
 
         for qubit in range(N):
             if basis == "X":
-                self.H(0, noise=False, draw=False)
+                # Do not let the method draw itself, since the qubit will not be removed from the circuit drawing
+                self.H(0, noise=noise, draw=False)
                 self._add_draw_operation("H", qubit)
 
             self._measurement_first_qubit(measure, noise=noise, pm=pm)
@@ -726,7 +729,7 @@ class QuantumCircuit:
             and if a 1 is measured the lower right quarter of the density matrix 'survives'.
             Noise is applied according to the equation
 
-                (1-pm) * rho_p-correct + pm * rho_p-incorrect,
+                rho_noisy = (1-pm) * rho_p-correct + pm * rho_p-incorrect,
 
             where 'rho_p-correct' is the density matrix that should result after the measurement and
             'rho_p-incorrect' is the density matrix that results when the opposite measurement outcome
@@ -1434,7 +1437,7 @@ class QuantumCircuit:
         total = sum([supop_el.p for supop_el in superoperator_qc_filtered])
         for supop_el in sorted(superoperator_qc_filtered):
             probability = supop_el.p
-            print("\nProbability: {}".format(probability/total))
+            print("\nProbability: {}".format(probability))
             config = ""
             for gate in supop_el.error_array:
                 if gate == "X":
@@ -1456,46 +1459,41 @@ class QuantumCircuit:
     def _filter_by_probability(element):
         return float(str(element).split(":")[0])
 
+
     @staticmethod
-    def _fuse_equal_config_up_to_permutation(superoperator):
-        sorted_config = {}
+    def _fuse_equal_config_up_to_permutation(superoperator, proj_type="Z"):
         checked = []
         sorted_superoperator = []
+        count = None
+        new_value = None
+        old_value = None
 
         # Check for same configurations up to permutations by comparing the sorted error_arrays of each
         # SuperOperatorElement and the lie attribute.
-        for supop_el_a, supop_el_b in combinations(superoperator, 2):
-            if supop_el_b in checked: continue
-            supop_el_a.error_array.sort()
-            supop_el_b.error_array.sort()
-            if supop_el_a.error_array == supop_el_b.error_array and supop_el_a.lie == supop_el_b.lie:
-                key = "".join(supop_el_b.error_array) + ":" + str(int(supop_el_b.lie))
-                if key not in sorted_config:
-                    sorted_config[key] = (supop_el_a.p + supop_el_b.p)/2
-                else:
-                    current_value = sorted_config[key]
-                    current_value += (supop_el_a.p + supop_el_b.p)/2
-                    sorted_config[key] = current_value
-                checked.append(supop_el_b)
-                if supop_el_a in superoperator:
-                    superoperator.remove(supop_el_a)
-                if supop_el_b in superoperator:
-                    superoperator.remove(supop_el_b)
+        for supop_el_a, supop_el_b in permutations(superoperator, 2):
+            if supop_el_b.id in checked or supop_el_a.id in checked: continue
+            if supop_el_a != old_value:
+                if old_value is not None:
+                    if old_value.error_array.count("I") == old_value.error_array.count(proj_type):
+                        new_value = new_value/2
+                    sorted_superoperator.append(SuperOperatorElement(new_value, old_value.lie, old_value.error_array))
+                count = 1
+                new_value = supop_el_a.p
+            if supop_el_a.error_array_lie_equals(supop_el_b):
+                count += 1
+                new_value += supop_el_b.p
+                checked.append(supop_el_b.id)
+            old_value = supop_el_a
 
-        for key, prob in sorted_config.items():
-            error_array = list(key.split(":")[0])
-            lie = bool(int(key.split(":")[1]))
-            sorted_superoperator.append(SuperOperatorElement(prob, lie, error_array))
-
-        for supop_el in superoperator:
-            sorted_superoperator.append(supop_el)
+        sorted_superoperator.append(SuperOperatorElement(new_value, old_value.lie, old_value.error_array))
 
         return sorted_superoperator
+
 
     @staticmethod
     def _remove_not_likely_configurations(superoperator):
         for supop_el_a, supop_el_b in combinations(superoperator, 2):
-            if supop_el_a.p == supop_el_b.p and supop_el_a.lie == supop_el_b.lie:
+            if supop_el_a.probability_lie_equals(supop_el_b):
                 if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") \
                         and supop_el_b in superoperator:
                     superoperator.remove(supop_el_b)
@@ -1689,23 +1687,13 @@ class QuantumCircuit:
 
 
 if __name__ == "__main__":
-    begin = time.time()
-
-    qc = QuantumCircuit(8, init_type=2, noise=True, pg=0.09, pm=0.09)
+    qc = QuantumCircuit(8, 2, noise=True, pg=0.009, pm=0.009)
     qc.add_top_qubit(ket_p)
-    for z in range(1, qc.num_qubits, 2):
-        qc.CZ(0, z)
+    qc.apply_2_qubit_gate(Z, 0, 1)
+    qc.apply_2_qubit_gate(Z, 0, 3)
+    qc.apply_2_qubit_gate(Z, 0, 5)
+    qc.apply_2_qubit_gate(Z, 0, 7)
     qc.measure_first_N_qubits(1)
 
     qc.draw_circuit()
-    qc.get_superoperator([0, 2, 4, 6], save_noiseless_density_matrix=False)
-    print("The run took {} seconds".format(time.time() - begin))
-
-    # qc2 = QuantumCircuit(5, init_type=1, noise=True, pg=0.09, pm=0.09)
-    # for z in range(1, qc2.num_qubits):
-    #     qc2.CZ(0, z)
-    # qc2.measure_first_N_qubits(1)
-    #
-    # qc2.draw_circuit()
-    # qc2.get_superoperator([0, 1, 2, 3], save_noiseless_density_matrix=False)
-    # print("The run took {} seconds".format(time.time() - begin))
+    qc.get_superoperator([0, 2, 4, 6], most_likely=True, combine_degenerate=True)
