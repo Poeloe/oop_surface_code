@@ -45,7 +45,7 @@ def gate_name_to_array(gate_name):
         return I
     if gate_name == "H":
         return H
-    return None
+    return gate_name
 
 
 def get_value_by_prob(array, p):
