@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-class SuperOperator:
+class Superoperator:
 
     def __init__(self, file_name, graph, GHZ_success=1.1):
         self.file_name = file_name
@@ -38,8 +38,8 @@ class SuperOperator:
             for i in range(len(list(reader.p_prob))):
                 p_prob = float(reader.p_prob[i].replace(',', '.'))
                 s_prob = float(reader.s_prob[i].replace(',', '.'))
-                sup_op_el_p = SuperOperatorElement(p_prob, int(reader.p_lie[i]), [ch for ch in reader.p_error[i]])
-                sup_op_el_s = SuperOperatorElement(s_prob, int(reader.s_lie[i]), [ch for ch in reader.s_error[i]])
+                sup_op_el_p = SuperoperatorElement(p_prob, int(reader.p_lie[i]), [ch for ch in reader.p_error[i]])
+                sup_op_el_s = SuperoperatorElement(s_prob, int(reader.s_lie[i]), [ch for ch in reader.s_error[i]])
                 self.sup_op_elements_p.append(sup_op_el_p)
                 self.sup_op_elements_s.append(sup_op_el_s)
 
@@ -79,7 +79,7 @@ class SuperOperator:
         self._get_stabilizer_rounds(graph, z=z)
 
 
-class SuperOperatorElement:
+class SuperoperatorElement:
 
     def __init__(self, p, lie, error_array):
         self.p = p

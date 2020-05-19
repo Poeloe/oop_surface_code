@@ -10,7 +10,7 @@ import copy
 from scipy.linalg import eig, eigh
 import hashlib
 import os
-from super_operator import SuperOperatorElement
+from superoperator import SuperoperatorElement
 from termcolor import colored
 from itertools import combinations, permutations
 
@@ -1101,8 +1101,8 @@ class QuantumCircuit:
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
 
-            superoperator.append(SuperOperatorElement(fid_me, True, operators))
-            superoperator.append(SuperOperatorElement(fid_no_me, False, operators))
+            superoperator.append(SuperoperatorElement(fid_me, True, operators))
+            superoperator.append(SuperoperatorElement(fid_no_me, False, operators))
 
         if print_to_console:
             self._print_superoperator(superoperator, combine_degenerate, most_likely)
@@ -1476,7 +1476,7 @@ class QuantumCircuit:
                 if old_value is not None:
                     if old_value.error_array.count("I") == old_value.error_array.count(proj_type):
                         new_value = new_value/2
-                    sorted_superoperator.append(SuperOperatorElement(new_value, old_value.lie, old_value.error_array))
+                    sorted_superoperator.append(SuperoperatorElement(new_value, old_value.lie, old_value.error_array))
                 count = 1
                 new_value = supop_el_a.p
             if supop_el_a.error_array_lie_equals(supop_el_b):
@@ -1485,7 +1485,7 @@ class QuantumCircuit:
                 checked.append(supop_el_b.id)
             old_value = supop_el_a
 
-        sorted_superoperator.append(SuperOperatorElement(new_value, old_value.lie, old_value.error_array))
+        sorted_superoperator.append(SuperoperatorElement(new_value, old_value.lie, old_value.error_array))
 
         return sorted_superoperator
 

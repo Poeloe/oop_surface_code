@@ -23,7 +23,7 @@ The 3D graph (toric/planar) is a cubic lattice with many layer of these unit cel
 
 '''
 
-import super_operator as so
+import superoperator as so
 from . import graph_2D as go
 from ..plot import plot_graph_lattice as pgl
 from ..plot import plot_unionfind as puf
@@ -147,7 +147,7 @@ class toric(go.toric):
 
     def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
-            self.superoperator = so.SuperOperator(superoperator_filename, self, GHZ_success)
+            self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
         for z in self.range[:-1]:
             self.init_superoperator_error_per_timestep(z)
 

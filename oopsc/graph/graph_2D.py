@@ -24,7 +24,7 @@ from ..plot import plot_graph_lattice as pgl
 from ..plot import plot_unionfind as puf
 import random
 import numpy as np
-import super_operator as so
+import superoperator as so
 
 
 def _get_value_by_prob(array, p):
@@ -141,7 +141,7 @@ class toric(object):
 
     def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
-            self.superoperator = so.SuperOperator(superoperator_filename, self, GHZ_success)
+            self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
 
         self.init_superoperator_error_per_timestep()
 
