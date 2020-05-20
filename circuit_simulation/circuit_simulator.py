@@ -102,6 +102,8 @@ class QuantumCircuit:
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
+        self._user_operation_order = []
+        self._effective_measurements = 0
         self.density_matrix = None
 
         if init_type == 0:
@@ -191,7 +193,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------
     """
 
-    def set_qubit_states(self, qubit_dict):
+    def set_qubit_states(self, qubit_dict, user_operation=True):
         """
         qc.set_qubit_states(dict)
 
@@ -205,11 +207,17 @@ class QuantumCircuit:
             qubit_dict : dict
                 Dictionary with the keys being the number of the qubits to be modified (first qubit is 0)
                 and the value being the state the qubit should be in
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
 
             Example
             -------
             qc.set_qubit_state({0 : ket_1}) --> This sets the first qubit to the ket_1 state
         """
+        if user_operation:
+            self._user_operation_order.append({"set_qubit_states": [qubit_dict]})
+
         for tqubit, state in qubit_dict.items():
             self._qubit_array[tqubit] = state
         self._init_density_matrix()
@@ -218,7 +226,7 @@ class QuantumCircuit:
         """ Returns the initial state vector of the qubits """
         return KP(*self._qubit_array)
 
-    def create_bell_pairs(self, qubits):
+    def create_bell_pairs(self, qubits, user_operation=True):
         """
         qc.create_bell_pair(qubits)
 
@@ -231,18 +239,25 @@ class QuantumCircuit:
             ----------
             qubits : list
                 List containing tuples with the pairs of qubits that should form a Bell pair
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
 
             Example
             -------
             qc.create_bell_pairs([(0, 1), (2, 3), (4,5)]) --> Creates Bell pairs between qubit 0 and 1,
             between qubit 2 and 3 and between qubit 4 and 5.
         """
+        if user_operation:
+            self._user_operation_order.append({"create_bell_pairs": [qubits]})
+
         for qubit1, qubit2 in qubits:
-            self.H(qubit1, noise=False, draw=False)
-            self.CNOT(qubit1, qubit2, noise=False, draw=False)
+            self.H(qubit1, noise=False, draw=False, user_operation=False)
+            self.CNOT(qubit1, qubit2, noise=False, draw=False, user_operation=False)
             self._add_draw_operation("#", (qubit1, qubit2))
 
-    def create_bell_pairs_top(self, N, noise=None, pn=None, reset_init_parameters=True):
+    def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None, reset_init_parameters=True,
+                              user_operation=True):
         """
         qc.create_bell_pair(N, pn=0.1)
 
@@ -260,17 +275,26 @@ class QuantumCircuit:
             ----------
             N : int
                 Number of noisy Bell pairs that should be added to the top of the system.
+            new_qubit: bool, optional, default=False
+                If the creation of the Bell pair adds a new qubit to the drawing scheme or reuses the top qubit
+                (this can be done in case the top qubit has been measured)
             pn : float [0-1], optional, default=0.1
                 The amount of network noise present
             reset_init_parameters : bool, optional, default=True
                 If True, the saved initial parameters of the system will be overwritten by the state of
                 the system due to the addition of a top qubit.
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
 
             Example
             -------
             qc.create_bell_pairs([(0, 1), (2, 3), (4,5)]) --> Creates Bell pairs between qubit 0 and 1,
             between qubit 2 and 3 and between qubit 4 and 5.
         """
+        if user_operation:
+            self._user_operation_order.append({"create_bell_pairs_top": [N, new_qubit, noise, pn,
+                                                                         reset_init_parameters]})
         if noise is None:
             noise = self.noise
         if pn is None and noise:
@@ -281,22 +305,26 @@ class QuantumCircuit:
         sign = '@' if noise else '#'
 
         for i in range(0, 2 * N, 2):
-            self._qubit_array.insert(0, ket_0)
-            self._qubit_array.insert(0, ket_0)
+            if new_qubit:
+                self._effective_measurements = 0
+                self._qubit_array.insert(0, ket_0)
+                self._qubit_array.insert(0, ket_0)
+                self._correct_for_n_top_qubit_additions(n=2)
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
-            self._correct_for_n_top_qubit_additions(n=2)
             rho = sp.lil_matrix((4, 4))
             rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
 
             self.density_matrix = sp.kron((1 - 4 * pn / 3) * rho + pn / 3 * sp.eye(4, 4), self.density_matrix)
 
+            if not new_qubit:
+                self._effective_measurements -= 2
             self._add_draw_operation(sign, (i, i + 1))
 
-            if reset_init_parameters:
-                self._init_parameters = self._save_init_parameters()
+            # if reset_init_parameters:
+            #     self._init_parameters = self._save_init_parameters()
 
-    def add_top_qubit(self, qubit_state=ket_0, reset_init_parameters=True):
+    def add_top_qubit(self, qubit_state=ket_0, reset_init_parameters=True, user_operation=True):
         """
         qc.add_top_qubit(qubit_state=ket_0)
 
@@ -311,7 +339,13 @@ class QuantumCircuit:
             reset_init_parameters : bool, optional, default=True
                 If True, the saved initial parameters of the system will be overwritten by the state of
                 the system due to the addition of a top qubit.
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
         """
+        if user_operation:
+            self._user_operation_order.append({"add_top_qubit": [qubit_state, reset_init_parameters]})
+
         self._qubit_array.insert(0, qubit_state)
         self.num_qubits += 1
         self.d = 2 ** self.num_qubits
@@ -319,8 +353,8 @@ class QuantumCircuit:
 
         self.density_matrix = KP(CT(qubit_state), self.density_matrix)
 
-        if reset_init_parameters:
-            self._init_parameters = self._save_init_parameters()
+        # if reset_init_parameters:
+        #     self._init_parameters = self._save_init_parameters()
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -328,7 +362,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def apply_1_qubit_gate(self, gate, tqubit, noise=None, pg=None, draw=True):
+    def apply_1_qubit_gate(self, gate, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """
             qc.apply_1_qubit_gate(gate, tqubit, noise=None, pg=None, draw=True)
 
@@ -351,7 +385,12 @@ class QuantumCircuit:
                     initialised with a 'pg' parameter, this will be used if not specified otherwise
                 draw : bool, optional, default=True
                     If true, the specified gate will appear when the circuit is visualised.
+                user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
         """
+        if user_operation:
+            self._user_operation_order.append({"apply_1_qubit_gate": [gate, tqubit, noise, pg, draw]})
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -431,7 +470,7 @@ class QuantumCircuit:
 
         return first_id, second_id
 
-    def X(self, tqubit, times=1, noise=None, pg=None, draw=True):
+    def X(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli X gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
@@ -439,9 +478,9 @@ class QuantumCircuit:
             pg = self.pg
 
         for _ in range(times):
-            self.apply_1_qubit_gate(X, tqubit, noise, pg, draw)
+            self.apply_1_qubit_gate(X, tqubit, noise, pg, draw, user_operation=user_operation)
 
-    def Z(self, tqubit, times=1, noise=None, pg=None, draw=True):
+    def Z(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli Z gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
@@ -449,9 +488,9 @@ class QuantumCircuit:
             pg = self.pg
 
         for _ in range(times):
-            self.apply_1_qubit_gate(Z, tqubit, noise, pg, draw)
+            self.apply_1_qubit_gate(Z, tqubit, noise, pg, draw, user_operation=user_operation)
 
-    def Y(self, tqubit, times=1, noise=None, pg=None, draw=True):
+    def Y(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli Y gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
@@ -459,9 +498,9 @@ class QuantumCircuit:
             pg = self.pg
 
         for _ in range(times):
-            self.apply_1_qubit_gate(Y, tqubit, noise, pg, draw)
+            self.apply_1_qubit_gate(Y, tqubit, noise, pg, draw, user_operation=user_operation)
 
-    def H(self, tqubit, times=1, noise=None, pg=None, draw=True):
+    def H(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the Hadamard gate to the specified target qubit. See apply_1_qubit_gate for more info """
         if noise is None:
             noise = self.noise
@@ -469,7 +508,7 @@ class QuantumCircuit:
             pg = self.pg
 
         for _ in range(times):
-            self.apply_1_qubit_gate(H, tqubit, noise, pg, draw)
+            self.apply_1_qubit_gate(H, tqubit, noise, pg, draw, user_operation=user_operation)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -477,7 +516,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True):
+    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """
             Applies a two qubit gate according to the specified control and target qubits. This will update the density
             matrix of the system accordingly.
@@ -499,7 +538,12 @@ class QuantumCircuit:
                 initialised with a 'pg' parameter, this will be used if not specified otherwise
             draw : bool, optional, default=True
                 If true, the specified gate will appear when the circuit is visualised.
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
         """
+        if user_operation:
+            self._user_operation_order.append({"apply_2_qubit_gate": [gate, cqubit, tqubit, noise, pg, draw]})
         if noise is None:
             noise = self.noise
         if pg is None:
@@ -556,23 +600,23 @@ class QuantumCircuit:
 
         return sp.csr_matrix(gate_1 + gate_2)
 
-    def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True):
+    def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
             pg = self.pg
 
-        self.apply_2_qubit_gate(X, cqubit, tqubit, noise, pg, draw)
+        self.apply_2_qubit_gate(X, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
 
-    def CZ(self, cqubit, tqubit, noise=None, pg=None):
+    def CZ(self, cqubit, tqubit, noise=None, pg=None, user_operation=True):
         """ Applies the CZ gate to the specified target qubit. See apply_2_qubit_gate for more info """
         if noise is None:
             noise = self.noise
         if pg is None:
             pg = self.pg
 
-        self.apply_2_qubit_gate(Z, cqubit, tqubit, noise, pg)
+        self.apply_2_qubit_gate(Z, cqubit, tqubit, noise, pg, user_operation=user_operation)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -580,33 +624,51 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------  
     """
 
-    def single_selection(self, operation, measure=True, noise=None, pn=None, pm=None, pg=None):
-        self.create_bell_pairs_top(1, noise=True, pn=pn)
-        self.apply_2_qubit_gate(operation, 0, 2, noise=noise, pg=pg)
-        self.apply_2_qubit_gate(operation, 1, 3, noise=noise, pg=pg)
+    def single_selection(self, operation, new_qubit=False, measure=True, noise=None, pn=None, pm=None, pg=None,
+                         user_operation=True):
+        if user_operation:
+            self._user_operation_order.append({"single_selection": [operation, new_qubit, measure, noise, pn, pm, pg]})
+
+        self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=True, pn=pn, user_operation=False)
+        self.apply_2_qubit_gate(operation, 0, 2, noise=noise, pg=pg, user_operation=False)
+        self.apply_2_qubit_gate(operation, 1, 3, noise=noise, pg=pg, user_operation=False)
         if measure:
-            self.measure_first_N_qubits(2, noise=noise, pm=pm)
+            self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=False)
 
-    def double_selection(self, operation, noise=None, pn=None, pm=None, pg=None):
-        self.single_selection(operation, measure=False, noise=noise, pn=pn, pm=pm, pg=pg)
-        self.create_bell_pairs_top(1, noise=True, pn=pn)
-        self.CZ(0, 2, noise=noise, pg=pg)
-        self.CZ(1, 3, noise=noise, pg=pg)
-        self.measure_first_N_qubits(4, noise=noise, pm=pm)
+    def double_selection(self, operation, new_qubit=False, noise=None, pn=None, pm=None, pg=None, user_operation=True):
+        if user_operation:
+            self._user_operation_order.append({"double_selection": [operation, new_qubit, noise, pn, pm, pg]})
 
-    def single_dot(self, operation, qubit1, qubit2, measure=True, noise=None, pn=None, pm=None, pg=None):
-        self.create_bell_pairs_top(1, noise=True, pn=pn)
-        self.single_selection(X, noise=noise, pn=pn, pm=pm, pg=pg)
-        self.single_selection(Z, noise=noise, pg=pg)
-        self.apply_2_qubit_gate(operation, 0, qubit1+2, noise=noise, pg=pg)
-        self.apply_2_qubit_gate(operation, 1, qubit2+2)
+        self.single_selection(operation, new_qubit=new_qubit, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
+                              user_operation=False)
+        self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=True, pn=pn, user_operation=False)
+        self.CZ(0, 2, noise=noise, pg=pg, user_operation=False)
+        self.CZ(1, 3, noise=noise, pg=pg, user_operation=False)
+        self.measure_first_N_qubits(4, noise=noise, pm=pm, user_operation=False)
+
+    def single_dot(self, operation, qubit1, qubit2, new_qubit=False, measure=True, noise=None, pn=None, pm=None,
+                   pg=None, user_operation=True):
+        if user_operation:
+            self._user_operation_order.append({"single_dot": [operation, qubit1, qubit2, new_qubit, measure, noise,
+                                                              pn, pm, pg]})
+
+        self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=True, pn=pn, user_operation=False)
+        self.single_selection(X, new_qubit=new_qubit, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=False)
+        self.single_selection(Z, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=False)
+        self.apply_2_qubit_gate(operation, 0, qubit1+2, noise=noise, pg=pg, user_operation=False)
+        self.apply_2_qubit_gate(operation, 1, qubit2+2, noise=noise, pg=pg, user_operation=False)
         if measure:
-            self.measure_first_N_qubits(2, noise=noise, pm=pm)
+            self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=False)
 
-    def double_dot(self, operation, qubit1, qubit2, noise=None, pn=None, pm=None, pg=None):
-        self.single_dot(operation, qubit1, qubit2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg)
-        self.single_selection(Z, noise=noise, pn=pn, pm=pm, pg=pg)
-        self.measure_first_N_qubits(2, noise=noise, pm=pm)
+    def double_dot(self, operation, qubit1, qubit2, new_qubit=False, noise=None, pn=None, pm=None, pg=None,
+                   user_operation=True):
+        if user_operation:
+            self._user_operation_order.append({"double_dot": [operation, qubit1, qubit2, new_qubit, noise, pn, pm, pg]})
+
+        self.single_dot(operation, qubit1, qubit2, new_qubit=new_qubit, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
+                        user_operation=False)
+        self.single_selection(Z, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=False)
+        self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=False)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -726,7 +788,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------   
     """
 
-    def measure_first_N_qubits(self, N, measure=0, noise=None, pm=None, basis="X"):
+    def measure_first_N_qubits(self, N, measure=0, noise=None, pm=None, basis="X", user_operation=True):
         """
             Method measures the first N qubits, given by the user, all in the 0 or 1 state.
             This will thus result in an even parity measurement. To also be able to enforce uneven
@@ -748,8 +810,13 @@ class QuantumCircuit:
                 The amount of measurement noise that is present (if noise is present).
             basis : str ["X" or "Z"], optional, default="X"
                 Whether the measurement should be done in the X-basis or in the computational basis (Z-basis)
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
 
         """
+        if user_operation:
+            self._user_operation_order.append({"measure_first_N_qubits": [N, measure, noise, pm, basis]})
         if noise is None:
             noise = self.noise
         if pm is None:
@@ -758,9 +825,10 @@ class QuantumCircuit:
         for qubit in range(N):
             if basis == "X":
                 # Do not let the method draw itself, since the qubit will not be removed from the circuit drawing
-                self.H(0, noise=noise, draw=False)
+                self.H(0, noise=noise, draw=False, user_operation=False)
 
             self._measurement_first_qubit(measure, noise=noise, pm=pm)
+            self._effective_measurements += 1
             self._add_draw_operation("{}M_{}:{}".format(("~" if noise else ""), basis, measure), qubit)
 
     def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):
@@ -804,7 +872,7 @@ class QuantumCircuit:
         self.num_qubits -= 1
         self.d = 2 ** self.num_qubits
 
-    def measure(self, qubit, measure=None, basis="X"):
+    def measure(self, qubit, measure=None, basis="X", user_operation=False):
         """
             Measurement that can be applied to any qubit and does NOT remove the qubit from the system.
 
@@ -820,10 +888,15 @@ class QuantumCircuit:
                 randomly according to the probability of the outcome.
             basis : str ["X" or "Z"], optional, default="X"
                 Whether the qubit is measured in the X-basis or in the computational basis (Z-basis)
+            user_operation : bool, optional, default=True
+                True if the user has requested the method and (else) False if it was invoked by an internal
+                method.
 
         """
+        if user_operation:
+            self._user_operation_order.append({"measure": [qubit, measure, basis]})
         if basis == "X":
-            self.H(qubit, noise=False)
+            self.H(qubit, noise=False, user_operation=False)
 
         # If no specific measurement outcome is given it is chosen by the hand of the probability
         if measure is None:
@@ -838,7 +911,7 @@ class QuantumCircuit:
         self._add_draw_operation("M", qubit)
 
         if basis == "X":
-            self.H(qubit, noise=False)
+            self.H(qubit, noise=False, user_operation=False)
 
     def _measurement(self, qubit, measure=0, eigenval=None, eigenvec=None):
         """
@@ -1090,7 +1163,7 @@ class QuantumCircuit:
     """
 
     def get_superoperator(self, qubits, save_noiseless_density_matrix=False, combine_degenerate=True,
-                          most_likely=True, print_to_console=True):
+                          most_likely=True, print_to_console=True, file_name_noiseless=None, file_name_measerror=None):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1114,9 +1187,11 @@ class QuantumCircuit:
             print_to_console : bool, optional, default=True
                 Whether the result should be printed in a clear overview to the console.
         """
-        noiseless_density_matrix = self._get_noiseless_density_matrix(save=save_noiseless_density_matrix)
-        measerror_density_matrix = self._get_noiseless_density_matrix(measure_error=True,
-                                                                      save=save_noiseless_density_matrix)
+        noiseless_density_matrix = self._get_noiseless_density_matrix_new(save=save_noiseless_density_matrix,
+                                                                          file_name=file_name_noiseless)
+        measerror_density_matrix = self._get_noiseless_density_matrix_new(measure_error=True,
+                                                                          save=save_noiseless_density_matrix,
+                                                                          file_name=file_name_measerror)
 
         measurement_applied = not np.array_equal(noiseless_density_matrix.toarray(), measerror_density_matrix.toarray())
 
@@ -1264,8 +1339,29 @@ class QuantumCircuit:
 
         return np.array(operators)[most_likely_indices]
 
-    def _get_noiseless_density_matrix(self, measure_error=False, save=True):
-        file_name = self._file_name_from_circuit(measure_error)
+    def _get_noiseless_density_matrix_new(self, measure_error=False, save=True, file_name=None):
+        """
+            Private method to calculate the noiseless variant of the density matrix.
+            It traverses the operations on the system by the hand of the '_user_operation_order' attribute.
+
+            Parameters
+            ----------
+            measure_error: bool, optional, default=False
+                Specifies if the measurement outcome should be opposite of the ideal circuit.
+            save : bool
+                Whether or not the calculated noiseless version of the circuit should be saved.
+                This saved matrix will a next time be used if the same system is analysed wth this method.
+            file_name : str
+                File name of the density matrix file that should be used as noiseless density matrix. Note that
+                specifying this with an existing file name, will directly return this density matrix.
+
+            Returns
+            -------
+            noiseless_density_matrix : sparse matrix
+                The density matrix of the current system, but without noise
+        """
+        if file_name is None:
+            file_name = self._file_name_from_circuit(measure_error)
 
         # Check if the noiseless system has been calculated before
         if os.path.exists(file_name):
@@ -1275,38 +1371,33 @@ class QuantumCircuit:
         init_type = self._init_parameters['init_type']
         num_qubits = self._init_parameters['num_qubits']
 
-        qc_noiseless = QuantumCircuit(num_qubits, 0)
+        qc_noiseless = QuantumCircuit(num_qubits, init_type)
 
-        qc_noiseless.density_matrix = self._init_parameters['density_matrix']
-        qc_noiseless._qubit_array = self._init_parameters['qubit_array']
+        for user_operation in self._user_operation_order:
+            operation = list(user_operation.keys())[0]
+            parameters = list(user_operation.values())[0]
 
-        # Since the initial density matrix is already present, the traversal of the operations should start after.
-        operation_start = 0
-        if init_type == 2:
-            operation_start = int(num_qubits / 2)
-        if init_type == 3:
-            operation_start = num_qubits - 1
-
-        for operation_index in range(operation_start, len(self._draw_order)):
-            operation_dict = self._draw_order[operation_index]
-            one_qubit_gate = gate_name_to_array(list(operation_dict.keys())[0])
-            qubits = list(operation_dict.values())[0]
-
-            # Apply the noiseless gate to the density matrix if the gate is an existing gate
-            if type(one_qubit_gate) is not str:
-                if type(qubits) is tuple:
-                    qc_noiseless.apply_2_qubit_gate(one_qubit_gate, qubits[0], qubits[1])
-                else:
-                    qc_noiseless.apply_1_qubit_gate(one_qubit_gate, qubits)
-
-            elif one_qubit_gate.__contains__('M'):
-                measure = int((list(operation_dict.keys())[0]).split(":")[1])
+            if operation == "create_bell_pairs_top":
+                qc_noiseless.create_bell_pairs_top(parameters[0], parameters[1])
+            elif operation == "apply_1_qubit_gate":
+                qc_noiseless.apply_1_qubit_gate(parameters[0], parameters[1])
+            elif operation == "apply_2_qubit_gate":
+                qc_noiseless.apply_2_qubit_gate(parameters[0], parameters[1], parameters[2])
+            elif operation == "add_top_qubit":
+                qc_noiseless.add_top_qubit(parameters[0], parameters[1])
+            elif operation == "double_selection":
+                qc_noiseless.double_selection(parameters[0], parameters[1])
+            elif operation == "single_selection":
+                qc_noiseless.single_selection(parameters[0], parameters[1], parameters[2])
+            elif operation == "single_dot":
+                qc_noiseless.single_dot(parameters[0], parameters[1], parameters[2], parameters[3], parameters[4])
+            elif operation == "double_dot":
+                qc_noiseless.double_dot(parameters[0], parameters[1], parameters[2], parameters[3])
+            elif operation == "measure_first_N_qubits":
+                measure = parameters[1]
                 if measure_error:
                     measure = abs(measure - 1)
-                qc_noiseless.measure_first_N_qubits(1, measure)
-
-            elif one_qubit_gate.__contains__('@'):
-                qc_noiseless.create_bell_pairs_top(1)
+                qc_noiseless.measure_first_N_qubits(parameters[0], measure)
 
         if save:
             sp.save_npz(file_name, qc_noiseless.density_matrix)
@@ -1315,7 +1406,7 @@ class QuantumCircuit:
 
     def _file_name_from_circuit(self, measure_error):
         # Create an hash id, based on the operation and there order on the system and use this for the filename
-        system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._draw_order])
+        system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._user_operation_order])
         hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
         file_name = "density_matrix{}_{}.npz".format(("_me" if measure_error else ""), hash_id)
         return file_name
@@ -1324,169 +1415,6 @@ class QuantumCircuit:
         file_name = self._file_name_from_circuit(measure_error)
 
         sp.save_npz(file_name, self.density_matrix)
-
-    def _get_noiseless_density_matrix_deprecated(self, save):
-        """
-            Private method to calculate the noiseless variant of the density matrix.
-            It traverses the operations on the system by the hand of the '_draw_order' attribute.
-
-            *** AT THE MOMENT, IT CAN ONLY SUCCESSFULLY RECREATE THE NOISELESS DENSITY MATRIX OF
-            A SYSTEM ON WHICH ONE- AND TWO-QUBIT GATES AND MEASUREMENTS ON THE FIRST QUBITS ARE
-            APPLIED. ARBITRARY MEASUREMENTS OR THE CREATION OF BELL STATES WITHOUT DOING THE ACTUAL
-            OPERATIONS WILL NOT LEAD TO THE PROPER NOISELESS DENSITY MATRIX AND MAY EVEN CAUSE
-            ERRORS ***
-
-            Parameters
-            ----------
-            save : bool
-                Whether or not the calculated noiseless version of the circuit should be saved.
-                This saved matrix will a next time be used if the same system is analysed wth this method.
-
-            Returns
-            -------
-            noiseless_density_matrix : sparse matrix
-                The density matrix of the current system, but without noise
-            measerror_density_matrix : sparse matrix
-                The density matrix of the current system, with the only noise source being the measurement errors
-        """
-        # Create an hash id, based on the operation and there order on the system and use this for the filename
-        system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._draw_order])
-        hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
-        file_name_noiseless = "density_matrix_{}.npz".format(hash_id)
-        file_name_measerror = "density_matrix_me_{}.npz".format(hash_id)
-
-        # Check if the noiseless system has been calculated before
-        if os.path.exists(file_name_noiseless) and os.path.exists(file_name_measerror):
-            return sp.load_npz(file_name_noiseless), sp.load_npz(file_name_measerror)
-
-        # Get the initial parameters of the current QuantumCircuit object
-        init_type = self._init_parameters['init_type']
-        num_qubits = self._init_parameters['num_qubits']
-        d = self._init_parameters['d']
-        noiseless_density_matrix = self._init_parameters['density_matrix']
-        measerror_density_matrix = noiseless_density_matrix
-        operation_start = 0
-        measurement_applied = False
-
-        # Since the initial density matrix is already present, the traversal of the operations should start after.
-        if init_type == 2:
-            operation_start = int(num_qubits / 2)
-        if init_type == 3:
-            operation_start = num_qubits - 1
-
-        for operation_index in range(operation_start, len(self._draw_order)):
-            operation_dict = self._draw_order[operation_index]
-            one_qubit_gate = gate_name_to_array(list(operation_dict.keys())[0])
-            qubits = list(operation_dict.values())[0]
-
-            # Apply the noiseless gate to the density matrix if the gate is an existing gate
-            if type(one_qubit_gate) is not str:
-                measerror_density_matrix, noiseless_density_matrix = self._reconstruct_gate(one_qubit_gate,
-                                                                                            measerror_density_matrix,
-                                                                                            noiseless_density_matrix,
-                                                                                            measurement_applied,
-                                                                                            num_qubits, qubits)
-
-            # If gate does not exist, it is now taken as ONLY option that it must be a measurement on the first
-            # qubit and the measurement outcome is taken from the gate (NOTE THAT THIS WILL, AT THE MOMENT, LEAD
-            # TO AN ERROR ON THE NEXT LINE IF IT DOES NOT CONCERN A MEASUREMENT ON THE FIRST QUBIT!)
-            elif one_qubit_gate.__contains__('M'):
-                measurement_applied = True
-                measure = int((list(operation_dict.keys())[0])[1])
-                measerror_density_matrix, noiseless_density_matrix = \
-                    self._reconstruct_measurement(measure, measerror_density_matrix, noiseless_density_matrix, d)
-                num_qubits -= 1
-                d = 2 ** num_qubits
-
-        if save:
-            sp.save_npz(file_name_noiseless, noiseless_density_matrix)
-            sp.save_npz(file_name_measerror, measerror_density_matrix)
-
-        return noiseless_density_matrix, measerror_density_matrix
-
-    def _reconstruct_gate_deprecated(self, one_qubit_gate, measerror_density_matrix, noiseless_density_matrix, measurement_applied,
-                          num_qubits, qubits):
-        """
-            Private method that is used to apply a gate, that has been applied on the real system, to the ideal
-            system and the system with the only source of noise being measurement errors.
-
-             Parameters
-             ----------
-             one_qubit_gate : ndarray
-                The matrix that represents the gate that should be applied.
-             measerror_density_matrix : sparse matrix
-                The density matrix of the current system, with the only noise source being the measurement errors.
-             noiseless_density_matrix : sparse matrix
-                The density matrix of the current system, but without noise.
-             measurement_applied : bool
-                Boolean that indicates if a measurement has been applied to the reconstructed systems.
-             num_qubits : int
-                The number of qubits in the system.
-             qubits : tuple or int
-                When a tuple, the first argument is the control qubit, second argument the target qubit of the
-                two-qubit gate that will be applied. If an int, it specifies the target qubit of the one-qubit gate.
-
-             Returns
-             -------
-             measerror_density_matrix : sparse matrix
-                The density matrix of the current system, with the only noise source being the measurement errors,
-                where a new gate has been applied.
-             noiseless_density_matrix : sparse matrix
-                The density matrix of the current system, but without noise,
-                where a new gate has been applied.
-        """
-        if type(qubits) == tuple:
-            gate = self._create_2_qubit_gate(one_qubit_gate, qubits[0], qubits[1], num_qubits=num_qubits)
-        else:
-            if (diff := self._init_parameters['num_qubits'] - num_qubits) != 0 and np.array_equal(one_qubit_gate, H):
-                qubits -= diff
-            gate = self._create_1_qubit_gate(one_qubit_gate, qubits, num_qubits=num_qubits)
-
-        noiseless_density_matrix = gate * CT(noiseless_density_matrix, gate)
-
-        # If a measurement has been applied, the error measurement density matrix should be calculated separately
-        if measurement_applied:
-            measerror_density_matrix = gate * CT(measerror_density_matrix, gate)
-        else:
-            measerror_density_matrix = noiseless_density_matrix
-
-        return measerror_density_matrix, noiseless_density_matrix
-
-    @staticmethod
-    def _reconstruct_measurement_deprecated(measure, measerror_density_matrix, noiseless_density_matrix, d):
-        """
-            Private method is used to apply a measurement, that has been done on the real system, to the ideal system
-            and the system with the only sources of error being measurement errors.
-
-            Parameters
-            ----------
-            measure : int [0 or 1]
-                The measurement outcome that is observed.
-            measerror_density_matrix : sparse matrix
-                The density matrix of the current system, with the only noise source being the measurement errors.
-            noiseless_density_matrix : sparse matrix
-                The density matrix of the current system, but without noise.
-            d : int
-                The dimension of the two density matrices mentioned above.
-            
-            Returns
-            -------
-            measerror_density_matrix : sparse matrix
-                The density matrix of the current system, with the only noise source being the measurement errors,
-                where a new measurement has been applied on the first qubit.
-            noiseless_density_matrix : sparse matrix
-                The density matrix of the current system, but without noise,
-                where a new measurement has been applied on the first qubit.
-        """
-        if measure == 0:
-            noiseless_density_matrix = noiseless_density_matrix[:int(d / 2), :int(d / 2)]
-            measerror_density_matrix = measerror_density_matrix[int(d / 2):, int(d / 2):]
-        elif measure == 1:
-            noiseless_density_matrix = noiseless_density_matrix[int(d / 2):, int(d / 2):]
-            measerror_density_matrix = measerror_density_matrix[:int(d / 2), :int(d / 2)]
-
-        return measerror_density_matrix / trace(measerror_density_matrix), \
-               noiseless_density_matrix / trace(noiseless_density_matrix)
 
     def get_kraus_operator(self):
         """
@@ -1561,7 +1489,6 @@ class QuantumCircuit:
     def _filter_by_probability(element):
         return float(str(element).split(":")[0])
 
-
     @staticmethod
     def _fuse_equal_config_up_to_permutation(superoperator, proj_type="Z"):
         checked = []
@@ -1591,7 +1518,6 @@ class QuantumCircuit:
 
         return sorted_superoperator
 
-
     @staticmethod
     def _remove_not_likely_configurations(superoperator):
         for supop_el_a, supop_el_b in combinations(superoperator, 2):
@@ -1602,109 +1528,6 @@ class QuantumCircuit:
                 elif supop_el_a.error_array.count("I") < supop_el_b.error_array.count("I") \
                         and supop_el_a in superoperator:
                     superoperator.remove(supop_el_a)
-
-        return superoperator
-
-    @staticmethod
-    def _find_degenerate_configurations_deprecated(superoperator_qc):
-        """
-            Method finds the configurations that are degenerate within configurations with the same
-            probability. For example, the configurations of [[IIIX], [IXII], [YIII], [IYII]] with the same
-            probability in essence has two configurations with a degeneracy of 2. So this will become
-            [[IIIX], [IIIY]] with twice the probability.
-
-            Parameters
-            ----------
-            superoperator_qc : dict
-                dict containing probabilities as key values and a list of corresponding configurations as
-                values.
-
-            Returns
-            -------
-            filtered_superoperator : dict
-                dict containing the filtered superoperator configurations. Probability and configurations are
-                updated accordingly
-        """
-        result = {}
-
-        for probability in sorted(superoperator_qc):
-            filtered_operators = np.array(superoperator_qc[probability])
-            filtered_operators.sort()
-            filtered_operators, counts = np.unique(filtered_operators, return_counts=True, axis=0)
-            for i in range(len(filtered_operators)):
-                # Multiply the probability with the amount of counts, to compensate for the degeneracy
-                key = str(counts[i] * probability) + ":" + filtered_operators[i][-1]
-                configuration = list(filtered_operators[i])
-                if key in result:
-                    current_value = result[key]
-                    current_value.append(configuration)
-                    result[key] = current_value
-                else:
-                    result[key] = [configuration]
-
-        return result
-
-    @staticmethod
-    def _add_up_same_configurations_deprecated(superoperator):
-        """
-            Method checks the entire superoperator for configurations that are equal. If so, the method
-            will fuse these configurations and updates the probability accordingly.
-
-            Parameters
-            ----------
-            superoperator : dict
-                dict containing probabilities as key values and a list of corresponding configurations as
-                values.
-
-           Returns
-           _______
-           ordered_superoperator : dict
-                Returns the more ordered superoperator. Same configurations are now fused and probability
-                is updated accordingly
-        """
-        new_probability = 0
-        deleted = []
-
-        # First check if the configurations corresponding to a certain probability are a subset of
-        # configurations for other probabilities. If so, add the probability of the larger set to the probability
-        # of the subset and remove the subset from the larger set.
-        for config_a, config_b in combinations(superoperator.items(), 2):
-            if config_a in deleted: continue
-            if all(x in config_b[1] for x in config_a[1]) and not all(x in config_a[1] for x in config_b[1]):
-                new_config_b = [x for x in config_b[1] if x not in config_a[1]]
-                new_probability = float(config_a[0].split(":")[0]) + float(config_b[0].split(":")[0])
-                superoperator[config_b[0]] = new_config_b
-                new_key = str(new_probability) + ":" + config_a[0].split(":")[1]
-                superoperator[new_key] = config_a[1]
-                if config_a[0] in superoperator:
-                    superoperator.pop(config_a[0])
-                deleted.append(config_b)
-
-        old_value = None
-        new_probability = 0
-        deleted = []
-
-        # Now check the superoperator again for configurations of the one probability that completely
-        # match configurations of another probability. If so, add the one probability to the other probability
-        # and delete that other entry from the superoperator.
-        # This 'complete' check is done after the first 'overlap' check, since the removed overlap may cause a
-        # new configuration that is a completely match with configurations of another probability. This will
-        # otherwise be missed.
-        for config_a, config_b in combinations(superoperator.items(), 2):
-            if config_a in deleted or config_b in deleted: continue
-            if config_a != old_value and new_probability != 0:
-                new_key = str(new_probability) + ":" + old_value[0].split(":")[1]
-                superoperator[new_key] = old_value[1]
-                if old_value[0] in superoperator:
-                    superoperator.pop(old_value[0])
-                new_probability = 0
-            if np.array_equal(config_a[1], config_b[1]):
-                new_probability += float(config_a[0].split(":")[0]) + float(config_b[0].split(":")[0])
-                if config_b[0] in superoperator:
-                    deleted.append(config_b)
-                    superoperator.pop(config_b[0])
-
-            old_value = config_a
 
         return superoperator
 
@@ -1770,6 +1593,12 @@ class QuantumCircuit:
 
     def _add_draw_operation(self, operation, qubits):
         """ Add an operation to the draw order list """
+        if self._effective_measurements != 0 and "M" not in operation:
+            if type(qubits) is tuple:
+                qubits = (qubits[0] + self._effective_measurements,
+                          qubits[1] + self._effective_measurements)
+            else:
+                qubits += int(self._effective_measurements /2)
         item = {operation: qubits}
         self._draw_order.append(item)
 
