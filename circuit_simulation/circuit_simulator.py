@@ -93,7 +93,7 @@ class QuantumCircuit:
 
     """
 
-    def __init__(self, num_qubits, init_type=None, noise=False, pg=0.01, pm=0.01, pn=0.1):
+    def __init__(self, num_qubits, init_type=None, noise=False, pg=0.001, pm=0.001, pn=0.1):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
