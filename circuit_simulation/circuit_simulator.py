@@ -10,6 +10,7 @@ import copy
 from scipy.linalg import eig, eigh
 import hashlib
 import os
+import re
 from superoperator import SuperoperatorElement
 from termcolor import colored
 from itertools import combinations, permutations, product
@@ -104,6 +105,7 @@ class QuantumCircuit:
         self._draw_order = []
         self._user_operation_order = []
         self._effective_measurements = 0
+        self._measured_qubits = []
         self.density_matrix = None
 
         if init_type == 0:
@@ -276,8 +278,8 @@ class QuantumCircuit:
             N : int
                 Number of noisy Bell pairs that should be added to the top of the system.
             new_qubit: bool, optional, default=False
-                If the creation of the Bell pair adds a new qubit to the drawing scheme or reuses the top qubit
-                (this can be done in case the top qubit has been measured)
+                If the creation of the Bell pair adds a new qubit to the drawing scheme (True) or reuses the top qubit
+                (False) (this can be done in case the top qubit has been measured)
             noise : bool, optional, default=None
                 Can be specified to force the creation of the Bell pairs noisy (True) or noiseless (False).
                 If not specified (None), it will take the general noise parameter of the QuantumCircuit object.
@@ -296,29 +298,28 @@ class QuantumCircuit:
             self._user_operation_order.append({"create_bell_pairs_top": [N, new_qubit, noise, pn]})
         if noise is None:
             noise = self.noise
-        if pn is None and noise:
-            pn = self.pn
-        elif not noise:
+        if not noise:
             pn = 0.0
-
-        sign = '@' if noise else '#'
+        elif pn is None:
+            pn = self.pn
 
         for i in range(0, 2 * N, 2):
-            if new_qubit:
-                self._effective_measurements = 0
-                self._qubit_array.insert(0, ket_0)
-                self._qubit_array.insert(0, ket_0)
-                self._correct_for_n_top_qubit_additions(n=2)
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
             rho = sp.lil_matrix((4, 4))
             rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
-            density_matrix = (1 - 4 * pn / 3) * rho + (pn / 3) * sp.eye(4, 4)
+            density_matrix = (1 - (4 * pn) / 3) * rho + (pn / 3) * sp.eye(4, 4)
 
             self.density_matrix = sp.kron(density_matrix, self.density_matrix) if (self.density_matrix is not None) \
                 else density_matrix
 
-            if not new_qubit:
+            # Drawing the Bell Pair
+            sign = '@' if noise else '#'
+            if new_qubit:
+                self._qubit_array.insert(0, ket_0)
+                self._qubit_array.insert(0, ket_0)
+                self._correct_for_n_top_qubit_additions(n=2)
+            else:
                 self._effective_measurements -= 2
             self._add_draw_operation(sign, (0, 1))
 
@@ -395,7 +396,8 @@ class QuantumCircuit:
             self._N_single(pg, tqubit)
 
         if draw:
-            self._add_draw_operation(gate_name(gate), tqubit)
+            gate_repr = colored("~", 'red') + gate_name(gate) if noise else gate_name(gate)
+            self._add_draw_operation(gate_repr, tqubit)
 
     def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None):
         """
@@ -548,7 +550,8 @@ class QuantumCircuit:
             self._N(pg, cqubit, tqubit)
 
         if draw:
-            self._add_draw_operation(gate_name(gate), (cqubit, tqubit))
+            gate_repr = colored("~", 'red') + gate_name(gate) if noise else gate_name(gate)
+            self._add_draw_operation(gate_repr, (cqubit, tqubit))
 
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         """
@@ -818,8 +821,9 @@ class QuantumCircuit:
                 measure_new = abs(measure - 1)
 
             self._measurement_first_qubit(measure_new, noise=noise, pm=pm)
-            self._effective_measurements += 1
-            self._add_draw_operation("{}M_{}:{}".format(("~" if noise else ""), basis, measure_new), qubit)
+            self._add_draw_operation("{}M_{}:{}"
+                                     .format((colored("~", 'red') if noise else ""), basis, measure_new), qubit)
+        self._effective_measurements += N
 
     def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):
         """
@@ -1152,8 +1156,8 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def get_superoperator(self, qubits, save_noiseless_density_matrix=False, combine_degenerate=True,
-                          most_likely=True, print_to_console=True, file_name_noiseless=None, file_name_measerror=None):
+    def get_superoperator(self, qubits, proj_type, save_noiseless_density_matrix=False, combine=True, most_likely=True,
+                          print_to_console=True, file_name_noiseless=None, file_name_measerror=None):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1170,12 +1174,30 @@ class QuantumCircuit:
                 List of qubits of which the superoperator should be calculated. Only for these qubits it will be
                 checked if certain errors occured on them. This is necessary to specify in case the circuit contains
                 ancilla qubits that should not be evaluated. **The index of the qubits should be the index of the
-                resulting density matrix, thus in case of measurements this will differ from the initial indices!!**
+                resulting density matrix, thus in case of measurements this can differ from the initial indices!!**
+            proj_type : str, options: "X" or "Z"
+                Specifies the type of stabilizer for which the superoperator should be calculated. This value is
+                necessary for the postprocessing of the superoperator results if 'combine' is set to True.
             save_noiseless_density_matrix : bool, optional, default=True
                 Whether or not the calculated noiseless (ideal) version of the circuit should be saved.
                 This saved matrix will a next time be used for speedup if the same system is analysed with this method.
+            combine : bool, optional, default=True
+                Combines the error configuration on the data qubits that are equal up to permutation. This effectively
+                means that for example [I, I, I, X] and [X, I, I, I] will be combined to one term [I, I, I, X] with the
+                probabilities summed.
+            most_likely : bool, optional, default=True
+                Will choose the most likely configuration of degenerate configurations. This effectively means that the
+                configuration with the highest amount of identity operators will be chosen. Only works if 'combine' is
+                also set to True.
             print_to_console : bool, optional, default=True
                 Whether the result should be printed in a clear overview to the console.
+            file_name_noiseless : str, optional, default=None
+                file name of the noiseless variant of the density matrix of the noisy system. Use this option if density
+                matrix has been named manually and this one should be used for the calculations.
+            file_name_measerror : str, optional, default=None
+                file name of the noiseless variant with measurement error of the density matrix of the noisy system.
+                Use this option if density matrix has been named manually and this one should be used for the
+                calculations.
         """
         noiseless_density_matrix = self._get_noiseless_density_matrix(save=save_noiseless_density_matrix,
                                                                       file_name=file_name_noiseless)
@@ -1212,9 +1234,9 @@ class QuantumCircuit:
             superoperator.append(SuperoperatorElement(fid_no_me, False, operators))
 
         # Possible post-processing options for the superoperator
-        if combine_degenerate:
-            superoperator = self._fuse_equal_config_up_to_permutation(superoperator)
-        if combine_degenerate and most_likely:
+        if combine:
+            superoperator = self._fuse_equal_config_up_to_permutation(superoperator, proj_type)
+        if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         if print_to_console:
@@ -1456,7 +1478,8 @@ class QuantumCircuit:
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
         legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
-                  "(with target qubit at same level), [X,Y,Z,H]: gates, M: Measurement\n"
+                  "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement, " + colored("~", 'red') + \
+                  ": noisy operation (gate/measurement)\n"
         init = self._draw_init()
         self._draw_gates(init)
         init[-1] += "\n\n"
@@ -1475,7 +1498,7 @@ class QuantumCircuit:
             gate = next(iter(gate_item))
             value = gate_item[gate]
             if type(value) == tuple:
-                control = "o"
+                control = "o" if "~" not in gate else colored("~", 'red') + "o"
                 if gate == "#" or gate == "@":
                     control = gate
                 cqubit = value[0]
@@ -1486,24 +1509,42 @@ class QuantumCircuit:
                 init[value] += "---{}---".format(gate)
 
             for a, b in it.combinations(enumerate(init), 2):
-                if (diff := len(init[b[0]]) - len(init[a[0]])) > 0:
+                # Since colored ansi code is shown as color and not text it should be stripped for length comparison
+                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                a_stripped = ansi_escape.sub("", init[a[0]])
+                b_stripped = ansi_escape.sub("", init[b[0]])
+
+                if (diff := len(b_stripped) - len(a_stripped)) > 0:
                     init[a[0]] += diff * "-"
-                elif (diff := len(init[a[0]]) - len(init[b[0]])) > 0:
+                elif (diff := len(a_stripped) - len(b_stripped)) > 0:
                     init[b[0]] += diff * "-"
 
     def _add_draw_operation(self, operation, qubits):
         """ Add an operation to the draw order list """
-        if self._effective_measurements != 0 and "M" not in operation:
+        if self._effective_measurements != 0:
             if type(qubits) is tuple:
-                qubits = (qubits[0] + self._effective_measurements,
-                          qubits[1] + self._effective_measurements)
+                cqubit = qubits[0] + self._effective_measurements
+                tqubit = qubits[1] + self._effective_measurements
+
+                if self._measured_qubits != [] and cqubit >= min(self._measured_qubits):
+                    cqubit += len(self._measured_qubits)
+                if self._measured_qubits != [] and tqubit >= min(self._measured_qubits):
+                    tqubit += len(self._measured_qubits)
+
+                qubits = (cqubit, tqubit)
             else:
-                qubits += int(self._effective_measurements /2)
+                qubits += int(self._effective_measurements)
+
+                if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
+                    qubits += len(self._measured_qubits)
         item = {operation: qubits}
         self._draw_order.append(item)
 
     def _correct_for_n_top_qubit_additions(self, n=1):
         """ Corrects the draw order list for addition of n top qubits """
+        self._measured_qubits.extend([i for i in range(self._effective_measurements)])
+        self._measured_qubits = [(x + n) for x in self._measured_qubits]
+        self._effective_measurements = 0
         for i, draw_item in enumerate(self._draw_order):
             operation = list(draw_item.keys())[0]
             qubits = list(draw_item.values())[0]
