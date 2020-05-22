@@ -111,12 +111,12 @@ class SuperoperatorElement:
     def __radd__(self, other):
         return self.p + other
 
-    def full_equals(self, other, sort_array=True):
+    def full_equals(self, other, rnd=8, sort_array=True):
         if sort_array:
             self.error_array.sort()
             other.error_array.sort()
 
-        return self.p == other.p and self.lie == other.lie and self.error_array == other.error_array
+        return round(self.p, rnd) == round(other.p, rnd) and self.lie == other.lie and self.error_array == other.error_array
 
     def error_array_lie_equals(self, other, sort_array=True):
         if sort_array:
@@ -125,5 +125,5 @@ class SuperoperatorElement:
 
         return self.lie == other.lie and self.error_array == other.error_array
 
-    def probability_lie_equals(self, other):
-        return self.p == other.p and self.lie == other.lie
+    def probability_lie_equals(self, other, rnd=8):
+        return round(self.p, rnd) == round(other.p, rnd) and self.lie == other.lie
