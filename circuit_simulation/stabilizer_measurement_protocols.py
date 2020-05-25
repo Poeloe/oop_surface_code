@@ -1,5 +1,6 @@
+import os
 import sys
-sys.path.insert(1, '/Users/Paul/Documents/TU/Master/Afstuderen/forked_surface_code/oop_surface_code/')
+sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
 
 
