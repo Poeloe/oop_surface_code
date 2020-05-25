@@ -10,6 +10,7 @@
 *.txt
 *.lprof
 *.npz
+*.pdf
 __pycache__/
 errors/
 figures/
