@@ -71,7 +71,7 @@ circuit. The most common operations are:
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
 
-    For which the known single-qubit gate are already provided:
+    For which the known single-qubit gates are already provided:
     * `X`
     * `Z`
     * `Y`
