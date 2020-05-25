@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(1, '/Users/Paul/Documents/TU/Master/Afstuderen/forked_surface_code/oop_surface_code/')
 from circuit_simulation.circuit_simulator import *
 
 
@@ -10,7 +12,7 @@ def monolithic(operation):
     qc.apply_2_qubit_gate(operation, 0, 7)
     qc.measure_first_N_qubits(1)
 
-    # qc.draw_circuit()
+    qc.draw_circuit()
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation))
 
 
@@ -85,8 +87,7 @@ def stringent(operation):
 if __name__ == "__main__":
     # monolithic(Z)
     # monolithic(X)
-    # expedient(X)
     expedient(Z)
+    # expedient(X)
     # stringent(Z)
     # stringent(X)
-    # Bell_circuit_all_noise(Z, most_likely=True, combine=True)
