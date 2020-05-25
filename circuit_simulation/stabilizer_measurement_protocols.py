@@ -34,7 +34,7 @@ def expedient(operation):
     qc.single_dot(Z, 2, 5)
     qc.single_dot(Z, 2, 5)
 
-    # And finally the entanglement between ancilla 1 and 1 is made, now all ancilla's are entangled
+    # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
     qc.single_dot(Z, 3, 4)
     qc.single_dot(Z, 3, 4)
 
@@ -45,8 +45,8 @@ def expedient(operation):
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation))
+    qc.draw_circuit(no_color=True)
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=True)
 
 
 def stringent(operation):
@@ -70,7 +70,7 @@ def stringent(operation):
     qc.double_dot(Z, 2, 5)
     qc.double_dot(Z, 2, 5)
 
-    # And finally the entanglement between ancilla 1 and 1 is made, now all ancilla's are entangled
+    # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
     qc.double_dot(Z, 3, 4)
     qc.double_dot(Z, 3, 4)
 
@@ -81,8 +81,8 @@ def stringent(operation):
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation))
+    qc.draw_circuit(no_color=True)
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=True)
 
 
 if __name__ == "__main__":

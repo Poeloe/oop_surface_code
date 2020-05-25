@@ -1157,7 +1157,7 @@ class QuantumCircuit:
     """
 
     def get_superoperator(self, qubits, proj_type, save_noiseless_density_matrix=False, combine=True, most_likely=True,
-                          print_to_console=True, file_name_noiseless=None, file_name_measerror=None):
+                          print_to_console=True, file_name_noiseless=None, file_name_measerror=None, no_color=False):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1240,7 +1240,7 @@ class QuantumCircuit:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         if print_to_console:
-            self._print_superoperator(superoperator)
+            self._print_superoperator(superoperator, no_color)
 
         return superoperator
 
@@ -1456,7 +1456,7 @@ class QuantumCircuit:
         return superoperator
 
     @staticmethod
-    def _print_superoperator(superoperator):
+    def _print_superoperator(superoperator, no_color):
         """ Prints the superoperator in a clear way to the console """
         print("\n---- Superoperator ----\n")
 
@@ -1467,13 +1467,13 @@ class QuantumCircuit:
             config = ""
             for gate in supop_el.error_array:
                 if gate == "X":
-                    config += (colored(gate, 'red') + " ")
+                    config += (colored(gate, 'red') + " ") if not no_color else gate
                 elif gate == "Z":
-                    config += (colored(gate, 'cyan') + " ")
+                    config += (colored(gate, 'cyan') + " ") if not no_color else gate
                 elif gate == "Y":
-                    config += (colored(gate, 'magenta') + " ")
+                    config += (colored(gate, 'magenta') + " ") if not no_color else gate
                 elif gate == "I":
-                    config += (colored(gate, 'yellow') + " ")
+                    config += (colored(gate, 'yellow') + " ") if not no_color else gate
                 else:
                     config += (gate + " ")
             me = "me" if supop_el.lie else "no me"
@@ -1540,14 +1540,14 @@ class QuantumCircuit:
         ----------------------------------------------------------------------------------------------------------     
     """
 
-    def draw_circuit(self):
+    def draw_circuit(self, no_color=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
         legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
                   "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement, " + colored("~", 'red') + \
                   ": noisy operation (gate/measurement)\n"
         init = self._draw_init()
-        self._draw_gates(init)
+        self._draw_gates(init, no_color)
         init[-1] += "\n\n"
         print(legenda, *init)
 
@@ -1558,13 +1558,17 @@ class QuantumCircuit:
             init_state_repr.append("\n\n{} ---".format(state_repr(i)))
         return init_state_repr
 
-    def _draw_gates(self, init):
+    def _draw_gates(self, init, no_color):
         """ Adds the visual representation of the operations applied on the qubits """
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
         for gate_item in self._draw_order:
             gate = next(iter(gate_item))
             value = gate_item[gate]
+            if no_color:
+                gate = ansi_escape.sub("", gate)
             if type(value) == tuple:
-                control = "o" if "~" not in gate else colored("~", 'red') + "o"
+                control = "o" if "~" not in gate or no_color else colored("~", 'red') + "o"
                 if gate == "#" or gate == "@":
                     control = gate
                 cqubit = value[0]
@@ -1576,7 +1580,6 @@ class QuantumCircuit:
 
             for a, b in it.combinations(enumerate(init), 2):
                 # Since colored ansi code is shown as color and not text it should be stripped for length comparison
-                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
                 a_stripped = ansi_escape.sub("", init[a[0]])
                 b_stripped = ansi_escape.sub("", init[b[0]])
 
@@ -1584,6 +1587,15 @@ class QuantumCircuit:
                     init[a[0]] += diff * "-"
                 elif (diff := len(a_stripped) - len(b_stripped)) > 0:
                     init[b[0]] += diff * "-"
+
+    def _create_qasm_file(self):
+
+        for gate_item in self._draw_order:
+            gate = next(iter(gate_item))
+            value = gate_item[gate]
+            if type(value) == tuple:
+                cqubit = value[0]
+                tqubit = value[1]
 
     def _add_draw_operation(self, operation, qubits):
         """
