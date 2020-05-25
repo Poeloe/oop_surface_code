@@ -1224,8 +1224,8 @@ class QuantumCircuit:
             error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
             me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
-            fid_no_me = round(fidelity_elementwise(error_density_matrix, self.density_matrix), 12)
-            fid_me = round(fidelity_elementwise(me_error_density_matrix, self.density_matrix), 12) \
+            fid_no_me = fidelity_elementwise(error_density_matrix, self.density_matrix)
+            fid_me = fidelity_elementwise(me_error_density_matrix, self.density_matrix) \
                 if measurement_applied else 0
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
@@ -1302,16 +1302,26 @@ class QuantumCircuit:
         return qc_noiseless.density_matrix
 
     def _file_name_from_circuit(self, measure_error):
+        """
+            Returns the hashed file name of the ideal (or ideal up to measurement error) density matrix based on the
+            unique user operations applied to the noisy QuantumCircuit object.
+
+            Parameters
+            ----------
+            measure_error : bool
+                True if the ideal density matrix containing a measurement error should be returned.
+
+            Returns
+            -------
+            file_name : str
+                Returns the file_name of the ideal (or ideal up to measurement error if parameter 'measure_error' is set
+                to True) density matrix of the noisy QuantumCircuit object.
+        """
         # Create an hash id, based on the operation and there order on the system and use this for the filename
         system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._user_operation_order])
         hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
         file_name = "density_matrix{}_{}.npz".format(("_me" if measure_error else ""), hash_id)
         return file_name
-
-    def save_density_matrix(self, measure_error):
-        file_name = self._file_name_from_circuit(measure_error)
-
-        sp.save_npz(file_name, self.density_matrix)
 
     def _all_single_qubit_gate_possibilities(self, qubits):
         """
@@ -1349,7 +1359,37 @@ class QuantumCircuit:
         return list(product(*gate_combinations))
 
     @staticmethod
-    def _fuse_equal_config_up_to_permutation(superoperator, proj_type="Z"):
+    def _fuse_equal_config_up_to_permutation(superoperator, proj_type):
+        """
+            Post-processing method for the superoperator which fuses similar Pauli-error configurations inside the
+            superoperator up to permutation. This is done by sorting the error configurations and comparing them after.
+            If equal, the probabilities will be summed and saved as one new entry.
+
+            Parameters
+            ----------
+            superoperator : list
+                Superoperator obtained in the 'get_superoperator' method. Containing all the probabilities of the
+                possible Pauli-error configurations on the data qubits.
+            proj_type : str ['Z' or 'X']
+                The stabilizer type of the to be analysed superoperator. This is necessary in order to determine the
+                degenerate configurations, for example [I,I,Z,Z] and [Z,Z,I,I] that on first sight look as if they have
+                to be treated equally, but in fact they are degenerate and the probabilities should not be summed (since
+                this will cause the total probability to exceed 1).
+
+            Returns
+            -------
+            sorted_superoperator : list
+                New superoperator that now contains only one entry per similar Pauli-error configurations up to
+                permutations. The new probability of this one entry is the summed probability of all the similar
+                configurations that were fused.
+
+            Example
+            -------
+            The superoperator contains, among others, the configurations [X,I,I,I], [I,X,I,I], [I,I,X,I] and [I,I,I,X].
+            These Pauli-error configurations on the data qubits are similar up to permutations. The method will
+            eventually end up making one entry, namely [I,I,I,X], in the returned new superoperator. The according
+            probability will be equal to the sum of the probabilities of the 4 configurations.
+        """
         checked = []
         sorted_superoperator = []
         count = None
@@ -1379,6 +1419,31 @@ class QuantumCircuit:
 
     @staticmethod
     def _remove_not_likely_configurations(superoperator):
+        """
+            Post-processing method for the superoperator which removes the degenerate configurations of the
+            superoperator based on the fact that the Pauli-error configuration with the most 'I' operations is the most
+            likely to have occurred.
+
+            Parameters
+            ----------
+            superoperator : list
+                Superoperator obtained in the 'get_superoperator' method. Containing all the probabilities of the
+                possible Pauli-error configurations on the data qubits.
+
+            Returns
+            -------
+            sorted_superoperator : list
+                Returns the superopertor with the not-likely degenerate configurations entries removed. Note that is a
+                full removal, thus the probability is removed from the list (and not summed as in the 'fuse'
+                post-processing).
+
+            Example
+            -------
+            Consider the superoperator with, among others, the degenerate entries [Z,Z,Z,X] and [I,I,I,X]. In this
+            method, it is assumed that the configuration [I,I,I,X] is more likely to have occurred than the other and
+            therefore only this configuration is kept in the returned superoperator. Effectively, this means that the
+            [Z,Z,Z,X] is removed from the superoperator together with the according probability.
+        """
         for supop_el_a, supop_el_b in combinations(superoperator, 2):
             if supop_el_a.probability_lie_equals(supop_el_b):
                 if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") \
@@ -1392,6 +1457,7 @@ class QuantumCircuit:
 
     @staticmethod
     def _print_superoperator(superoperator):
+        """ Prints the superoperator in a clear way to the console """
         print("\n---- Superoperator ----\n")
 
         total = sum([supop_el.p for supop_el in superoperator])
