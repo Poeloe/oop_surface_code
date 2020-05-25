@@ -1,5 +1,6 @@
+import os
 import sys
-sys.path.insert(1, '/Users/Paul/Documents/TU/Master/Afstuderen/forked_surface_code/oop_surface_code/')
+sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.basic_operations import (
     CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity, fidelity_elementwise, gate_name_to_array
 )
@@ -9,7 +10,6 @@ import itertools as it
 import copy
 from scipy.linalg import eig, eigh
 import hashlib
-import os
 import re
 from superoperator import SuperoperatorElement
 from termcolor import colored
@@ -1586,7 +1586,25 @@ class QuantumCircuit:
                     init[b[0]] += diff * "-"
 
     def _add_draw_operation(self, operation, qubits):
-        """ Add an operation to the draw order list """
+        """
+            Adds an operation to the draw order list.
+
+            Notes
+            -----
+            **Note** :
+                Since measurements and additions of qubits change the qubit indices dynamically, this will be
+                accounted for in this method when adding a draw operation. The '_effective_measurement' attribute keeps
+                track of how many qubits have effectively been measured, which means they have not been reinitialised
+                after measurement (by creating a Bell-pair at the top or adding a top qubit). The '_measured_qubits'
+                attribute contains all the qubits that have been measured and are not used anymore after (in means of
+                the drawing scheme).
+
+            **2nd Note** :
+                Please consider that the drawing of the circuit can differ from reality due to this dynamic
+                way of changing the qubit indices with measurement an/or qubit addition operations. THIS EFFECTIVELY
+                MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
+                MEASUREMENTS AND QUBIT ADDITIONS.
+        """
         if self._effective_measurements != 0:
             if type(qubits) is tuple:
                 cqubit = qubits[0] + self._effective_measurements
