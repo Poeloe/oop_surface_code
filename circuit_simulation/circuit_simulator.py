@@ -14,9 +14,12 @@ import re
 from superoperator import SuperoperatorElement
 from termcolor import colored
 from itertools import combinations, permutations, product
+from circuit_simulation.qasm2texLib import main as qasm2png
+import subprocess
 
 
-# These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
+
+# These states must be in this qasm_file, since it will otherwise cause a segmentation error when diagonalising the density
 # matrix for a circuit with a large amount of qubits
 ket_0 = np.array([[1, 0]]).T
 ket_1 = np.array([[0, 1]]).T
@@ -1192,10 +1195,10 @@ class QuantumCircuit:
             print_to_console : bool, optional, default=True
                 Whether the result should be printed in a clear overview to the console.
             file_name_noiseless : str, optional, default=None
-                file name of the noiseless variant of the density matrix of the noisy system. Use this option if density
+                qasm_file name of the noiseless variant of the density matrix of the noisy system. Use this option if density
                 matrix has been named manually and this one should be used for the calculations.
             file_name_measerror : str, optional, default=None
-                file name of the noiseless variant with measurement error of the density matrix of the noisy system.
+                qasm_file name of the noiseless variant with measurement error of the density matrix of the noisy system.
                 Use this option if density matrix has been named manually and this one should be used for the
                 calculations.
         """
@@ -1257,8 +1260,8 @@ class QuantumCircuit:
                 Whether or not the calculated noiseless version of the circuit should be saved.
                 This saved matrix will a next time be used if the same system is analysed wth this method.
             file_name : str
-                File name of the density matrix file that should be used as noiseless density matrix. Note that
-                specifying this with an existing file name will directly return this density matrix.
+                File name of the density matrix qasm_file that should be used as noiseless density matrix. Note that
+                specifying this with an existing qasm_file name will directly return this density matrix.
 
             Returns
             -------
@@ -1301,9 +1304,9 @@ class QuantumCircuit:
 
         return qc_noiseless.density_matrix
 
-    def _file_name_from_circuit(self, measure_error):
+    def _file_name_from_circuit(self, measure_error, qasm=False):
         """
-            Returns the hashed file name of the ideal (or ideal up to measurement error) density matrix based on the
+            Returns the hashed qasm_file name of the ideal (or ideal up to measurement error) density matrix based on the
             unique user operations applied to the noisy QuantumCircuit object.
 
             Parameters
@@ -1321,6 +1324,9 @@ class QuantumCircuit:
         system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._user_operation_order])
         hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
         file_name = "density_matrix{}_{}.npz".format(("_me" if measure_error else ""), hash_id)
+        if qasm:
+            file_name = file_name.replace("density_matrix", "circuit")
+            file_name = file_name.replace("npz", "qasm")
         return file_name
 
     def _all_single_qubit_gate_possibilities(self, qubits):
@@ -1551,6 +1557,10 @@ class QuantumCircuit:
         init[-1] += "\n\n"
         print(legenda, *init)
 
+    def draw_circuit_latex(self, meas_error=False):
+        qasm_file_name = self._create_qasm_file(meas_error)
+        self._create_pdf_from_qasm(qasm_file_name, qasm_file_name.replace(".qasm", ".tex"))
+
     def _draw_init(self):
         """ Returns an array containing the visual representation of the initial state of the qubits. """
         init_state_repr = []
@@ -1588,14 +1598,77 @@ class QuantumCircuit:
                 elif (diff := len(a_stripped) - len(b_stripped)) > 0:
                     init[b[0]] += diff * "-"
 
-    def _create_qasm_file(self):
+    def _create_qasm_file(self, meas_error):
+        file_name = self._file_name_from_circuit(meas_error, qasm=True)
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        file = open(file_name, 'w')
+
+        file.write("\tdef meas,0,'M'\n")
+        file.write("\tdef n-meas,0,'\widetilde{M}'\n")
+        file.write("\tdef bell,1,'B'\n")
+        file.write("\tdef n-bell,1,'\widetilde{B}'\n\n")
+        file.write("\tdef n-cnot,1,'\widetilde{X}'\n")
+        file.write("\tdef n-cz,1,'\widetilde{Z}'\n")
+        file.write("\tdef n-cnot,1,'\widetilde{X}'\n")
+        file.write("\tdef n-x,0,'\widetilde{X}'\n")
+        file.write("\tdef n-h,0,'\widetilde{H}'\n")
+        file.write("\tdef n-y,0,'\widetilde{Y}'\n")
+
+        for i in range(len(self._qubit_array)):
+            file.write("\tqubit " + str(i) + "\n")
+
+        file.write("\n")
 
         for gate_item in self._draw_order:
             gate = next(iter(gate_item))
             value = gate_item[gate]
+            gate = ansi_escape.sub("", gate)
+            gate = gate.lower()
             if type(value) == tuple:
+                if 'z' in gate:
+                    gate = "c-z" if "~" not in gate else "n-cz"
+                elif 'x' in gate:
+                    gate = 'cnot' if "~" not in gate else "n-cnot"
+                elif '#' in gate:
+                    gate = 'bell'
+                elif '@' in gate:
+                    gate = 'n-bell'
                 cqubit = value[0]
                 tqubit = value[1]
+                file.write("\t" + gate + " " + str(cqubit) + "," + str(tqubit) + "\n")
+            elif "m" in gate:
+                gate = "meas " if "~" not in gate else "n-meas "
+                file.write("\t" + gate + str(value) + "\n")
+            else:
+                gate = gate if "~" not in gate else "n-"+gate
+                file.write("\t" + gate + " " + str(value) + "\n")
+
+        file.close()
+
+        return file_name
+
+    def _create_pdf_from_qasm(self, file_name, tex_file_name):
+        pdf_file_name = tex_file_name.replace(".tex", ".pdf")
+        if not os.path.exists(pdf_file_name):
+            with open(file_name, 'r') as qasm_file:
+                qasm2png(qasm_file, tex_file_name)
+
+            FNULL = open(os.devnull, 'w')
+            proc = subprocess.Popen(['pdflatex', tex_file_name], stdout=FNULL)
+            proc.communicate()
+
+            retcode = proc.returncode
+            if not retcode == 0:
+                os.unlink(pdf_file_name)
+                raise ValueError("Failed to execute latex to pdf command!")
+
+            os.unlink(tex_file_name)
+            os.unlink(tex_file_name.replace(".tex", ".idx"))
+            os.unlink(tex_file_name.replace(".tex", ".aux"))
+            os.unlink(tex_file_name.replace(".tex", ".log"))
+
+        os.unlink(tex_file_name.replace(".tex", ".qasm"))
+        print("\nPlease open circuit pdf manually with file name: {}\n".format(pdf_file_name))
 
     def _add_draw_operation(self, operation, qubits):
         """
