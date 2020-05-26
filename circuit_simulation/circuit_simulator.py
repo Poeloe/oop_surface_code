@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.basic_operations import (
-    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity, fidelity_elementwise, gate_name_to_array
+    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity_elementwise
 )
 import numpy as np
 from scipy import sparse as sp
@@ -14,7 +14,7 @@ import re
 from superoperator import SuperoperatorElement
 from termcolor import colored
 from itertools import combinations, permutations, product
-from circuit_simulation.qasm2texLib import main as qasm2png
+from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
 import subprocess
 
 
@@ -1559,7 +1559,7 @@ class QuantumCircuit:
 
     def draw_circuit_latex(self, meas_error=False):
         qasm_file_name = self._create_qasm_file(meas_error)
-        self._create_pdf_from_qasm(qasm_file_name, qasm_file_name.replace(".qasm", ".tex"))
+        create_pdf_from_qasm(qasm_file_name, qasm_file_name.replace(".qasm", ".tex"))
 
     def _draw_init(self):
         """ Returns an array containing the visual representation of the initial state of the qubits. """
@@ -1600,8 +1600,9 @@ class QuantumCircuit:
 
     def _create_qasm_file(self, meas_error):
         file_name = self._file_name_from_circuit(meas_error, qasm=True)
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),  "latex_circuit/" + file_name)
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        file = open(file_name, 'w')
+        file = open(file_path, 'w')
 
         file.write("\tdef meas,0,'M'\n")
         file.write("\tdef n-meas,0,'\widetilde{M}'\n")
@@ -1645,30 +1646,7 @@ class QuantumCircuit:
 
         file.close()
 
-        return file_name
-
-    def _create_pdf_from_qasm(self, file_name, tex_file_name):
-        pdf_file_name = tex_file_name.replace(".tex", ".pdf")
-        if not os.path.exists(pdf_file_name):
-            with open(file_name, 'r') as qasm_file:
-                qasm2png(qasm_file, tex_file_name)
-
-            FNULL = open(os.devnull, 'w')
-            proc = subprocess.Popen(['pdflatex', tex_file_name], stdout=FNULL)
-            proc.communicate()
-
-            retcode = proc.returncode
-            if not retcode == 0:
-                os.unlink(pdf_file_name)
-                raise ValueError("Failed to execute latex to pdf command!")
-
-            os.unlink(tex_file_name)
-            os.unlink(tex_file_name.replace(".tex", ".idx"))
-            os.unlink(tex_file_name.replace(".tex", ".aux"))
-            os.unlink(tex_file_name.replace(".tex", ".log"))
-
-        os.unlink(tex_file_name.replace(".tex", ".qasm"))
-        print("\nPlease open circuit pdf manually with file name: {}\n".format(pdf_file_name))
+        return file_path
 
     def _add_draw_operation(self, operation, qubits):
         """
