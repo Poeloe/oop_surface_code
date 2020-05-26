@@ -254,4 +254,17 @@ circuit. The most common operations are:
 For the distributed surface code, this module contains the script `stabilizer_measurement_protocols.py` 
 which contains the code to simulate the stabilizer measurement protocols Stringent and Expedient that can be used to 
 measure the stabilizers in a distributed surface code architecture. The file will calculate the superoperator for 
-different values of network, gate and measurement noise.  
+different values of network, gate and measurement noise.
+
+To run the specific protocols, one can run the script from the root folder of the repository with the following
+commandline arguments:
+
+ * `-p`: specify the protocol, options: `monolithic`/`expedient`/`stringent`, default: `monolithic`
+ * `-s`: specify stabilizer type, options: `Z`/`X`, default: `Z`
+
+So the command should look something like
+```
+python circuit_simulation/stabilizer_measurement_protocols.py -p expedient -s Z
+```
+
+If no commandline arguments are given the script will run the monolithic architecture with a plaquette type stabilizer.

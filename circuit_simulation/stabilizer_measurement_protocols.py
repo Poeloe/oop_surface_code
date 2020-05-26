@@ -1,7 +1,9 @@
 import os
 import sys
+import argparse
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
+from circuit_simulation.basic_operations import gate_name_to_array
 
 
 def monolithic(operation):
@@ -86,9 +88,29 @@ def stringent(operation):
 
 
 if __name__ == "__main__":
-    # monolithic(Z)
-    # monolithic(X)
-    expedient(Z)
-    # expedient(X)
-    # stringent(Z)
-    # stringent(X)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p',
+                        '--protocol',
+                        help='Specified which protocol should be used. - options: {monolithic/expedient/stringent}',
+                        default='monolithic')
+    parser.add_argument('-s',
+                        '--stabilizer_type',
+                        help='Specifies what the kind of stabilizer should be. - options: {Z/X}',
+                        default='Z')
+    args = vars(parser.parse_args())
+    protocol = args.pop('protocol').lower()
+    stab_type = args.pop('stabilizer_type').upper()
+
+    if stab_type not in ["X", "Z"]:
+        print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
+        exit()
+
+    if protocol == "monolithic":
+        monolithic(gate_name_to_array(stab_type))
+    elif protocol == "expedient":
+        expedient(gate_name_to_array(stab_type))
+    elif protocol == "stringent":
+        stringent(gate_name_to_array(stab_type))
+    else:
+        print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
+        exit()
