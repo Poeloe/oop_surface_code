@@ -6,7 +6,7 @@ from circuit_simulation.circuit_simulator import *
 from circuit_simulation.basic_operations import gate_name_to_array
 
 
-def monolithic(operation):
+def monolithic(operation, color):
     qc = QuantumCircuit(8, 2, noise=True, pg=0.009, pm=0.009)
     qc.add_top_qubit(ket_p)
     qc.apply_2_qubit_gate(operation, 0, 1)
@@ -15,11 +15,11 @@ def monolithic(operation):
     qc.apply_2_qubit_gate(operation, 0, 7)
     qc.measure_first_N_qubits(1)
 
-    qc.draw_circuit()
+    qc.draw_circuit(color)
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation))
 
 
-def expedient(operation):
+def expedient(operation, color):
     qc = QuantumCircuit(8, 2, noise=True, pg=0.006, pm=0.006, pn=0.1)
 
     # Noisy ancilla Bell pair is now between are now 0 and 1
@@ -47,11 +47,11 @@ def expedient(operation):
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit(no_color=True)
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=True)
+    qc.draw_circuit(no_color=color)
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color)
 
 
-def stringent(operation):
+def stringent(operation, color):
     qc = QuantumCircuit(8, 2, noise=True, pg=0.0075, pm=0.0075, pn=0.1)
 
     # Noisy ancilla Bell pair between 0 and 1
@@ -83,8 +83,8 @@ def stringent(operation):
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit(no_color=True)
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=True)
+    qc.draw_circuit(no_color=color)
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color)
 
 
 if __name__ == "__main__":
@@ -97,20 +97,26 @@ if __name__ == "__main__":
                         '--stabilizer_type',
                         help='Specifies what the kind of stabilizer should be. - options: {Z/X}',
                         default='Z')
+    parser.add_argument('-c',
+                        '--color',
+                        help='Specifies if the console output should display color. Optional',
+                        required=False,
+                        action='store_true')
     args = vars(parser.parse_args())
     protocol = args.pop('protocol').lower()
     stab_type = args.pop('stabilizer_type').upper()
+    color = args.pop('color')
 
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
 
     if protocol == "monolithic":
-        monolithic(gate_name_to_array(stab_type))
+        monolithic(gate_name_to_array(stab_type), color)
     elif protocol == "expedient":
-        expedient(gate_name_to_array(stab_type))
+        expedient(gate_name_to_array(stab_type), color)
     elif protocol == "stringent":
-        stringent(gate_name_to_array(stab_type))
+        stringent(gate_name_to_array(stab_type), color)
     else:
         print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
         exit()
