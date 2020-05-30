@@ -227,6 +227,7 @@ def multiprocess(
         go=None,
         graph=None,
         processes=None,
+        node=0,
         debug=False,
         **kwargs
     ):
@@ -256,7 +257,7 @@ def multiprocess(
     if graph is None or len(graph) != processes:
         graph = [None]*processes
 
-    for i, g in enumerate(graph):
+    for i, g in enumerate(graph, int(node*processes)):
         workers.append(
             mp.Process(
                 target=multiple,
@@ -296,14 +297,14 @@ def default_config(**kwargs):
     stores all settings of the decoder
     '''
     config = dict(
-
         seeds          = [],
-        plot2D         = 0,
-        plot3D         = 0,
-        plotUF         = 0,
+        fbloom         = 0.5,
         dg_connections = 0,
         directed_graph = 0,
         print_steps    = 0,
+        plot2D         = 0,
+        plot3D         = 0,
+        plotUF         = 0,
         plot_find      = 0,
         plot_bucket    = 0,
         plot_cluster   = 0,
@@ -317,8 +318,7 @@ def default_config(**kwargs):
     )
 
     for key, value in kwargs.items():
-        if key in kwargs:
-            kwargs[key] = value
+        if key in config:
+            config[key] = value
 
     return config
-

@@ -47,12 +47,12 @@ class toric(uf.toric):
         self.type = "ufbb"
         if self.directed_graph:
             self.grow_boundary = self.grow_boundary_directed
-            from ..balancedbloom import directed as bb
+            from .balancedbloom import directed as bb
         else:
             self.grow_boundary = self.grow_boundary_undirected
-            from ..balancedbloom import undirected as bb
+            from .balancedbloom import undirected as bb
 
-        self.bb = bb.bb()
+        self.bb = bb.nodeset(self.fbloom)
 
         self.plot_growth = not any([self.plot_bucket, self.plot_cluster, self.plot_node])
 
