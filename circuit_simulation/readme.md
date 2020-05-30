@@ -249,10 +249,10 @@ circuit. The most common operations are:
             Use this option if density matrix has been named manually and this one should be used for the
             calculations.
      
-## Surface Code
+## Stabilizer measurement protocols for a distributed surface code
 
 For the distributed surface code, this module contains the script `stabilizer_measurement_protocols.py` 
-which contains the code to simulate the stabilizer measurement protocols Stringent and Expedient that can be used to 
+which simulates the stabilizer measurement protocols Stringent and Expedient that can be used to 
 measure the stabilizers in a distributed surface code architecture. The file will calculate the superoperator for 
 different values of network, gate and measurement noise.
 
@@ -261,10 +261,13 @@ commandline arguments:
 
  * `-p`: specify the protocol, options: `monolithic`/`expedient`/`stringent`, default: `monolithic`
  * `-s`: specify stabilizer type, options: `Z`/`X`, default: `Z`
+ * `-pg`: specify the gate error probability [float 0-1], default=`0.006`
+ * `-pm`: specify the measurement error probability [float 0-1], default=`0.006`
+ * `-pn`: specify the network error probability [float 0-1], default=`0.1`
 
 So the command should look something like
 ```
-python circuit_simulation/stabilizer_measurement_protocols.py -p expedient -s Z
+python circuit_simulation/stabilizer_measurement_protocols.py -p expedient -s Z -pg 0.0075 -pm 0.0075 -pn 0.11
 ```
 
 If no commandline arguments are given the script will run the monolithic architecture with a plaquette type stabilizer.

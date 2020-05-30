@@ -1,13 +1,14 @@
 import os
 import sys
 import argparse
+import time
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
 from circuit_simulation.basic_operations import gate_name_to_array
 
 
-def monolithic(operation, color):
-    qc = QuantumCircuit(8, 2, noise=True, pg=0.009, pm=0.009)
+def monolithic(operation, pg, pm, color):
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm)
     qc.add_top_qubit(ket_p)
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
@@ -19,8 +20,8 @@ def monolithic(operation, color):
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation))
 
 
-def expedient(operation, color):
-    qc = QuantumCircuit(8, 2, noise=True, pg=0.006, pm=0.006, pn=0.1)
+def expedient(operation, pg, pm, pn, color):
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, pn=pn)
 
     # Noisy ancilla Bell pair is now between are now 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -51,8 +52,8 @@ def expedient(operation, color):
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color)
 
 
-def stringent(operation, color):
-    qc = QuantumCircuit(8, 2, noise=True, pg=0.0075, pm=0.0075, pn=0.1)
+def stringent(operation, pg, pm, pn, color):
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, pn=pn)
 
     # Noisy ancilla Bell pair between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -87,36 +88,65 @@ def stringent(operation, color):
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color)
 
 
-if __name__ == "__main__":
+def compose_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p',
                         '--protocol',
-                        help='Specified which protocol should be used. - options: {monolithic/expedient/stringent}',
+                        help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         default='monolithic')
     parser.add_argument('-s',
                         '--stabilizer_type',
                         help='Specifies what the kind of stabilizer should be. - options: {Z/X}',
                         default='Z')
+    parser.add_argument('-pg',
+                        '--gate_error_probability',
+                        help='Specifies the amount of gate error present in the system',
+                        type=float,
+                        default=0.006)
+    parser.add_argument('-pm',
+                        '--measurement_error_probability',
+                        help='Specifies the amount of measurement error present in the system',
+                        type=float,
+                        default=0.006)
+    parser.add_argument('-pn',
+                        '--network_error_probability',
+                        help='Specifies the amount of network error present in the system',
+                        type=float,
+                        default=0.006)
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',
                         required=False,
                         action='store_true')
+
+    return parser
+
+
+if __name__ == "__main__":
+    parser = compose_parser()
+
     args = vars(parser.parse_args())
     protocol = args.pop('protocol').lower()
     stab_type = args.pop('stabilizer_type').upper()
     color = args.pop('color')
+    pm = args.pop('measurement_error_probability')
+    pn = args.pop('network_error_probability')
+    pg = args.pop('gate_error_probability')
 
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
 
+    print("\nRunning the {} protocol, with pg={}, pm={}{}.\n".format(protocol, pg, pm,
+                                                                   (' and pn=' + str(pn) if protocol != 'monolithic'
+                                                                    else "")))
+
     if protocol == "monolithic":
-        monolithic(gate_name_to_array(stab_type), color)
+        monolithic(gate_name_to_array(stab_type), pg, pm, color)
     elif protocol == "expedient":
-        expedient(gate_name_to_array(stab_type), color)
+        expedient(gate_name_to_array(stab_type), pg, pm, pn, color)
     elif protocol == "stringent":
-        stringent(gate_name_to_array(stab_type), color)
+        stringent(gate_name_to_array(stab_type), pg, pm, pn, color)
     else:
         print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
         exit()
