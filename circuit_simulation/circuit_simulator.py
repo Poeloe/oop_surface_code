@@ -15,11 +15,9 @@ from superoperator import SuperoperatorElement
 from termcolor import colored
 from itertools import combinations, permutations, product
 from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
-import subprocess
 
 
-
-# These states must be in this qasm_file, since it will otherwise cause a segmentation error when diagonalising the density
+# These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
 # matrix for a circuit with a large amount of qubits
 ket_0 = np.array([[1, 0]]).T
 ket_1 = np.array([[0, 1]]).T
@@ -90,6 +88,14 @@ class QuantumCircuit:
                 A list containing the initial state of the qubits.
             _draw_order : list of dict items
                 A list containing dict items that specify the operations that should be drawn.
+            _user_operation_order : list
+                List containing the actions on the circuit applied by the user.
+            _effective_measurements : int, default=0
+                Integer keeping track of the amount of effectively measured qubits. Used for more clear circuit
+                drawings.
+            _measured_qubits : list
+                List containing the indices of the qubits that have been measured and are therefore not used after.
+                Used for more clear circuit drawings.
             _init_parameters : dict
                 A dictionary containing the initial parameters of the system, including the '_qubit_array' and
                 'density_matrix' attribute. The keys are the names of the attributes.
@@ -311,7 +317,10 @@ class QuantumCircuit:
             self.d = 2 ** self.num_qubits
             rho = sp.lil_matrix((4, 4))
             rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
-            density_matrix = (1 - (4 * pn) / 3) * rho + (pn / 3) * sp.eye(4, 4)
+            density_matrix = rho
+
+            if noise:
+                density_matrix = self._N_network(density_matrix, pn)
 
             self.density_matrix = sp.kron(density_matrix, self.density_matrix) if (self.density_matrix is not None) \
                 else density_matrix
@@ -703,6 +712,18 @@ class QuantumCircuit:
         self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
                                             (pg / 15) * self._double_sum_pauli_error(cqubit, tqubit))
 
+    @staticmethod
+    def _N_network(density_matrix, pn):
+        """
+            Parameters
+            ----------
+            density_matrix : sparse matrix
+                Density matrix of the ideal Bell-pair.
+            pn : float [0-1]
+                Amount of network noise present in the system.
+        """
+        return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4))
+
     def _sum_pauli_error_single(self, tqubit):
         """
             Private method that calculates the pauli gate sum part of the equation specified in _N_single
@@ -770,6 +791,13 @@ class QuantumCircuit:
                 result = result + (A * B).dot(CT(self.density_matrix, (A * B)))
 
         return sp.csr_matrix(result)
+
+    @staticmethod
+    def _sum_bell_pairs():
+        sum_bell_states = 1/2 * sp.lil_matrix(sp.eye(4, 4))
+        sum_bell_states[0, 3], sum_bell_states[3, 0] = -1/2, -1/2
+        sum_bell_states[1, 1], sum_bell_states[2, 2] = 1, 1
+        return sum_bell_states
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -1487,7 +1515,7 @@ class QuantumCircuit:
         print("\nSum of the probabilities is: {}\n".format(total))
         print("\n---- End of Superoperator ----\n")
 
-    def get_kraus_operator(self):
+    def get_kraus_operator(self, print_to_console=True):
         """
             Returns the effective operator per qubit. Works only for a system that is initially in the maximally
             entangled state (data qubits in a perfect Bell state with their corresponding ancilla qubit). This is
@@ -1523,16 +1551,22 @@ class QuantumCircuit:
 
                 kraus_ops.append(kraus_op_per_qubit)
 
-        return zip(probabilities, kraus_ops)
+        kraus_decomposition = zip(probabilities, kraus_ops)
 
-    def print_kraus_operators(self):
+        if print_to_console:
+            self._print_kraus_operators(kraus_decomposition)
+
+        return kraus_decomposition
+
+    @staticmethod
+    def _print_kraus_operators(kraus_decomposition):
         """ Prints a clear overview of the effective operations that have happened on the individual qubits """
         print_lines = ["\n---- Kraus operators per qubit ----\n"]
-        for prob, operators_per_qubit in sorted(self.get_kraus_operator()):
+        for prob, operators_per_qubit in kraus_decomposition:
             print_lines.append("\nProbability: {:.8}\n".format(prob.real))
             for data_qubit, operator in enumerate(operators_per_qubit):
                 data_qubit_line = "Data qubit {}: \n {}\n".format(data_qubit, operator.toarray())
-                operator_name = gate_name(operator.toarray())
+                operator_name = gate_name(operator.toarray().round(1))
                 if operator_name is not None:
                     data_qubit_line += "which is equal to an {} operation\n\n".format(operator_name)
                 print_lines.append(data_qubit_line)
@@ -1703,3 +1737,22 @@ class QuantumCircuit:
     def __repr__(self):
         density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix
         return "\nCircuit density matrix:\n\n{}\n\n".format(density_matrix)
+
+    def __copy__(self):
+        new_circuit = QuantumCircuit(self.num_qubits)
+        new_circuit.density_matrix = self.density_matrix.copy()
+        new_circuit.noise = self.noise
+        new_circuit.pg = self.pg
+        new_circuit.pm = self.pm
+        new_circuit.pn = self.pn
+        new_circuit._user_operation_order = self._user_operation_order.copy()
+        new_circuit._measured_qubits = self._measured_qubits.copy()
+        new_circuit._effective_measurements = self._effective_measurements
+        new_circuit._draw_order = self._draw_order.copy()
+        new_circuit._qubit_array = self._qubit_array.copy()
+        new_circuit._init_type = self._init_type
+
+        return new_circuit
+
+    def copy(self):
+        return self.__copy__()
