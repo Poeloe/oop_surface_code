@@ -48,6 +48,7 @@ def sim_thresholds(
         lattice_type="toric",
         lattices = [],
         perror = [],
+        superoperator=[],
         iters = 0,
         measurement_error=False,
         multithreading=False,
@@ -96,12 +97,22 @@ def sim_thresholds(
         else:
             graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati)
 
-        for pi, int_p in zip(perror, int_P):
+        for i, (pi, int_p) in enumerate(zip(perror, int_P)):
 
             print("Calculating for L = ", str(lati), "and p =", str(pi))
 
+            superop = None
+            GHZ_success = None
+            if superoperator:
+                pi = 0
+                superop = superoperator[i]
+                if "GHZ_success" in kwargs:
+                    GHZ_success = kwargs["GHZ_success"][i]
+
             oopsc_args = dict(
                 paulix=pi,
+                superoperator=superop,
+                GHZ_success=GHZ_success,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,

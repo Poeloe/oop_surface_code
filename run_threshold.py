@@ -6,16 +6,8 @@ _____________________________________________
 
 '''
 import argparse
-from run_oopsc import add_kwargs
+from run_oopsc import add_args, add_kwargs
 from oopsc.threshold.sim import sim_thresholds
-
-
-def add_args(parser, args, group_name=None, description=None):
-
-    if group_name:
-        parser = parser.add_argument_group(group_name, description)
-    for sid, lid, action, help, kwargs in args:
-        parser.add_argument(sid, lid, action=action, help=help, **kwargs)
 
 
 parser = argparse.ArgumentParser(
@@ -33,11 +25,13 @@ arguments = [
 key_arguments = [
     ["-l", "--lattices", "store", "lattice sizes - verbose list int", dict(type=int, nargs='*', metavar="", required=True)],
     ["-p", "--perror", "store", "error rates - verbose list float", dict(type=float, nargs='*', metavar="", required=True)],
+    ["-so", "--superoperator", "store", "Use superoperator as error input - list of superoperator filenames",
+         dict(type=str, nargs='*', metavar="")],
     ["-me", "--measurement_error", "store_true", "enable measurement error (2+1D) - toggle", dict()],
     ["-mt", "--multithreading", "store_true", "use multithreading - toggle", dict()],
     ["-nt", "--threads", "store", "number of threads", dict(type=int, metavar="")],
     ["-ma", "--modified_ansatz", "store_true", "use modified ansatz - toggle", dict()],
-    ["-s", "--save_result", "store_true", "save results - toggle", dict()],
+    ["-sv", "--save_result", "store_true", "save results - toggle", dict()],
     ["-fn", "--file_name", "store", "plot filename", dict(default="thres", metavar="")],
     ["-f", "--folder", "store", "base folder path - toggle", dict(default=".", metavar="")],
     ["-pb", "--progressbar", "store_true", "enable progressbar - toggle", dict()],
@@ -45,6 +39,9 @@ key_arguments = [
     ["-dgc", "--dg_connections", "store_true", "use dg_connections pre-union processing - toggle", dict()],
     ["-dg", "--directed_graph", "store_true", "use directed graph for evengrow - toggle", dict()],
     ["-db", "--debug", "store_true", "enable debugging heuristics - toggle", dict()],
+    ["-GHZ", "--GHZ_success", "store", "specify the percentage of GHZ states that are successfully created "
+                                       "(works only with superoperator) - float [0-1]",
+     dict(type=float, nargs='*', metavar="")]
 ]
 
 add_args(parser, arguments)
