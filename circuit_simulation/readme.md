@@ -264,6 +264,9 @@ commandline arguments:
  * `-pg`: specify the gate error probability [float 0-1], default=`0.006`
  * `-pm`: specify the measurement error probability [float 0-1], default=`0.006`
  * `-pn`: specify the network error probability [float 0-1], default=`0.1`
+ * `-sv`: use if a csv file of the superoperator should be saved, optional
+ * `-fn`: specify the file name of the superoperator, optional
+ * `-c`: use if the output to the console should contain color for clearness, optional
 
 So the command should look something like
 ```
