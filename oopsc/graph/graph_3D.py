@@ -23,7 +23,7 @@ The 3D graph (toric/planar) is a cubic lattice with many layer of these unit cel
 
 '''
 
-import superoperator as so
+from ..superoperator import superoperator as so
 from . import graph_2D as go
 from ..plot import plot_graph_lattice as pgl
 from ..plot import plot_unionfind as puf
@@ -126,11 +126,17 @@ class toric(go.toric):
         for z in self.range[:-1]:
             self.init_erasure(pE=pE, z=z)
             self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z, set_prev_value=True)
+            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
+            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
+            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
 
         # final layer initialized with perfect measurements
         self.init_erasure(pE=pE, z=self.decode_layer)
         self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer, set_prev_value=True)
+        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
+        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
+        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
         self.measure_stab(pmX=0, pmZ=0, z=self.decode_layer)
 
         if self.gl_plot:

@@ -11,10 +11,12 @@ import copy
 from scipy.linalg import eig, eigh
 import hashlib
 import re
-from superoperator import SuperoperatorElement
+from oopsc.superoperator.superoperator import SuperoperatorElement
 from termcolor import colored
 from itertools import combinations, permutations, product
 from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
+import pandas as pd
+import datetime as dt
 
 
 # These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
@@ -1188,7 +1190,8 @@ class QuantumCircuit:
     """
 
     def get_superoperator(self, qubits, proj_type, save_noiseless_density_matrix=False, combine=True, most_likely=True,
-                          print_to_console=True, file_name_noiseless=None, file_name_measerror=None, no_color=False):
+                          print_to_console=True, file_name_noiseless=None, file_name_measerror=None, no_color=False,
+                          to_csv=False, csv_file_name=None):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1270,6 +1273,8 @@ class QuantumCircuit:
         if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
+        if to_csv:
+            self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name)
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
 
@@ -1514,6 +1519,34 @@ class QuantumCircuit:
             print("{} - {}".format(config, me))
         print("\nSum of the probabilities is: {}\n".format(total))
         print("\n---- End of Superoperator ----\n")
+
+    def _superoperator_to_csv(self, superoperator, proj_type, file_name=None):
+        probs = []
+        lies = []
+        p_error_arrays = []
+        s_error_arrays = []
+        for supop_el in superoperator:
+            probs.append(supop_el.p)
+            lies.append(supop_el.lie)
+            error_array = "".join(supop_el.error_array)
+            p_error_arrays.append(error_array)
+            # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
+            # error_array
+            s_error_arrays.append(error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'})))
+
+        stab_type = 'p' if proj_type == "Z" else 's'
+        opp_stab = 's' if proj_type == "Z" else 'p'
+
+        df = pd.DataFrame({(stab_type + '_prob'):probs, (stab_type + '_lie'):lies, (stab_type + '_error'):p_error_arrays,
+                      (opp_stab + '_prob'):probs, (opp_stab + '_lie'):lies, (opp_stab + '_error'):s_error_arrays })
+
+        if file_name is None:
+            file_name = "csv_files/superoperator-" + dt.datetime.now().strftime('%Y_%m_%d-%H_%M_%S') + ".csv"
+            print("\nFile name was created manually and is: {}\n".format(file_name))
+        else:
+            file_name = "csv_files/" + file_name + ".csv"
+        path_to_file = os.path.join(SuperoperatorElement.file_path(), file_name)
+        df.to_csv(path_to_file, sep=';', index=False)
 
     def get_kraus_operator(self, print_to_console=True):
         """

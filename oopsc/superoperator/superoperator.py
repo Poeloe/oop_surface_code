@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 
 
 class Superoperator:
@@ -27,8 +28,9 @@ class Superoperator:
         return "Superoperator ({})".format(self.file_name)
 
     def _convert_error_list(self):
+        path_to_file = os.path.join(os.path.dirname(__file__), "csv_files/" + self.file_name)
 
-        with open(self.file_name) as file:
+        with open(path_to_file) as file:
             reader = pd.read_csv(file, sep=";")
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
@@ -110,6 +112,10 @@ class SuperoperatorElement:
 
     def __radd__(self, other):
         return self.p + other
+
+    @staticmethod
+    def file_path():
+        return str(os.path.dirname(__file__))
 
     def full_equals(self, other, rnd=8, sort_array=True):
         if sort_array:

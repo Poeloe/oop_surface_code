@@ -24,7 +24,7 @@ from ..plot import plot_graph_lattice as pgl
 from ..plot import plot_unionfind as puf
 import random
 import numpy as np
-import superoperator as so
+from ..superoperator import superoperator as so
 
 
 def _get_value_by_prob(array, p):
