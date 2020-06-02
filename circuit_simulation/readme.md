@@ -267,6 +267,7 @@ commandline arguments:
  * `-sv`: use if a csv file of the superoperator should be saved, optional
  * `-fn`: specify the file name of the superoperator, optional
  * `-c`: use if the output to the console should contain color for clearness, optional
+ * `-ltsv`: use if a pdf file of the noisy circuit drawn in LaTeX should be save to the 'circuit_pdfs' folder.
 
 So the command should look something like
 ```
