@@ -29,7 +29,9 @@ def create_pdf_from_qasm(file_name, tex_file_name):
         os.unlink(output_file_path.replace(".tex", ".aux"))
         os.unlink(output_file_path.replace(".tex", ".log"))
         shutil.move(output_file_path.replace(".tex", ".pdf"),
-                    os.path.join(destination_file_path, tex_file_name.split("/")[-1].replace(".tex", ".pdf")))
+                    os.path.join(destination_file_path,
+                                 "circuit_pdfs",
+                                 tex_file_name.split("/")[-1].replace(".tex", ".pdf")))
 
     os.unlink(os.path.join(destination_file_path, tex_file_name.split("/")[-1].replace(".tex", ".qasm")))
     print("\nPlease open circuit pdf manually with file name: {}\n".format(pdf_file_name))

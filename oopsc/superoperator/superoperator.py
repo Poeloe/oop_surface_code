@@ -28,7 +28,7 @@ class Superoperator:
         return "Superoperator ({})".format(self.file_name)
 
     def _convert_error_list(self):
-        path_to_file = os.path.join(os.path.dirname(__file__), "csv_files/" + self.file_name)
+        path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
 
         with open(path_to_file) as file:
             reader = pd.read_csv(file, sep=";")

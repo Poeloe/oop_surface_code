@@ -1226,18 +1226,28 @@ class QuantumCircuit:
             print_to_console : bool, optional, default=True
                 Whether the result should be printed in a clear overview to the console.
             file_name_noiseless : str, optional, default=None
-                qasm_file name of the noiseless variant of the density matrix of the noisy system. Use this option if density
-                matrix has been named manually and this one should be used for the calculations.
+                qasm_file name of the noiseless variant of the density matrix of the noisy system. Use this option if
+                density matrix has been named manually and this one should be used for the calculations.
             file_name_measerror : str, optional, default=None
-                qasm_file name of the noiseless variant with measurement error of the density matrix of the noisy system.
-                Use this option if density matrix has been named manually and this one should be used for the
+                qasm_file name of the noiseless variant with measurement error of the density matrix of the noisy
+                system. Use this option if density matrix has been named manually and this one should be used for the
                 calculations.
+            no_color : bool, optional, default=Flase
+                Indicates if the output of the superoperator to the console should not contain color, when for example
+                the used console does not support color codes.
+            to_csv : bool, optional, default=False
+                Whether the results of the superoperator should be saved to a csv file.
+            csv_file_name : str, optional, default=None
+                The file name that should be used for the csv file. If not supplied, the system will use generic naming
+                and the file will be saved to the 'oopsc/superoperator/csv_files' folder.
         """
         noiseless_density_matrix = self._get_noiseless_density_matrix(save=save_noiseless_density_matrix,
                                                                       file_name=file_name_noiseless)
         measerror_density_matrix = self._get_noiseless_density_matrix(measure_error=True,
                                                                       save=save_noiseless_density_matrix,
                                                                       file_name=file_name_measerror)
+
+        # noiseless_density_matrix = QuantumCircuit(8, 2).density_matrix
 
         measurement_applied = not np.array_equal(noiseless_density_matrix.toarray(), measerror_density_matrix.toarray())
 
@@ -1283,7 +1293,10 @@ class QuantumCircuit:
     def _get_noiseless_density_matrix(self, measure_error=False, save=True, file_name=None):
         """
             Private method to calculate the noiseless variant of the density matrix.
-            It traverses the operations on the system by the hand of the '_user_operation_order' attribute.
+            It traverses the operations on the system by the hand of the '_user_operation_order' attribute. If the
+            noiseless matrix is present in the 'saved_density_matrices' folder, the method will use this instead
+            of recalculating the circuits. When no file name is given, the noiseless density matrix is searched for
+            based on the user operations applied to the noisy circuit (see method '_absolute_file_path_from_circuit').
 
             Parameters
             ----------
@@ -1302,7 +1315,7 @@ class QuantumCircuit:
                 The density matrix of the current system, but without noise
         """
         if file_name is None:
-            file_name = self._file_name_from_circuit(measure_error)
+            file_name = self._absolute_file_path_from_circuit(measure_error)
 
         # Check if the noiseless system has been calculated before
         if os.path.exists(file_name):
@@ -1337,15 +1350,31 @@ class QuantumCircuit:
 
         return qc_noiseless.density_matrix
 
-    def _file_name_from_circuit(self, measure_error, qasm=False):
+    def _file_name_from_circuit(self, measure_error, general_name="circuit", extension=""):
+        # Create an hash id, based on the operation and there order on the system and use this for the filename
+        system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._user_operation_order])
+        hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
+        file_name = "{}{}_{}{}".format(general_name, ("_me" if measure_error else ""), hash_id, extension)
+
+        return file_name
+
+    def _absolute_file_path_from_circuit(self, measure_error, kind="dm"):
         """
-            Returns the hashed qasm_file name of the ideal (or ideal up to measurement error) density matrix based on the
-            unique user operations applied to the noisy QuantumCircuit object.
+            Returns the hashed qasm_file name of the ideal (or ideal up to measurement error) density matrix based on
+            the unique user operations applied to the noisy QuantumCircuit object.
 
             Parameters
             ----------
             measure_error : bool
                 True if the ideal density matrix containing a measurement error should be returned.
+            kind : str, optional, default="dm"
+                Kind of file of which the absolute file path should be obtained. In this moment in time the options are
+                    * "dm"
+                        Density matrix file. Directory will be the 'saved_density_matrix' folder.
+                    * "qasm"
+                        Qasm file. Directory will be the 'latex_circuit' folder.
+                    * "os"
+                        Superoperator file. Directory will be the 'oopsc/superoperator/csv_files/' folder.
 
             Returns
             -------
@@ -1353,14 +1382,22 @@ class QuantumCircuit:
                 Returns the file_name of the ideal (or ideal up to measurement error if parameter 'measure_error' is set
                 to True) density matrix of the noisy QuantumCircuit object.
         """
-        # Create an hash id, based on the operation and there order on the system and use this for the filename
-        system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._user_operation_order])
-        hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
-        file_name = "density_matrix{}_{}.npz".format(("_me" if measure_error else ""), hash_id)
-        if qasm:
-            file_name = file_name.replace("density_matrix", "circuit")
-            file_name = file_name.replace("npz", "qasm")
-        return file_name
+        if kind == "dm":
+            file_name = self._file_name_from_circuit(measure_error, general_name="density_matrix", extension=".npz")
+            file_path = os.path.join(os.path.dirname(__file__), "saved_density_matrices", file_name)
+        elif kind == "qasm":
+            file_name = self._file_name_from_circuit(measure_error, extension=".qasm")
+            file_path = os.path.join(os.path.dirname(__file__), "latex_circuit", file_name)
+        elif kind == "so":
+            file_name = self._file_name_from_circuit(measure_error, general_name="superoperator", extension=".csv")
+            file_path = os.path.join(SuperoperatorElement.file_path(), "csv_files", file_name)
+        else:
+            file_name = self._file_name_from_circuit(measure_error, extension=".npz")
+            file_path = os.path.join(os.getcwd(), "csv_files", file_name)
+            print("kind: '{}' was not recognized. Please see method documentation for supported kinds. "
+                  "File path is now: '{}'".format(kind, file_path))
+
+        return file_path
 
     def _all_single_qubit_gate_possibilities(self, qubits):
         """
@@ -1538,14 +1575,13 @@ class QuantumCircuit:
         opp_stab = 's' if proj_type == "Z" else 'p'
 
         df = pd.DataFrame({(stab_type + '_prob'):probs, (stab_type + '_lie'):lies, (stab_type + '_error'):p_error_arrays,
-                      (opp_stab + '_prob'):probs, (opp_stab + '_lie'):lies, (opp_stab + '_error'):s_error_arrays })
+                           (opp_stab + '_prob'):probs, (opp_stab + '_lie'):lies, (opp_stab + '_error'):s_error_arrays })
 
+        path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
         if file_name is None:
-            file_name = "csv_files/superoperator-" + dt.datetime.now().strftime('%Y_%m_%d-%H_%M_%S') + ".csv"
-            print("\nFile name was created manually and is: {}\n".format(file_name))
+            print("\nFile name was created manually and is: {}\n".format(path_to_file))
         else:
-            file_name = "csv_files/" + file_name + ".csv"
-        path_to_file = os.path.join(SuperoperatorElement.file_path(), file_name)
+            path_to_file = os.path.join(path_to_file.rpartition("/")[0], file_name + ".csv")
         df.to_csv(path_to_file, sep=';', index=False)
 
     def get_kraus_operator(self, print_to_console=True):
@@ -1666,8 +1702,7 @@ class QuantumCircuit:
                     init[b[0]] += diff * "-"
 
     def _create_qasm_file(self, meas_error):
-        file_name = self._file_name_from_circuit(meas_error, qasm=True)
-        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),  "latex_circuit/" + file_name)
+        file_path = self._absolute_file_path_from_circuit(meas_error, kind="qasm")
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         file = open(file_path, 'w')
 
