@@ -126,17 +126,11 @@ class toric(go.toric):
         for z in self.range[:-1]:
             self.init_erasure(pE=pE, z=z)
             self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z, set_prev_value=True)
-            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
-            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
-            self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z)
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
 
         # final layer initialized with perfect measurements
         self.init_erasure(pE=pE, z=self.decode_layer)
         self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer, set_prev_value=True)
-        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
-        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
-        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer)
         self.measure_stab(pmX=0, pmZ=0, z=self.decode_layer)
 
         if self.gl_plot:
@@ -152,6 +146,8 @@ class toric(go.toric):
                 self.gl_plot.draw_plot()
 
     def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
+        if GHZ_success is None:
+            GHZ_success = 1.1
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
             self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
         for z in self.range[:-1]:

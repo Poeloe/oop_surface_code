@@ -106,7 +106,7 @@ def sim_thresholds(
             if superoperator:
                 pi = 0
                 superop = superoperator[i]
-                if "GHZ_success" in kwargs:
+                if kwargs["GHZ_success"] is not None:
                     GHZ_success = kwargs["GHZ_success"][i]
 
             oopsc_args = dict(
