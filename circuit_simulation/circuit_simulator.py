@@ -16,7 +16,6 @@ from termcolor import colored
 from itertools import combinations, permutations, product
 from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
 import pandas as pd
-import datetime as dt
 
 
 # These states must be in this file, since it will otherwise cause a segmentation error when diagonalising the density
@@ -195,6 +194,7 @@ class QuantumCircuit:
                        'noise': True,
                        'pm': self.pm,
                        'pg': self.pg,
+                       'pn': self.pn,
                        'qubit_array': self._qubit_array,
                        'density_matrix': self.density_matrix}
 
@@ -635,7 +635,7 @@ class QuantumCircuit:
 
     def single_selection(self, operation, new_qubit=False, measure=True, noise=None, pn=None, pm=None, pg=None,
                          user_operation=True):
-
+        """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
         self.apply_2_qubit_gate(operation, 0, 2, noise=noise, pg=pg, user_operation=user_operation)
         self.apply_2_qubit_gate(operation, 1, 3, noise=noise, pg=pg, user_operation=user_operation)
@@ -643,7 +643,7 @@ class QuantumCircuit:
             self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
 
     def double_selection(self, operation, new_qubit=False, noise=None, pn=None, pm=None, pg=None, user_operation=True):
-
+        """ Double selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         self.single_selection(operation, new_qubit=new_qubit, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                               user_operation=user_operation)
         self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
@@ -653,7 +653,7 @@ class QuantumCircuit:
 
     def single_dot(self, operation, qubit1, qubit2, measure=True, noise=None, pn=None, pm=None,
                    pg=None, user_operation=True):
-
+        """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         self.create_bell_pairs_top(1, noise=noise, pn=pn, user_operation=user_operation)
         self.single_selection(X, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
         self.single_selection(Z, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
@@ -664,7 +664,7 @@ class QuantumCircuit:
 
     def double_dot(self, operation, qubit1, qubit2, noise=None, pn=None, pm=None, pg=None,
                    user_operation=True):
-
+        """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         self.single_dot(operation, qubit1, qubit2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                         user_operation=user_operation)
         self.single_selection(Z, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
@@ -1350,10 +1350,29 @@ class QuantumCircuit:
 
         return qc_noiseless.density_matrix
 
-    def _file_name_from_circuit(self, measure_error, general_name="circuit", extension=""):
+    def _file_name_from_circuit(self, measure_error=False, general_name="circuit", extension=""):
+        """
+            Returns the file name of the Quantum Circuit based on the initial parameters and the user operations
+            applied to the circuit.
+
+            Parameters
+            ----------
+            measure_error : bool, optional, default=False
+                This variable is used for the case of density matrix naming for the noiseless density matrices.
+                This ensures explicit naming of a density matrix containing a measurement error. For more info see
+                the 'get_superoperator' and '_get_noiseless_density_matrix'.
+            general_name : str, optional, default="circuit"
+                To specify the file name more, one can add a custom start of the file name. Default is 'circuit'.
+            extension : str, optional, default=""
+                Use this argument if the file name needs a specific type of extension. By default, it will NOT append
+                an extension.
+        """
         # Create an hash id, based on the operation and there order on the system and use this for the filename
-        system_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0]) for d in self._user_operation_order])
-        hash_id = hashlib.sha1(system_id.encode("UTF-8")).hexdigest()[:10]
+        init_params_id = str(self._init_parameters)
+        user_operation_id = "".join(["{}{}".format(list(d.keys())[0], list(d.values())[0])
+                              for d in self._user_operation_order])
+        total_id = init_params_id + user_operation_id
+        hash_id = hashlib.sha1(total_id.encode("UTF-8")).hexdigest()[:10]
         file_name = "{}{}_{}{}".format(general_name, ("_me" if measure_error else ""), hash_id, extension)
 
         return file_name
@@ -1558,6 +1577,23 @@ class QuantumCircuit:
         print("\n---- End of Superoperator ----\n")
 
     def _superoperator_to_csv(self, superoperator, proj_type, file_name=None):
+        """
+            Save the obtained superoperator results to a csv file format that is suitable with the superoperator
+            format that is used in the (distributed) surface code simulations.
+
+            *** IN THIS METHOD IT IS ASSUMED Z AND X ERRORS ARE EQUALLY LIKELY TO OCCUR, SUCH THAT THE RESULTS FOR THE
+             OPPOSITE PROJECTION TYPES (PLAQUETTE IF STAR AND VICE VERSA) ONLY DIFFER BY A HADAMARD TRANSFORM ON THE
+             ERROR CONFIGURATIONS (SO IIIX -> IIIY) AND APPLYING THIS WILL LEAD TOT RESULTS OF THE OPPOSITE PROJECTION
+             TYPE. ***
+
+            superoperator : list
+                The superoperator results, a list containing the SuperoperatorElement objects.
+            proj_type : str, options: {"X", "Z"}
+                The stabilizer type that has been analysed, options are "X" or "Z"
+            file_name : str, optional, default=None
+                User specified file name that should be used to save the csv file with. The file will always be stored
+                in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
+        """
         probs = []
         lies = []
         p_error_arrays = []
@@ -1581,7 +1617,7 @@ class QuantumCircuit:
         if file_name is None:
             print("\nFile name was created manually and is: {}\n".format(path_to_file))
         else:
-            path_to_file = os.path.join(path_to_file.rpartition("/")[0], file_name + ".csv")
+            path_to_file = os.path.join(path_to_file.rpartition("/")[0], file_name.replace("/", "") + ".csv")
         df.to_csv(path_to_file, sep=';', index=False)
 
     def get_kraus_operator(self, print_to_console=True):
@@ -1702,6 +1738,16 @@ class QuantumCircuit:
                     init[b[0]] += diff * "-"
 
     def _create_qasm_file(self, meas_error):
+        """
+            Method constructs a qasm file based on the 'self._draw_order' list. It returns the file path to the
+            constructed qasm file.
+
+            Parameters
+            ----------
+            meas_error : bool
+                Specify if there has been introduced an measurement error on purpose to the QuantumCircuit object.
+                This is needed to create the proper file name.
+        """
         file_path = self._absolute_file_path_from_circuit(meas_error, kind="qasm")
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         file = open(file_path, 'w')
