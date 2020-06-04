@@ -38,8 +38,6 @@ class QuantumCircuit:
     """
         QuantumCircuit(num_qubits, init_type=0, noise=False, pg=0.01, pm=0.01)
 
-            Create a QuantumCircuit object
-
             A QuantumCircuit consists of qubits on which various operations can be applied.
             From this information about the density matrix of the system and others can be
             gathered.
@@ -1614,7 +1612,7 @@ class QuantumCircuit:
         lies = []
         p_error_arrays = []
         s_error_arrays = []
-        for supop_el in superoperator:
+        for supop_el in sorted(superoperator):
             probs.append(supop_el.p)
             lies.append(supop_el.lie)
             error_array = "".join(supop_el.error_array)
