@@ -27,15 +27,6 @@ import numpy as np
 from ..superoperator import superoperator as so
 
 
-def _get_value_by_prob(array, p):
-    r = random.random()
-    index = 0
-    while r >= 0 and index < len(p):
-        r -= p[index]
-        index += 1
-    return array[index - 1]
-
-
 class toric(object):
     """
     The graph in which the vertices, edges and clusters exist. Has the following parameters
@@ -233,7 +224,6 @@ class toric(object):
 
         # First apply error and measure plaquette stabilizers in two rounds
         measurement_errors_p1 = self.superoperator_error(self.superoperator.sup_op_elements_p,
-                                                         self.superoperator.weights_p,
                                                          self.superoperator.stabs_p1[z],
                                                          z)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
@@ -242,7 +232,6 @@ class toric(object):
                           GHZ_success=self.superoperator.GHZ_success)
 
         measurement_errors_p2 = self.superoperator_error(self.superoperator.sup_op_elements_p,
-                                                         self.superoperator.weights_p,
                                                          self.superoperator.stabs_p2[z])
         self.measure_stab(stabs=self.superoperator.stabs_p2[z],
                           measurement_errors=measurement_errors_p2,
@@ -251,7 +240,6 @@ class toric(object):
 
         # The apply error and measure star stabilizers in two rounds
         measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.weights_s,
                                                          self.superoperator.stabs_s1[z])
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           measurement_errors=measurement_errors_s1,
@@ -259,20 +247,19 @@ class toric(object):
                           GHZ_success=self.superoperator.GHZ_success)
 
         measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.weights_s,
                                                          self.superoperator.stabs_s2[z])
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           measurement_errors=measurement_errors_s2,
                           z=z,
                           GHZ_success=self.superoperator.GHZ_success)
 
-    def superoperator_error(self, superoperator_elements, weights, stabs, z=0):
+    def superoperator_error(self, superoperator_elements, stabs, z=0):
         measurement_errors = []
 
         for stab in stabs:
             # np.random.choice can be used as well, only this takes a lot of time compared to the self written
             # '_get_value_by_prob' method, which has complexity O(n)
-            random_super_op_element = _get_value_by_prob(superoperator_elements, weights)
+            random_super_op_element = so.Superoperator.get_supop_el_by_prob(superoperator_elements)
 
             measurement_errors.append(random_super_op_element.lie)
             random_error_array = random_super_op_element.error_array
