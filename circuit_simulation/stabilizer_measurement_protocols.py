@@ -23,7 +23,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, pn=pn)
+    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn)
 
     # Noisy ancilla Bell pair is now between are now 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -58,7 +58,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, pn=pn)
+    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn)
 
     # Noisy ancilla Bell pair between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -71,7 +71,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.create_bell_pairs_top(1, new_qubit=True)
     qc.double_selection(Z, new_qubit=True)
     qc.double_selection(X)
-    qc.double_dot(X, 2, 3)
+    qc.double_dot(Z, 2, 3)
     qc.double_dot(X, 2, 3)
 
     # Now entanglement between ancilla 0 and 3 is made
@@ -82,10 +82,10 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.double_dot(Z, 3, 4)
     qc.double_dot(Z, 3, 4)
 
-    qc.apply_2_qubit_gate(operation, 3, 10)
-    qc.apply_2_qubit_gate(operation, 2, 8)
-    qc.apply_2_qubit_gate(operation, 1, 6)
     qc.apply_2_qubit_gate(operation, 0, 4)
+    qc.apply_2_qubit_gate(operation, 1, 6)
+    qc.apply_2_qubit_gate(operation, 2, 8)
+    qc.apply_2_qubit_gate(operation, 3, 10)
 
     qc.measure_first_N_qubits(4)
 
@@ -162,9 +162,9 @@ if __name__ == "__main__":
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
 
-    print("\nRunning the {} protocol, with pg={}, pm={}{}.\n".format(protocol, pg, pm,
-                                                                   (' and pn=' + str(pn) if protocol != 'monolithic'
-                                                                    else "")))
+    print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer.\n"
+          .format(protocol, pg, pm, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
+                  "plaquette" if stab_type == "Z" else "star"))
 
     if protocol == "monolithic":
         monolithic(gate_name_to_array(stab_type), pg, pm, color, ltsv, sv, fn)

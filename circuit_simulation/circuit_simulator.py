@@ -79,6 +79,10 @@ class QuantumCircuit:
             noise: bool, optional, default=False
                 If there is general noise present in the system. This will add noise to the gate
                 and measurement operations applied to the system.
+            basis_transformation_noise : bool, optional, default=False
+                Whether the H-gate that is applied to transform the basis in which the qubit is measured should be
+                noisy (True) or noiseless (False) in general. If not specified, it will have the same value as the
+                'noise' attribute.
             pg : float [0-1], optional, default=0.01
                 The amount of gate noise present in the system. Will only be applied if 'noise' is True.
             pm : float [0-1], optional, default=0.01
@@ -103,7 +107,8 @@ class QuantumCircuit:
 
     """
 
-    def __init__(self, num_qubits, init_type=None, noise=False, pg=0.001, pm=0.001, pn=0.1):
+    def __init__(self, num_qubits, init_type=None, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
+                 pn=0.1):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -118,6 +123,8 @@ class QuantumCircuit:
         self._measured_qubits = []
         self.density_matrix = None
 
+        self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
+
         if init_type == 0:
             self.density_matrix = self._init_density_matrix()
         elif init_type == 1:
@@ -127,7 +134,7 @@ class QuantumCircuit:
         elif init_type == 3:
             self.density_matrix = self._init_density_matrix_ket_p_and_CNOTS()
 
-        self._init_parameters = self._save_init_parameters()
+        self._init_parameters = self._init_parameters_to_dict()
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -136,13 +143,13 @@ class QuantumCircuit:
     """
 
     def _init_density_matrix(self):
-        """ Realises init_type option 0. See class description for more info, """
+        """ Realises init_type option 0. See class description for more info. """
 
         state_vector = KP(*self._qubit_array)
         return sp.csr_matrix(CT(state_vector, state_vector))
 
     def _init_density_matrix_first_qubit_ket_p(self):
-        """ Realises init_type option 1. See class description for more info, """
+        """ Realises init_type option 1. See class description for more info. """
 
         self._qubit_array[0] = ket_p
 
@@ -155,7 +162,7 @@ class QuantumCircuit:
         return density_matrix
 
     def _init_density_matrix_bell_pair_state(self, draw=True):
-        """ Realises init_type option 2. See class description for more info, """
+        """ Realises init_type option 2. See class description for more info. """
 
         bell_pair_rho = sp.lil_matrix((4, 4))
         bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
@@ -171,7 +178,7 @@ class QuantumCircuit:
         return density_matrix
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
-        """ Realises init_type option 3. See class description for more info, """
+        """ Realises init_type option 3. See class description for more info. """
 
         # Set ket_p as first qubit of the qubit array (mainly for proper drawing of the circuit)
         self._qubit_array[0] = ket_p
@@ -187,11 +194,12 @@ class QuantumCircuit:
 
         return density_matrix
 
-    def _save_init_parameters(self):
+    def _init_parameters_to_dict(self):
         init_params = {'num_qubits': self.num_qubits,
                        'd': self.d,
                        'init_type': self._init_type,
-                       'noise': True,
+                       'noise': self.noise,
+                       'basis_transformation_noise': self.basis_transformation_noise,
                        'pm': self.pm,
                        'pg': self.pg,
                        'pn': self.pn,
@@ -282,7 +290,8 @@ class QuantumCircuit:
             in which |psi> is a perfect Bell state.
 
             *** THIS METHOD APPENDS THE QUBITS TO THE TOP OF THE SYSTEM. THIS MEANS THAT THE AMOUNT OF
-            QUBITS IN THE SYSTEM WILL GROW WITH '2N' ***
+            QUBITS IN THE SYSTEM WILL GROW WITH '2N' AND THE INDICES OF THE EXISTING QUBITS INCREASE WITH 2N AS WELL,
+            WHICH IS IMPORTANT FOR FUTURE OPERATIONS ***
 
             Parameters
             ----------
@@ -343,7 +352,7 @@ class QuantumCircuit:
 
             Method appends a qubit with a given state to the top of the system.
             *** THE METHOD APPENDS A QUBIT, WHICH MEANS THAT THE AMOUNT OF QUBITS IN THE SYSTEM WILL
-            GROW WITH 1 ***
+            GROW WITH 1 AND THE INDICES OF THE EXISTING QUBITS WILL INCREASE WITH 1 AS WELL***
 
             Parameters
             ----------
@@ -373,7 +382,7 @@ class QuantumCircuit:
         """
             qc.apply_1_qubit_gate(gate, tqubit, noise=None, pg=None, draw=True)
 
-                Applies a one qubit gate to the specified target qubit. This will update the density
+                Applies a single-qubit gate to the specified target qubit. This will update the density
                 matrix of the system accordingly.
 
                 Parameters
@@ -415,7 +424,7 @@ class QuantumCircuit:
 
     def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None):
         """
-            Private method that is used to create the 1 qubit gate matrix used in for eaxmple the
+            Private method that is used to create the single-qubit gate matrix used in for example the
             apply_1_qubit_gate method.
 
             Parameters
@@ -808,7 +817,7 @@ class QuantumCircuit:
     """
 
     def measure_first_N_qubits(self, N, measure=0, uneven_parity=False, noise=None, pm=None, basis="X",
-                               user_operation=True):
+                               basis_transformation_noise=None, user_operation=True):
         """
             Method measures the first N qubits, given by the user, all in the 0 or 1 state.
             This will thus result in an even parity measurement. To also be able to enforce uneven
@@ -816,7 +825,8 @@ class QuantumCircuit:
             The density matrix of the system will be changed according to the measurement outcomes.
 
             *** MEASURED QUBITS WILL BE ERASED FROM THE SYSTEM AFTER MEASUREMENT, THIS WILL THUS
-            DECREASE THE AMOUNT OF QUBITS IN THE SYSTEM WITH N ***
+            DECREASE THE AMOUNT OF QUBITS IN THE SYSTEM WITH 'N' AS WELL. THE QUBIT INDICES WILL THEREFORE ALSO
+            INCREASE WITH 'N', WHICH IS IMPORTANT FOR FUTURE OPERATIONS ***
 
             Parameters
             ----------
@@ -832,22 +842,28 @@ class QuantumCircuit:
                 The amount of measurement noise that is present (if noise is present).
             basis : str ["X" or "Z"], optional, default="X"
                 Whether the measurement should be done in the X-basis or in the computational basis (Z-basis)
+            basis_transformation_noise : bool, optional, default=False
+                Whether the H-gate that is applied to transform the basis in which the qubit is measured should be
+                noisy (True) or noiseless (False)
             user_operation : bool, optional, default=True
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
 
         """
         if user_operation:
-            self._user_operation_order.append({"measure_first_N_qubits": [N, measure, noise, pm, basis]})
+            self._user_operation_order.append({"measure_first_N_qubits": [N, measure, noise, pm, basis,
+                                                                          basis_transformation_noise]})
         if noise is None:
             noise = self.noise
         if pm is None:
             pm = self.pm
+        if basis_transformation_noise is None:
+            basis_transformation_noise = self.basis_transformation_noise
 
         for qubit in range(N):
             if basis == "X":
                 # Do not let the method draw itself, since the qubit will not be removed from the circuit drawing
-                self.H(0, noise=noise, draw=False, user_operation=False)
+                self.H(0, noise=basis_transformation_noise, draw=False, user_operation=False)
 
             measure_new = measure
             if uneven_parity and qubit == 0:
@@ -1232,7 +1248,7 @@ class QuantumCircuit:
                 qasm_file name of the noiseless variant with measurement error of the density matrix of the noisy
                 system. Use this option if density matrix has been named manually and this one should be used for the
                 calculations.
-            no_color : bool, optional, default=Flase
+            no_color : bool, optional, default=False
                 Indicates if the output of the superoperator to the console should not contain color, when for example
                 the used console does not support color codes.
             to_csv : bool, optional, default=False
@@ -1412,7 +1428,7 @@ class QuantumCircuit:
             file_path = os.path.join(SuperoperatorElement.file_path(), "csv_files", file_name)
         else:
             file_name = self._file_name_from_circuit(measure_error, extension=".npz")
-            file_path = os.path.join(os.getcwd(), "csv_files", file_name)
+            file_path = os.path.join(os.getcwd(), file_name)
             print("kind: '{}' was not recognized. Please see method documentation for supported kinds. "
                   "File path is now: '{}'".format(kind, file_path))
 
@@ -1812,7 +1828,7 @@ class QuantumCircuit:
 
             **2nd Note** :
                 Please consider that the drawing of the circuit can differ from reality due to this dynamic
-                way of changing the qubit indices with measurement an/or qubit addition operations. THIS EFFECTIVELY
+                way of changing the qubit indices with measurement and/or qubit addition operations. THIS EFFECTIVELY
                 MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
                 MEASUREMENTS AND QUBIT ADDITIONS.
         """
@@ -1836,7 +1852,22 @@ class QuantumCircuit:
         self._draw_order.append(item)
 
     def _correct_for_n_top_qubit_additions(self, n=1):
-        """ Corrects the draw order list for addition of n top qubits """
+        """
+            Corrects the self._draw_order list for addition of n top qubits.
+
+            When a qubit gets added to the top of the stack, it gets the index 0. This means that the indices of the
+            already existing qubits increase by 1. This should be corrected for in the self._draw_order list, since
+            the qubit references used the 'old' qubit index.
+
+            *** Note that for the actual qubit operations that already have been applied to the system the addition of
+            a top qubit is not of importance, but after addition the user should know this index change for future
+            operations ***
+
+            Parameters
+            ----------
+            n : int, optional, default=1
+                Amount of added top qubits that should be corrected for.
+        """
         self._measured_qubits.extend([i for i in range(self._effective_measurements)])
         self._measured_qubits = [(x + n) for x in self._measured_qubits]
         self._effective_measurements = 0
