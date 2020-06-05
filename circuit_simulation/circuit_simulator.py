@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.basic_operations import (
-    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity_elementwise
+    CT, KP, state_repr, get_value_by_prob, trace, gate_name, fidelity_elementwise, gate_name_to_array
 )
 import numpy as np
 from scipy import sparse as sp
@@ -1203,9 +1203,9 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def get_superoperator(self, qubits, proj_type, save_noiseless_density_matrix=False, combine=True, most_likely=True,
-                          print_to_console=True, file_name_noiseless=None, file_name_measerror=None, no_color=False,
-                          to_csv=False, csv_file_name=None):
+    def get_superoperator(self, qubits, proj_type, stabilizer_protocol=False, save_noiseless_density_matrix=False,
+                          combine=True, most_likely=True, print_to_console=True, file_name_noiseless=None,
+                          file_name_measerror=None, no_color=False, to_csv=False, csv_file_name=None):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1225,7 +1225,11 @@ class QuantumCircuit:
                 resulting density matrix, thus in case of measurements this can differ from the initial indices!!**
             proj_type : str, options: "X" or "Z"
                 Specifies the type of stabilizer for which the superoperator should be calculated. This value is
-                necessary for the postprocessing of the superoperator results if 'combine' is set to True.
+                necessary for the postprocessing of the superoperator results if 'combine' is set to True and used if
+                stabilizer_protocol is set to True.
+            stabilizer_protocol : bool, optional, default=False
+                If the superoperator is calculated for a stabilizer measurement protocol (for example Stringent or
+                Expedient).
             save_noiseless_density_matrix : bool, optional, default=True
                 Whether or not the calculated noiseless (ideal) version of the circuit should be saved.
                 This saved matrix will a next time be used for speedup if the same system is analysed with this method.
@@ -1255,16 +1259,15 @@ class QuantumCircuit:
                 The file name that should be used for the csv file. If not supplied, the system will use generic naming
                 and the file will be saved to the 'oopsc/superoperator/csv_files' folder.
         """
-        noiseless_density_matrix = self._get_noiseless_density_matrix(save=save_noiseless_density_matrix,
+        noiseless_density_matrix = self._get_noiseless_density_matrix(stabilizer_protocol=stabilizer_protocol,
+                                                                      proj_type=proj_type,
+                                                                      save=save_noiseless_density_matrix,
                                                                       file_name=file_name_noiseless)
         measerror_density_matrix = self._get_noiseless_density_matrix(measure_error=True,
+                                                                      stabilizer_protocol=stabilizer_protocol,
+                                                                      proj_type=proj_type,
                                                                       save=save_noiseless_density_matrix,
                                                                       file_name=file_name_measerror)
-
-        # noiseless_density_matrix = QuantumCircuit(8, 2).density_matrix
-
-        measurement_applied = not np.array_equal(noiseless_density_matrix.toarray(), measerror_density_matrix.toarray())
-
         superoperator = []
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
@@ -1283,8 +1286,7 @@ class QuantumCircuit:
             me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
 
             fid_no_me = fidelity_elementwise(error_density_matrix, self.density_matrix)
-            fid_me = fidelity_elementwise(me_error_density_matrix, self.density_matrix) \
-                if measurement_applied else 0
+            fid_me = fidelity_elementwise(me_error_density_matrix, self.density_matrix)
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
 
@@ -1304,7 +1306,8 @@ class QuantumCircuit:
 
         return superoperator
 
-    def _get_noiseless_density_matrix(self, measure_error=False, save=True, file_name=None):
+    def _get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
+                                      file_name=None):
         """
             Private method to calculate the noiseless variant of the density matrix.
             It traverses the operations on the system by the hand of the '_user_operation_order' attribute. If the
@@ -1314,6 +1317,12 @@ class QuantumCircuit:
 
             Parameters
             ----------
+            stabilizer_protocol : bool
+                If the noiseless density matrix is one of a stabilizer measurement protocol (for example Stringent or
+                Expedient). This leads to a speed-up, since the noiseless density matrix can be assumed equal to the
+                noiseless density matrix of a stabilizer measurement in a monolithic architecture.
+            proj_type : str, options: "X" or "Z"
+                Specifies the type of stabilizer for which the superoperator should be calculated.
             measure_error: bool, optional, default=False
                 Specifies if the measurement outcome should be opposite of the ideal circuit.
             save : bool
@@ -1328,6 +1337,8 @@ class QuantumCircuit:
             noiseless_density_matrix : sparse matrix
                 The density matrix of the current system, but without noise
         """
+        if stabilizer_protocol:
+            return self._noiseless_stabilizer_protocol_density_matrix(proj_type, measure_error)
         if file_name is None:
             file_name = self._absolute_file_path_from_circuit(measure_error)
 
@@ -1364,6 +1375,29 @@ class QuantumCircuit:
 
         return qc_noiseless.density_matrix
 
+    @staticmethod
+    def _noiseless_stabilizer_protocol_density_matrix(proj_type, measure_error):
+        """
+            Method returns the noiseless density matrix of a stabilizer measurement in the monolithic architecture.
+            Since this density matrix is equal for all equal kinds of stabilizer measurement protocols, this method
+            can be used to gain a speed-up in obtaining the noiseless density matrix.
+
+            Parameters
+            ----------
+            proj_type : str, options: "X" or "Z"
+                Specifies the type of stabilizer for which the superoperator should be calculated.
+            measure_error : bool
+                True if the noiseless density matrix should contain a measurement error.
+        """
+        qc = QuantumCircuit(8, 2)
+        qc.add_top_qubit(ket_p)
+        for i in range(1, qc.num_qubits, 2):
+            qc.apply_2_qubit_gate(gate_name_to_array(proj_type), 0, i)
+
+        qc.measure_first_N_qubits(1, uneven_parity=measure_error)
+
+        return qc.density_matrix
+
     def _file_name_from_circuit(self, measure_error=False, general_name="circuit", extension=""):
         """
             Returns the file name of the Quantum Circuit based on the initial parameters and the user operations
@@ -1393,8 +1427,8 @@ class QuantumCircuit:
 
     def _absolute_file_path_from_circuit(self, measure_error, kind="dm"):
         """
-            Returns the hashed qasm_file name of the ideal (or ideal up to measurement error) density matrix based on
-            the unique user operations applied to the noisy QuantumCircuit object.
+            Returns a file path to a file based on what kind of object needs to be saved. The kind of files that
+            are supported, including their standard directory can be found below in the parameters section.
 
             Parameters
             ----------
@@ -1876,6 +1910,14 @@ class QuantumCircuit:
                 self._draw_order[i] = {operation: (qubits[0] + n, qubits[1] + n)}
             else:
                 self._draw_order[i] = {operation: qubits + n}
+
+    def save_density_matrix(self, filename=None):
+        if filename is None:
+            filename = self._absolute_file_path_from_circuit(measure_error=False, kind='dm')
+
+        sp.save_npz(filename, self.density_matrix)
+
+        print("File successfully saved at: {}".format(filename))
 
     def __repr__(self):
         density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix

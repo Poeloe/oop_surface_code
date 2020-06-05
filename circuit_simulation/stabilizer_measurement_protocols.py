@@ -19,7 +19,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     if save_latex_pdf:
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
-                         csv_file_name=csv_file_name)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True)
 
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
@@ -54,7 +54,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if save_latex_pdf:
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
-                         csv_file_name=csv_file_name, save_noiseless_density_matrix=False)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True)
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
@@ -93,7 +93,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if save_latex_pdf:
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
-                         csv_file_name=csv_file_name)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True)
 
 
 def compose_parser():
