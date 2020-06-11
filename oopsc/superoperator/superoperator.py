@@ -70,7 +70,7 @@ class Superoperator:
         return "Superoperator ({})".format(self.file_name)
 
     def __str__(self):
-        return "Superoperator ({})".format(self.file_name)
+        return self.__repr__()
 
     def _convert_error_list(self):
         """
@@ -92,9 +92,9 @@ class Superoperator:
 
             CSV file format example
             -----------------------
-            p_prob; p_lie;  p_error;    s_prob ;s_lie  ;s_error;    GHZ_success
-            0.9509; 1    ;  IIII   ;    0.950  ;1      ;IIII   ;    0.99
-            0.0384; 1    ;  IIIX   ;    0.038  ;1      ;IIIX   ;
+            p_prob;     p_lie;  p_error;    s_prob;    s_lie;   s_error;    GHZ_success
+            0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99
+            0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;
         """
         path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
 
@@ -106,13 +106,16 @@ class Superoperator:
                 self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.'))
 
             for i in range(len(list(reader.p_prob))):
-                p_prob = float(str(reader.p_prob[i]).replace(',', '.'))
-                s_prob = float(str(reader.s_prob[i]).replace(',', '.'))
-                sup_op_el_p = SuperoperatorElement(p_prob, int(reader.p_lie[i]), [ch for ch in reader.p_error[i]])
-                sup_op_el_s = SuperoperatorElement(s_prob, int(reader.s_lie[i]), [ch for ch in reader.s_error[i]])
-                self.sup_op_elements_p.append(sup_op_el_p)
-                self.sup_op_elements_s.append(sup_op_el_s)
+                # Do some parsing operations on the entries to ensure proper form
+                p_prob = float(str(reader.p_prob[i]).replace(',', '.').replace(" ", ""))
+                s_prob = float(str(reader.s_prob[i]).replace(',', '.').replace(" ", ""))
+                p_error = [ch for ch in reader.p_error[i].replace(" ", "")]
+                s_error = [ch for ch in reader.p_error[i].replace(" ", "")]
 
+                self.sup_op_elements_p.append(SuperoperatorElement(p_prob, bool(int(reader.p_lie[i])), p_error))
+                self.sup_op_elements_s.append(SuperoperatorElement(s_prob, bool(int(reader.s_lie[i])), s_error))
+
+        # Check if the probabilities add up to 1 to ensure a valid decomposition
         if round(sum(self.sup_op_elements_p), 6) != 1.0 or round(sum(self.sup_op_elements_s), 6) != 1.0:
             raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
                              "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
@@ -120,6 +123,7 @@ class Superoperator:
                              .format(sum(self.sup_op_elements_p), 1.0 - sum(self.sup_op_elements_p),
                                      sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
 
+        # Sort the entries such that the most likely entries will be listed first
         self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
         self.sup_op_elements_p = sorted(self.sup_op_elements_s, reverse=True)
 
@@ -213,7 +217,7 @@ class SuperoperatorElement:
         return "SuperOperatorElement(p:{}, lie:{}, errors:{})".format(self.p, self.lie, self.error_array)
 
     def __str__(self):
-        return "SuperOperatorElement(p:{}, lie:{}, errors:{})".format(self.p, self.lie, self.error_array)
+        return self.__repr__()
 
     def __ge__(self, other):
         return self.p >= other.p
@@ -242,7 +246,9 @@ class SuperoperatorElement:
             self.error_array.sort()
             other.error_array.sort()
 
-        return round(self.p, rnd) == round(other.p, rnd) and self.lie == other.lie and self.error_array == other.error_array
+        return (round(self.p, rnd) == round(other.p, rnd)
+                and self.lie == other.lie
+                and self.error_array == other.error_array)
 
     def error_array_lie_equals(self, other, sort_array=True):
         if sort_array:
