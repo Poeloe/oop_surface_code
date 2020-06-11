@@ -4,6 +4,7 @@ import argparse
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
 from circuit_simulation.basic_operations import gate_name_to_array
+from multiprocessing import Pool
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
@@ -20,6 +21,8 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
+
+    return qc._print_lines
 
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
@@ -55,6 +58,8 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
+
+    return qc._print_lines
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
@@ -95,6 +100,8 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
+    return qc._print_lines
+
 
 def compose_parser():
     parser = argparse.ArgumentParser()
@@ -110,16 +117,23 @@ def compose_parser():
                         '--gate_error_probability',
                         help='Specifies the amount of gate error present in the system',
                         type=float,
+                        nargs="*",
                         default=0.006)
+    parser.add_argument('--pm_equals_pg',
+                        help='Specify if measurement error equals the gate error. "-pm" will then be disregarded',
+                        required=False,
+                        action='store_true')
     parser.add_argument('-pm',
                         '--measurement_error_probability',
                         help='Specifies the amount of measurement error present in the system',
                         type=float,
+                        nargs="*",
                         default=0.006)
     parser.add_argument('-pn',
                         '--network_error_probability',
                         help='Specifies the amount of network error present in the system',
                         type=float,
+                        nargs="*",
                         default=0.006)
     parser.add_argument('-c',
                         '--color',
@@ -139,25 +153,14 @@ def compose_parser():
                         action='store_true')
     parser.add_argument('-fn',
                         '--csv_filename',
+                        required=False,
+                        nargs="*",
                         help='Give the file name of the csv file that will be saved.')
 
     return parser
 
 
-if __name__ == "__main__":
-    parser = compose_parser()
-
-    args = vars(parser.parse_args())
-    protocol = args.pop('protocol').lower()
-    stab_type = args.pop('stabilizer_type').upper()
-    color = args.pop('color')
-    pm = args.pop('measurement_error_probability')
-    pn = args.pop('network_error_probability')
-    pg = args.pop('gate_error_probability')
-    ltsv = args.pop('save_latex_pdf')
-    sv = args.pop('save_csv')
-    fn = args.pop('csv_filename')
-
+def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn):
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
@@ -167,11 +170,47 @@ if __name__ == "__main__":
                   "plaquette" if stab_type == "Z" else "star"))
 
     if protocol == "monolithic":
-        monolithic(gate_name_to_array(stab_type), pg, pm, color, ltsv, sv, fn)
+        return monolithic(gate_name_to_array(stab_type), pg, pm, color, ltsv, sv, fn)
     elif protocol == "expedient":
-        expedient(gate_name_to_array(stab_type), pg, pm, pn, color, ltsv, sv, fn)
+        return expedient(gate_name_to_array(stab_type), pg, pm, pn, color, ltsv, sv, fn)
     elif protocol == "stringent":
-        stringent(gate_name_to_array(stab_type), pg, pm, pn, color, ltsv, sv, fn)
+        return stringent(gate_name_to_array(stab_type), pg, pm, pn, color, ltsv, sv, fn)
     else:
         print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
         exit()
+
+
+if __name__ == "__main__":
+    parser = compose_parser()
+
+    args = vars(parser.parse_args())
+    protocol = args.pop('protocol').lower()
+    stab_type = args.pop('stabilizer_type').upper()
+    color = args.pop('color')
+    meas_errors = args.pop('measurement_error_probability')
+    meas_eq_gate = args.pop('pm_equals_pg')
+    network_erros = args.pop('network_error_probability')
+    gate_errors = args.pop('gate_error_probability')
+    ltsv = args.pop('save_latex_pdf')
+    sv = args.pop('save_csv')
+    filenames = args.pop('csv_filename')
+
+    workers = len(gate_errors) if len(gate_errors) < 11 else 10
+
+    thread_pool = Pool(workers)
+    results = []
+    file_name_count = 0
+
+    for pg in gate_errors:
+        if meas_eq_gate:
+            meas_errors = [pg]
+        for pm in meas_errors:
+            for pn in network_erros:
+                fn = filenames[file_name_count] if len(filenames) > file_name_count else None
+                results.append(thread_pool.apply_async(main, (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn)))
+                file_name_count += 1
+
+    [print(*res.get()) for res in results]
+
+    thread_pool.close()
+

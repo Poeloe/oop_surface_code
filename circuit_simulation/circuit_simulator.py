@@ -120,6 +120,7 @@ class QuantumCircuit:
         self._effective_measurements = 0
         self._measured_qubits = []
         self.density_matrix = None
+        self._print_lines = []
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
@@ -1092,7 +1093,7 @@ class QuantumCircuit:
         for i, eigenvalue in enumerate(eigenvalues):
             print_line += "eigenvalue: {}\n\neigenvector:\n {}\n---\n".format(eigenvalue, eigenvectors[i].toarray())
 
-        print(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
+        self._print_lines.append(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
 
     def decompose_non_zero_eigenvectors(self):
         """
@@ -1461,7 +1462,7 @@ class QuantumCircuit:
         else:
             file_name = self._file_name_from_circuit(measure_error, extension=".npz")
             file_path = os.path.join(os.getcwd(), file_name)
-            print("kind: '{}' was not recognized. Please see method documentation for supported kinds. "
+            self._print_lines.append("\nkind: '{}' was not recognized. Please see method documentation for supported kinds. "
                   "File path is now: '{}'".format(kind, file_path))
 
         return file_path
@@ -1598,15 +1599,14 @@ class QuantumCircuit:
 
         return superoperator
 
-    @staticmethod
-    def _print_superoperator(superoperator, no_color):
+    def _print_superoperator(self, superoperator, no_color):
         """ Prints the superoperator in a clear way to the console """
-        print("\n---- Superoperator ----\n")
+        self._print_lines.append("\n---- Superoperator ----\n")
 
         total = sum([supop_el.p for supop_el in superoperator])
         for supop_el in sorted(superoperator):
             probability = supop_el.p
-            print("\nProbability: {}".format(probability))
+            self._print_lines.append("\nProbability: {}".format(probability))
             config = ""
             for gate in supop_el.error_array:
                 if gate == "X":
@@ -1620,9 +1620,9 @@ class QuantumCircuit:
                 else:
                     config += (gate + " ")
             me = "me" if supop_el.lie else "no me"
-            print("{} - {}".format(config, me))
-        print("\nSum of the probabilities is: {}\n".format(total))
-        print("\n---- End of Superoperator ----\n")
+            self._print_lines.append("\n{} - {}".format(config, me))
+        self._print_lines.append("\n\nSum of the probabilities is: {}\n".format(total))
+        self._print_lines.append("\n---- End of Superoperator ----\n")
 
     def _superoperator_to_csv(self, superoperator, proj_type, file_name=None):
         """
@@ -1663,9 +1663,10 @@ class QuantumCircuit:
 
         path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
         if file_name is None:
-            print("\nFile name was created manually and is: {}\n".format(path_to_file))
+            self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
         else:
             path_to_file = os.path.join(path_to_file.rpartition("/")[0], file_name.replace("/", "") + ".csv")
+            self._print_lines.append("\nCSV file has been saved at: {}".format(path_to_file))
         df.to_csv(path_to_file, sep=';', index=False)
 
     def get_kraus_operator(self, print_to_console=True):
@@ -1711,8 +1712,7 @@ class QuantumCircuit:
 
         return kraus_decomposition
 
-    @staticmethod
-    def _print_kraus_operators(kraus_decomposition):
+    def _print_kraus_operators(self, kraus_decomposition):
         """ Prints a clear overview of the effective operations that have happened on the individual qubits """
         print_lines = ["\n---- Kraus operators per qubit ----\n"]
         for prob, operators_per_qubit in kraus_decomposition:
@@ -1725,7 +1725,7 @@ class QuantumCircuit:
                 print_lines.append(data_qubit_line)
         print_lines.append("\n---- End of Kraus operators per qubit ----\n\n")
 
-        print(*print_lines)
+        self._print_lines.append(*print_lines)
 
     """
         ----------------------------------------------------------------------------------------------------------
@@ -1742,7 +1742,8 @@ class QuantumCircuit:
         init = self._draw_init()
         self._draw_gates(init, no_color)
         init[-1] += "\n\n"
-        print(legenda, *init)
+        self._print_lines.append(legenda)
+        self._print_lines.extend(init)
 
     def draw_circuit_latex(self, meas_error=False):
         qasm_file_name = self._create_qasm_file(meas_error)
@@ -1917,7 +1918,7 @@ class QuantumCircuit:
 
         sp.save_npz(filename, self.density_matrix)
 
-        print("File successfully saved at: {}".format(filename))
+        self._print_lines.append("\nFile successfully saved at: {}".format(filename))
 
     def __repr__(self):
         density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix
@@ -1941,3 +1942,6 @@ class QuantumCircuit:
 
     def copy(self):
         return self.__copy__()
+
+    def print(self):
+        print(*self._print_lines)
