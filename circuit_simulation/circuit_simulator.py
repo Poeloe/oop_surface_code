@@ -1658,15 +1658,24 @@ class QuantumCircuit:
         stab_type = 'p' if proj_type == "Z" else 's'
         opp_stab = 's' if proj_type == "Z" else 'p'
 
-        df = pd.DataFrame({(stab_type + '_prob'):probs, (stab_type + '_lie'):lies, (stab_type + '_error'):p_error_arrays,
-                           (opp_stab + '_prob'):probs, (opp_stab + '_lie'):lies, (opp_stab + '_error'):s_error_arrays })
+        df_values = pd.DataFrame({(stab_type + '_prob'): probs,
+                           (stab_type + '_lie'): lies,
+                           (stab_type + '_error'): p_error_arrays,
+                           (opp_stab + '_prob'): probs,
+                           (opp_stab + '_lie'): lies,
+                           (opp_stab + '_error'): s_error_arrays})
+        df_parameters = pd.DataFrame({"pg": [self.pg],
+                                      "pm": [self.pm],
+                                      "pn": [self.pn]})
+
+        df = pd.concat([df_values, df_parameters], axis=1)
 
         path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
         if file_name is None:
             self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
         else:
             path_to_file = os.path.join(path_to_file.rpartition("/")[0], file_name.replace("/", "") + ".csv")
-            self._print_lines.append("\nCSV file has been saved at: {}".format(path_to_file))
+            self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
         df.to_csv(path_to_file, sep=';', index=False)
 
     def get_kraus_operator(self, print_to_console=True):
