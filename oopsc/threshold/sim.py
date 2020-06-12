@@ -131,17 +131,17 @@ def sim_thresholds(
                     data = data.set_index(["L", "p"])
                 else:
                     columns = list(output.keys())
-                    index = pd.MultiIndex.from_product([lattices, int_P], names=["L", "p"])
+                    index = pd.MultiIndex.from_product([lattices, perror], names=["L", "p"])
                     data = pd.DataFrame(
                         np.zeros((len(lattices) * len(perror), len(columns))), index=index, columns=columns
                     )
 
-            if data.index.isin([(lati, int_p)]).any():
+            if data.index.isin([(lati, perror[i])]).any():
                 for key, value in output.items():
-                    data.loc[(lati, int_p), key] += value
+                    data.loc[(lati, perror[i]), key] += value
             else:
                 for key, value in output.items():
-                    data.loc[(lati, int_p), key] = value
+                    data.loc[(lati, perror[i]), key] = value
 
             data = data.sort_index()
             if save_result:
