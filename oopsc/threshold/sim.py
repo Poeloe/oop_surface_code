@@ -136,7 +136,7 @@ def sim_thresholds(
                         np.zeros((len(lattices) * len(perror), len(columns))), index=index, columns=columns
                     )
 
-            if data.index.isin([(lati, perror[i])]).any():
+            if (lati, perror[i]) in data.index:
                 for key, value in output.items():
                     data.loc[(lati, perror[i]), key] += value
             else:
