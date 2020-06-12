@@ -109,6 +109,7 @@ def compose_parser():
     parser.add_argument('-p',
                         '--protocol',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
+                        nargs="*",
                         default='monolithic')
     parser.add_argument('-s',
                         '--stabilizer_type',
@@ -162,18 +163,28 @@ def compose_parser():
                         help="Use when the program should run in multi-threaded mode. Optional",
                         required=False,
                         action="store_true")
+    parser.add_argument("-pr",
+                        "--print_run_order",
+                        help="When added, the program will only print out the run order for the typed command. This can"
+                             "be useful for debugging or filenaming purposes",
+                        required=False,
+                        action="store_true")
 
     return parser
 
 
-def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn):
+def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode):
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
 
+    protocol = protocol.lower()
     print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer.\n"
           .format(protocol, pg, pm, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
                   "plaquette" if stab_type == "Z" else "star"))
+
+    if print_mode:
+        return []
 
     if protocol == "monolithic":
         return monolithic(gate_name_to_array(stab_type), pg, pm, color, ltsv, sv, fn)
@@ -190,7 +201,7 @@ if __name__ == "__main__":
     parser = compose_parser()
 
     args = vars(parser.parse_args())
-    protocol = args.pop('protocol').lower()
+    protocols = args.pop('protocol')
     stab_type = args.pop('stabilizer_type').upper()
     color = args.pop('color')
     meas_errors = args.pop('measurement_error_probability')
@@ -201,6 +212,7 @@ if __name__ == "__main__":
     sv = args.pop('save_csv')
     filenames = args.pop('csv_filename')
     threaded = args.pop('threaded')
+    print_mode = args.pop('print_run_order')
 
     if threaded:
         workers = len(gate_errors) if len(gate_errors) < 11 else 10
@@ -210,17 +222,20 @@ if __name__ == "__main__":
     filename_count = 0
 
     start = time.time()
-    for pg in gate_errors:
-        if meas_eq_gate:
-            meas_errors = [pg]
-        for pm in meas_errors:
-            for pn in network_errors:
-                fn = None if (filenames is None or len(filenames) <= filename_count) else filenames[filename_count]
-                if threaded:
-                    results.append(thread_pool.apply_async(main, (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn)))
-                else:
-                    print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn))
-                filename_count += 1
+    for protocol in protocols:
+        for pg in gate_errors:
+            if meas_eq_gate:
+                meas_errors = [pg]
+            for pm in meas_errors:
+                for pn in network_errors:
+                    fn = None if (filenames is None or len(filenames) <= filename_count) else filenames[filename_count]
+                    if threaded:
+                        results.append(thread_pool.
+                                       apply_async(main,
+                                                   (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode)))
+                    else:
+                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode))
+                    filename_count += 1
 
     if threaded:
         [print(*res.get()) for res in results]

@@ -259,19 +259,23 @@ different values of network, gate and measurement noise.
 To run the specific protocols, one can run the script from the root folder of the repository with the following
 commandline arguments:
 
- * `-p`: specify the protocol, options: `monolithic`/`expedient`/`stringent`, default: `monolithic`
+ * `-p`: specify the protocol(s), options: `monolithic`/`expedient`/`stringent`, default: `monolithic`
  * `-s`: specify stabilizer type, options: `Z`/`X`, default: `Z`
- * `-pg`: specify the gate error probability [float 0-1], default=`0.006`
- * `-pm`: specify the measurement error probability [float 0-1], default=`0.006`
- * `-pn`: specify the network error probability [float 0-1], default=`0.1`
- * `-sv`: use if a csv file of the superoperator should be saved, optional
- * `-fn`: specify the file name of the superoperator, optional
+ * `-pg`: specify the gate error probability/probabilities, [float 0-1], default=`0.006`
+ * `-pm`: specify the measurement error probability/probabilities, [float 0-1], default=`0.006`
+ * `-pn`: specify the network error probability/probabilities, [float 0-1], default=`0.1`
+ * `--pm_equals_pg`: add this flag if it holds that `pm=pg`
+ * `-tr`: add this flag if the runs should be run in parallel
+ * `-sv`: use if csv file(s) of the superoperator(s) should be saved, optional
+ * `-fn`: specify the filename/filenames of the superoperator, optional
  * `-c`: use if the output to the console should contain color for clearness, optional
  * `-ltsv`: use if a pdf file of the noisy circuit drawn in LaTeX should be save to the 'circuit_pdfs' folder.
+ * `-pr`: add if only the order of the runs should be printed. This can be useful for debugging or filenaming purposes
 
-So the command should look something like
+So the command looks something like
 ```
-python circuit_simulation/stabilizer_measurement_protocols.py -p expedient -s Z -pg 0.0075 -pm 0.0075 -pn 0.11
+python circuit_simulation/stabilizer_measurement_protocols.py -p monolithic expedient -s Z -pg 0.00 65 0.007 0.0075 -pm 0.0075 -pn 0.11
 ```
 
-If no commandline arguments are given the script will run the monolithic architecture with a plaquette type stabilizer.
+Note: When saving the superoperator csv files with manual naming (`-fn`), one can first add `-pr` to the command to only
+get the order of the runs. From this, the naming order for the `-fn` flag can be deduced.
