@@ -5,6 +5,7 @@ sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
 from circuit_simulation.basic_operations import gate_name_to_array
 from multiprocessing import Pool
+import time
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
@@ -156,6 +157,11 @@ def compose_parser():
                         required=False,
                         nargs="*",
                         help='Give the file name of the csv file that will be saved.')
+    parser.add_argument("-tr",
+                        "--threaded",
+                        help="Use when the program should run in multi-threaded mode. Optional",
+                        required=False,
+                        action="store_true")
 
     return parser
 
@@ -189,28 +195,37 @@ if __name__ == "__main__":
     color = args.pop('color')
     meas_errors = args.pop('measurement_error_probability')
     meas_eq_gate = args.pop('pm_equals_pg')
-    network_erros = args.pop('network_error_probability')
+    network_errors = args.pop('network_error_probability')
     gate_errors = args.pop('gate_error_probability')
     ltsv = args.pop('save_latex_pdf')
     sv = args.pop('save_csv')
     filenames = args.pop('csv_filename')
+    threaded = args.pop('threaded')
 
-    workers = len(gate_errors) if len(gate_errors) < 11 else 10
+    if threaded:
+        workers = len(gate_errors) if len(gate_errors) < 11 else 10
+        thread_pool = Pool(workers)
+        results = []
 
-    thread_pool = Pool(workers)
-    results = []
-    file_name_count = 0
+    filename_count = 0
 
+    start = time.time()
     for pg in gate_errors:
         if meas_eq_gate:
             meas_errors = [pg]
         for pm in meas_errors:
-            for pn in network_erros:
-                fn = filenames[file_name_count] if len(filenames) > file_name_count else None
-                results.append(thread_pool.apply_async(main, (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn)))
-                file_name_count += 1
+            for pn in network_errors:
+                fn = None if (filenames is None or len(filenames) <= filename_count) else filenames[filename_count]
+                if threaded:
+                    results.append(thread_pool.apply_async(main, (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn)))
+                else:
+                    print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn))
+                filename_count += 1
 
-    [print(*res.get()) for res in results]
+    if threaded:
+        [print(*res.get()) for res in results]
+        thread_pool.close()
 
-    thread_pool.close()
+
+
 
