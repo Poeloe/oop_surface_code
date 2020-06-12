@@ -175,11 +175,6 @@ class toric(object):
         The measurement outcomes of the stabilizers, which are the vertices on the self are saved to their corresponding vertex objects.
         """
         stabs = self.S[0].values()
-        measurement_errors = None
-        if "stabs" in kwargs.keys():
-            stabs = kwargs["stabs"]
-        if "measurement_errors" in kwargs.keys():
-            measurement_errors = kwargs["measurement_errors"]
 
         for i, stab in enumerate(stabs):
             for dir in self.dirs:
@@ -188,11 +183,6 @@ class toric(object):
                     if edge.state:
                         stab.parity = 1 - stab.parity
                     stab.state = stab.parity
-
-            # Apply measurement error in case of superoperator
-            if measurement_errors is not None and measurement_errors[i] == -1:
-                stab.parity = 1 - stab.parity
-                stab.mstate = 1
 
         if self.gl_plot: self.gl_plot.plot_syndrome()
 
@@ -226,28 +216,28 @@ class toric(object):
         measurement_errors_p1 = self.superoperator_error(self.superoperator.sup_op_elements_p,
                                                          self.superoperator.stabs_p1[z],
                                                          z)
+
+        measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
+                                                         self.superoperator.stabs_s1[z])
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
-                          measurement_errors=measurement_errors_p1,
                           z=z,
+                          measurement_errors=measurement_errors_p1,
+                          GHZ_success=self.superoperator.GHZ_success)
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s1,
                           GHZ_success=self.superoperator.GHZ_success)
 
+        # The apply error and measure star stabilizers in two rounds
         measurement_errors_p2 = self.superoperator_error(self.superoperator.sup_op_elements_p,
                                                          self.superoperator.stabs_p2[z])
+
+        measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
+                                                         self.superoperator.stabs_s2[z])
         self.measure_stab(stabs=self.superoperator.stabs_p2[z],
                           measurement_errors=measurement_errors_p2,
                           z=z,
                           GHZ_success=self.superoperator.GHZ_success)
-
-        # The apply error and measure star stabilizers in two rounds
-        measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.stabs_s1[z])
-        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
-                          measurement_errors=measurement_errors_s1,
-                          z=z,
-                          GHZ_success=self.superoperator.GHZ_success)
-
-        measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.stabs_s2[z])
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           measurement_errors=measurement_errors_s2,
                           z=z,

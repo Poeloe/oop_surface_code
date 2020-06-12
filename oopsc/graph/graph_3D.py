@@ -150,10 +150,8 @@ class toric(go.toric):
             GHZ_success = 1.1
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
             self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
-        for z in self.range[:-1]:
+        for z in self.range:
             self.init_superoperator_error_per_timestep(z)
-
-        self.init_superoperator_error_per_timestep(z=self.decode_layer)
 
         if self.gl_plot:
             for z in self.range:
@@ -230,7 +228,7 @@ class toric(go.toric):
         for i, stab in enumerate(stabs):
 
             # If GHZ state is malformed measurement result will be the result of previous layer and rest will be skipped
-            if (random.random() > GHZ_success):
+            if random.random() > GHZ_success:
                 stab.parity = 0 if z == 0 else self.S[z-1][stab.sID[:3]].parity
                 continue
 
@@ -245,7 +243,7 @@ class toric(go.toric):
             # Apply measurement error unless the layer is equal to the decode layer
             pM = pmX if stab.sID[0] == 0 else pmZ
             if (z != self.decode_layer) and ((pM != 0 and random.random() < pM) or
-                                             (measurement_errors is not None and measurement_errors[i] == -1)):
+                                             (measurement_errors is not None and measurement_errors[i])):
                 stab.parity = 1 - stab.parity
                 stab.mstate = 1
 

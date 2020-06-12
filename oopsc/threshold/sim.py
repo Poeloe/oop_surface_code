@@ -29,7 +29,7 @@ def get_data(data, latts, probs, P_store=1):
     fitL = data.index.get_level_values("L")
     fitp = data.index.get_level_values("p")
     fitN = data.loc[:, "N"].values
-    fitt = data.loc[:, "succes"].values
+    fitt = data.loc[:, "success"].values
 
     fitdata = [[] for i in range(4)]
     for L, P, N, t in zip(fitL, fitp, fitN, fitt):

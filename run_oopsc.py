@@ -40,7 +40,7 @@ if __name__ == "__main__":
         ["-px", "--paulix", "store", "Pauli X error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-pz", "--pauliz", "store", "Pauli Y error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-so", "--superoperator", "store", "Use superoperator as error input - {file directory}",
-         dict(type=str, default="None", metavar="")],
+         dict(type=str, default=None, metavar="")],
         ["-pmx", "--measurex", "store", "Measurement X error rate - float {0,1}",
          dict(type=float, default=0, metavar="")],
         ["-pmz", "--measurez", "store", "Measurement Y error rate - float {0,1}",
