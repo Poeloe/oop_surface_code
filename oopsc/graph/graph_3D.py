@@ -151,7 +151,7 @@ class toric(go.toric):
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
             self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
         for z in self.range:
-            self.init_superoperator_error_per_timestep(z)
+            self.apply_superoperator_rounds_naomi_order(z)
 
         if self.gl_plot:
             for z in self.range:
@@ -241,11 +241,11 @@ class toric(go.toric):
                         stab.parity = 1 - stab.parity
 
             # Apply measurement error unless the layer is equal to the decode layer
-            pM = pmX if stab.sID[0] == 0 else pmZ
-            if (z != self.decode_layer) and ((pM != 0 and random.random() < pM) or
-                                             (measurement_errors is not None and measurement_errors[i])):
-                stab.parity = 1 - stab.parity
-                stab.mstate = 1
+            if z != self.decode_layer:
+                pM = pmX if stab.sID[0] == 0 else pmZ
+                if (pM != 0 and random.random() < pM) or (measurement_errors is not None and measurement_errors[i]):
+                    stab.parity = 1 - stab.parity
+                    stab.mstate = 1
 
             # Save vertex as anyon if parity different than previous layer
             stabd_state = 0 if z == 0 else self.S[z-1][stab.sID[:3]].parity

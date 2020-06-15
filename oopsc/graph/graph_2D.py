@@ -134,7 +134,7 @@ class toric(object):
         if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
             self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
 
-        self.init_superoperator_error_per_timestep()
+        self.apply_superoperator_rounds_original_order()
 
     def init_erasure(self, pE=0, **kwargs):
         """
@@ -208,56 +208,108 @@ class toric(object):
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
 
-    def init_superoperator_error_per_timestep(self, z=0):
+    def apply_superoperator_rounds_original_order(self, z=0):
         if z != 0:
             self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # First apply error and measure plaquette stabilizers in two rounds
-        measurement_errors_p1 = self.superoperator_error(self.superoperator.sup_op_elements_p,
-                                                         self.superoperator.stabs_p1[z],
-                                                         z)
-
-        measurement_errors_s1 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.stabs_s1[z])
+        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
+                                                            self.superoperator.sup_op_elements_p,
+                                                            z)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
                           measurement_errors=measurement_errors_p1,
                           GHZ_success=self.superoperator.GHZ_success)
+
+        measurement_errors_p2, _ = self.superoperator_error(self.superoperator.stabs_p2[z],
+                                                            self.superoperator.sup_op_elements_p)
+        self.measure_stab(stabs=self.superoperator.stabs_p2[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # The apply error and measure star stabilizers in two rounds
+        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
+                                                            self.superoperator.sup_op_elements_s)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
                           measurement_errors=measurement_errors_s1,
                           GHZ_success=self.superoperator.GHZ_success)
 
-        # The apply error and measure star stabilizers in two rounds
-        measurement_errors_p2 = self.superoperator_error(self.superoperator.sup_op_elements_p,
-                                                         self.superoperator.stabs_p2[z])
-
-        measurement_errors_s2 = self.superoperator_error(self.superoperator.sup_op_elements_s,
-                                                         self.superoperator.stabs_s2[z])
-        self.measure_stab(stabs=self.superoperator.stabs_p2[z],
-                          measurement_errors=measurement_errors_p2,
+        measurement_errors_s2, _ = self.superoperator_error(self.superoperator.stabs_s2[z],
+                                                            self.superoperator.sup_op_elements_s)
+        self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           z=z,
+                          measurement_errors=measurement_errors_s2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+    def apply_superoperator_rounds_naomi_order(self, z=0):
+        if z != 0:
+            self.superoperator.set_stabilizer_rounds(self, z=z)
+
+        # First apply error to first round of plaquette stabilizers
+        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
+                                                            self.superoperator.sup_op_elements_p, z)
+
+        # Get the measurement errors and qubit errors from the second round, but do not yet apply the error
+        measurement_errors_p2, qubit_errors_p2 = self.superoperator_error(self.superoperator.stabs_p2[z],
+                                                                          self.superoperator.sup_op_elements_p2,
+                                                                          apply_error=False)
+
+        # Measure all plaquette stabilizers and apply the corresponding measurement errors
+        self.measure_stab(stabs=self.superoperator.stabs_p1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p1,
+                          GHZ_success=self.superoperator.GHZ_success)
+        self.measure_stab(stabs=self.superoperator.stabs_p2[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # Now apply error on the second round of plaquette stabilizers
+        self.superoperator_error(self.superoperator.stabs_p2[z], qubit_errors=qubit_errors_p2)
+
+        # ----------------------------------------------------------------------------------
+        # -------------- Same as above only now for the star stabilizers -------------------
+        # ----------------------------------------------------------------------------------
+        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
+                                                            self.superoperator.sup_op_elements_s)
+
+        measurement_errors_s2, qubit_errors_s2 = self.superoperator_error(self.superoperator.stabs_s2[z],
+                                                                          self.superoperator.sup_op_elements_s2,
+                                                                          apply_error=False)
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s1,
                           GHZ_success=self.superoperator.GHZ_success)
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
-                          measurement_errors=measurement_errors_s2,
                           z=z,
+                          measurement_errors=measurement_errors_s2,
                           GHZ_success=self.superoperator.GHZ_success)
 
-    def superoperator_error(self, superoperator_elements, stabs, z=0):
+        self.superoperator_error(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2)
+
+    def superoperator_error(self, stabs, superoperator_elements=None, z=0, qubit_errors=None, apply_error=True):
         measurement_errors = []
+        if qubit_errors is None:
+            qubit_errors = []
 
-        for stab in stabs:
-            # np.random.choice can be used as well, only this takes a lot of time compared to the self written
-            # '_get_value_by_prob' method, which has complexity O(n)
-            random_super_op_element = so.Superoperator.get_supop_el_by_prob(superoperator_elements)
+        for stab_index, stab in enumerate(stabs):
+            if superoperator_elements is not None:
+                random_super_op_element = so.Superoperator.get_supop_el_by_prob(superoperator_elements)
+                qubit_errors.append(random_super_op_element.error_array)
+                measurement_errors.append(random_super_op_element.lie)
 
-            measurement_errors.append(random_super_op_element.lie)
-            random_error_array = random_super_op_element.error_array
+            if not apply_error:
+                continue
+            random_error_array = qubit_errors[stab_index]
 
-            # Apply 'Twirling' by shuffling the error array for the 4 qubits if not all values are the same
+            # Skip error apply loop if error-array equals the noiseless case for z==0 case. If z!=0, the error apply
+            # loop will update the qubits with the errors of previous rounds.
             if random_error_array == ["I", "I", "I", "I"] and z == 0:
                 continue
 
+            # Apply 'Twirling' by shuffling the error array for the 4 qubits
             np.random.shuffle(random_error_array)
 
             for i, dir in enumerate(self.dirs):
@@ -286,7 +338,7 @@ class toric(object):
 
         if self.gl_plot: self.gl_plot.plot_errors()
 
-        return measurement_errors
+        return measurement_errors, qubit_errors
 
     '''
     ########################################################################################
