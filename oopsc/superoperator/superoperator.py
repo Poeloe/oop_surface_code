@@ -59,12 +59,16 @@ class Superoperator:
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
         self.sup_op_elements_s = []
+        self.sup_op_elements_p2 = []
+        self.sup_op_elements_s2 = []
 
         # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
         self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
         self._get_stabilizer_rounds(graph)
         self._convert_error_list()
+        self._convert_second_round_elements()
+
 
     def __repr__(self):
         return "Superoperator ({})".format(self.file_name)
@@ -110,7 +114,7 @@ class Superoperator:
                 p_prob = float(str(reader.p_prob[i]).replace(',', '.').replace(" ", ""))
                 s_prob = float(str(reader.s_prob[i]).replace(',', '.').replace(" ", ""))
                 p_error = [ch for ch in reader.p_error[i].replace(" ", "")]
-                s_error = [ch for ch in reader.p_error[i].replace(" ", "")]
+                s_error = [ch for ch in reader.s_error[i].replace(" ", "")]
 
                 self.sup_op_elements_p.append(SuperoperatorElement(p_prob, bool(int(reader.p_lie[i])), p_error))
                 self.sup_op_elements_s.append(SuperoperatorElement(s_prob, bool(int(reader.s_lie[i])), s_error))
@@ -125,7 +129,17 @@ class Superoperator:
 
         # Sort the entries such that the most likely entries will be listed first
         self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
-        self.sup_op_elements_p = sorted(self.sup_op_elements_s, reverse=True)
+        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
+
+    def _convert_second_round_elements(self):
+        self.sup_op_elements_p2 = self.sup_op_elements_p.copy()
+        self.sup_op_elements_s2 = self.sup_op_elements_s.copy()
+
+        for sup_op_el_p2, sup_op_el_s2 in zip(self.sup_op_elements_p2, self.sup_op_elements_s2):
+            if sup_op_el_p2.error_array.count("I") + sup_op_el_p2.error_array.count("Z") % 2 == 1:
+                sup_op_el_p2.lie = not sup_op_el_p2.lie
+            if sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X") % 2 == 1:
+                sup_op_el_s2.lie = not sup_op_el_s2.lie
 
     def _get_stabilizer_rounds(self, graph, z=0):
         """
