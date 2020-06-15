@@ -74,7 +74,6 @@ def single(
     paulix=0,
     pauliz=0,
     superoperator=None,
-    GHZ_success=1.1,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -108,7 +107,7 @@ def single(
     if superoperator is None:
         graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
     else:
-        graph.apply_and_measure_superoperator_error(superoperator, GHZ_success)
+        graph.apply_and_measure_superoperator_error(superoperator)
 
     # Peeling decoder
     graph.decoder.decode()

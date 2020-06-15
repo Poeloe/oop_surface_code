@@ -130,9 +130,8 @@ class toric(object):
         self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
         self.measure_stab()                       # Measure stabiliziers
 
-    def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
-        if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
-            self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
+    def apply_and_measure_superoperator_error(self, superoperator):
+        self.superoperator = superoperator
 
         self.apply_superoperator_rounds_original_order()
 
@@ -209,8 +208,7 @@ class toric(object):
         return logical_error, errorless
 
     def apply_superoperator_rounds_original_order(self, z=0):
-        if z != 0:
-            self.superoperator.set_stabilizer_rounds(self, z=z)
+        self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # First apply error and measure plaquette stabilizers in two rounds
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
@@ -244,8 +242,7 @@ class toric(object):
                           GHZ_success=self.superoperator.GHZ_success)
 
     def apply_superoperator_rounds_naomi_order(self, z=0):
-        if z != 0:
-            self.superoperator.set_stabilizer_rounds(self, z=z)
+        self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # First apply error to first round of plaquette stabilizers
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],

@@ -6,7 +6,7 @@ import random
 
 class Superoperator:
 
-    def __init__(self, file_name, graph, GHZ_success=1.1):
+    def __init__(self, file_name, GHZ_success=1.1):
         """
             Superoperator(file_name, graph, GHZ_success=1.1)
 
@@ -56,6 +56,10 @@ class Superoperator:
         self.file_name = file_name
         self.GHZ_success = GHZ_success
 
+        self.pg = 0
+        self.pm = 0
+        self.pn = 0
+
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
         self.sup_op_elements_s = []
@@ -65,7 +69,7 @@ class Superoperator:
         # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
         self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
-        self._get_stabilizer_rounds(graph)
+        # self._get_stabilizer_rounds(graph)
         self._convert_error_list()
         self._convert_second_round_elements()
 
@@ -96,9 +100,9 @@ class Superoperator:
 
             CSV file format example
             -----------------------
-            p_prob;     p_lie;  p_error;    s_prob;    s_lie;   s_error;    GHZ_success
-            0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99
-            0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;
+            p_prob;     p_lie;  p_error;    s_prob;    s_lie;   s_error;    GHZ_success;    pm;     pg;    pn;
+            0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99       ;  0.01;   0.01;  0.01;
+            0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;               ;      ;       ;      ;
         """
         path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
 
@@ -106,8 +110,14 @@ class Superoperator:
             reader = pd.read_csv(file, sep=";")
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
-            if reader.__contains__('GHZ_success') and self.GHZ_success == 1.1:
-                self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.'))
+            if 'GHZ_success' in reader and self.GHZ_success == 1.1:
+                self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.').replace(" ", ""))
+            if "pm" in reader:
+                self.pg = float(str(reader.pm[0]).replace(",", ".").replace(" ", ""))
+            if "pg" in reader:
+                self.pm = float(str(reader.pg[0]).replace(",", ".").replace(" ", ""))
+            if "pn" in reader:
+                self.pn = float(str(reader.pn[0]).replace(",", ".").replace(" ", ""))
 
             for i in range(len(list(reader.p_prob))):
                 # Do some parsing operations on the entries to ensure proper form

@@ -8,6 +8,7 @@ _____________________________________________
 import argparse
 from pprint import pprint
 from oopsc.oopsc import single, multiple, multiprocess
+from oopsc.superoperator import superoperator as so
 
 
 def add_args(parser, args):
@@ -41,6 +42,9 @@ if __name__ == "__main__":
         ["-pz", "--pauliz", "store", "Pauli Y error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-so", "--superoperator", "store", "Use superoperator as error input - {file directory}",
          dict(type=str, default=None, metavar="")],
+        ["-GHZ", "--GHZ_success", "store", "specify the percentage of GHZ states that are successfully created "
+                                           "(works only with superoperator) - float [0-1]",
+         dict(type=float, metavar="")],
         ["-pmx", "--measurex", "store", "Measurement X error rate - float {0,1}",
          dict(type=float, default=0, metavar="")],
         ["-pmz", "--measurez", "store", "Measurement Y error rate - float {0,1}",
@@ -95,10 +99,16 @@ if __name__ == "__main__":
     debug = config.pop("debug")
     f2d = config.pop("force2D")
     f3d = config.pop("force3D")
+    superoperator = config.pop("superoperator")
+    GHZ_success = config.pop("GHZ_success")
+
+    if superoperator:
+        GHZ_success = 1.1 if not GHZ_success else GHZ_success
+        superoperator = so.Superoperator(superoperator, GHZ_success)
 
     kwargs = dict(
         ltype=config.pop("lattice_type"),
-        superoperator=config.pop("superoperator"),
+        superoperator=superoperator,
         paulix=config.pop("paulix"),
         pauliz=config.pop("pauliz"),
         erasure=config.pop("erasure"),

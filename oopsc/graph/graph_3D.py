@@ -145,11 +145,8 @@ class toric(go.toric):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
-    def apply_and_measure_superoperator_error(self, superoperator_filename, GHZ_success):
-        if GHZ_success is None:
-            GHZ_success = 1.1
-        if self.superoperator is None or self.superoperator.file_name != superoperator_filename:
-            self.superoperator = so.Superoperator(superoperator_filename, self, GHZ_success)
+    def apply_and_measure_superoperator_error(self, superoperator):
+        self.superoperator = superoperator
         for z in self.range:
             self.apply_superoperator_rounds_naomi_order(z)
 

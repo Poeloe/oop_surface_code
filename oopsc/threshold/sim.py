@@ -6,6 +6,7 @@ _____________________________________________
 
 '''
 from .. import oopsc
+from oopsc.superoperator import superoperator as so
 from pprint import pprint
 import multiprocessing as mp
 import numpy as np
@@ -48,7 +49,7 @@ def sim_thresholds(
         lattice_type="toric",
         lattices = [],
         perror = [],
-        superoperator=[],
+        superoperator_filenames=[],
         iters = 0,
         measurement_error=False,
         multithreading=False,
@@ -84,8 +85,18 @@ def sim_thresholds(
     progressbar = kwargs.pop("progressbar")
 
     data = None
-    int_P = [int(p*P_store) for p in perror]
     config = oopsc.default_config(**kwargs)
+
+    superoperators = []
+    if superoperator_filenames:
+        for i, superoperator_filename in enumerate(superoperator_filenames):
+            GHZ_success = 1.1
+            if kwargs["GHZ_success"] is not None:
+                GHZ_success = kwargs["GHZ_success"][i]
+            superoperator = so.Superoperator(superoperator_filename, GHZ_success)
+            superoperators.append(superoperator)
+            if i >= len(perror):
+                perror.append(superoperator.pg)
 
     # Simulate and save results to file
     for lati in lattices:
@@ -97,22 +108,17 @@ def sim_thresholds(
         else:
             graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati)
 
-        for i, (pi, int_p) in enumerate(zip(perror, int_P)):
+        for i, pi in enumerate(perror):
 
             print("Calculating for L = ", str(lati), "and p =", str(pi))
 
-            superop = None
-            GHZ_success = None
-            if superoperator:
+            superoperator = None
+            if superoperators:
+                superoperator = superoperators[i]
                 pi = 0
-                superop = superoperator[i]
-                if kwargs["GHZ_success"] is not None:
-                    GHZ_success = kwargs["GHZ_success"][i]
-
             oopsc_args = dict(
                 paulix=pi,
-                superoperator=superop,
-                GHZ_success=GHZ_success,
+                superoperator=superoperator,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,

@@ -24,8 +24,8 @@ arguments = [
 
 key_arguments = [
     ["-l", "--lattices", "store", "lattice sizes - verbose list int", dict(type=int, nargs='*', metavar="", required=True)],
-    ["-p", "--perror", "store", "error rates - verbose list float", dict(type=float, nargs='*', metavar="", required=True)],
-    ["-so", "--superoperator", "store", "Use superoperator as error input - list of superoperator filenames",
+    ["-p", "--perror", "store", "error rates - verbose list float", dict(type=float, nargs='*', metavar="", default=[])],
+    ["-so", "--superoperator_filenames", "store", "Use superoperator as error input - list of superoperator filenames",
          dict(type=str, nargs='*', metavar="")],
     ["-me", "--measurement_error", "store_true", "enable measurement error (2+1D) - toggle", dict()],
     ["-mt", "--multithreading", "store_true", "use multithreading - toggle", dict()],
