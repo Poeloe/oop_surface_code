@@ -133,7 +133,7 @@ class toric(object):
     def apply_and_measure_superoperator_error(self, superoperator):
         self.superoperator = superoperator
 
-        self.apply_superoperator_rounds_original_order()
+        self.apply_superoperator_rounds_naomi_order()
 
     def init_erasure(self, pE=0, **kwargs):
         """
@@ -246,7 +246,8 @@ class toric(object):
 
         # First apply error to first round of plaquette stabilizers
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p, z)
+                                                            self.superoperator.sup_op_elements_p,
+                                                            z)
 
         # Get the measurement errors and qubit errors from the second round, but do not yet apply the error
         measurement_errors_p2, qubit_errors_p2 = self.superoperator_error(self.superoperator.stabs_p2[z],

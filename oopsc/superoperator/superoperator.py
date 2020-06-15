@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import random
+import copy
 
 
 class Superoperator:
@@ -96,11 +97,16 @@ class Superoperator:
             GHZ_success : float, optional
                 Percentage of stabilizers that were able to be created successfully. If not specified, the success
                 rate will be set to 1.1
-
+            pm : float, optional
+                Measurement error rate
+            pg : float, optional
+                Gate error rate
+            pn : float, optional
+                Network error rate
 
             CSV file format example
             -----------------------
-            p_prob;     p_lie;  p_error;    s_prob;    s_lie;   s_error;    GHZ_success;    pm;     pg;    pn;
+            p_prob;     p_lie;  p_error;    s_prob;    s_lie;   s_error;    GHZ_success;    pg;     pm;    pn;
             0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99       ;  0.01;   0.01;  0.01;
             0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;               ;      ;       ;      ;
         """
@@ -142,13 +148,13 @@ class Superoperator:
         self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
 
     def _convert_second_round_elements(self):
-        self.sup_op_elements_p2 = self.sup_op_elements_p.copy()
-        self.sup_op_elements_s2 = self.sup_op_elements_s.copy()
+        self.sup_op_elements_p2 = copy.deepcopy(self.sup_op_elements_p)
+        self.sup_op_elements_s2 = copy.deepcopy(self.sup_op_elements_s)
 
         for sup_op_el_p2, sup_op_el_s2 in zip(self.sup_op_elements_p2, self.sup_op_elements_s2):
-            if sup_op_el_p2.error_array.count("I") + sup_op_el_p2.error_array.count("Z") % 2 == 1:
+            if (sup_op_el_p2.error_array.count("I") + sup_op_el_p2.error_array.count("Z")) % 2 == 1:
                 sup_op_el_p2.lie = not sup_op_el_p2.lie
-            if sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X") % 2 == 1:
+            if (sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
 
     def _get_stabilizer_rounds(self, graph, z=0):
