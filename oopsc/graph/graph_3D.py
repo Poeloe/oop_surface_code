@@ -146,6 +146,16 @@ class toric(go.toric):
                 self.gl_plot.draw_plot()
 
     def apply_and_measure_superoperator_error(self, superoperator):
+        """
+            Method appoints the superoperator object to the superoperator attribute of the graph object. With this
+            superoperator it invokes another method to apply qubit error and measurement errors for every 'z' layer.
+
+            Parameters
+            ----------
+            superoperator : Superoperator object
+                A Superoperator object that will be used to apply qubit and measurement error to the system.
+
+        """
         self.superoperator = superoperator
         for z in self.range:
             self.apply_superoperator_rounds_naomi_order(z)
@@ -211,16 +221,30 @@ class toric(go.toric):
                 qubitu.E[1].state = 1 - qubitu.E[1].state
 
 
-    def measure_stab(self, pmX=0, pmZ=0, z=0, GHZ_success=1, **kwargs):
+    def measure_stab(self, pmX=0, pmZ=0, z=0, GHZ_success=1, stabs=None, measurement_errors=None, **kwargs):
         """
-        The measurement outcomes of the stabilizers, which are the vertices on the self are saved to their corresponding vertex objects.
+            Method measures the stabilizers and registers the outcome to the stabilizer object itself. After, it checks
+            if the stabilizer should be saved as an anyon by comparing its parity value to the parity value in the
+            previous layer
+
+            Parameters
+            ----------
+            pmX : float
+                Float value to indicate the rate of X errors, used as measurement error rate for star stabilizers.
+            pmZ : float
+                Float value to indicate the rate of Z errors, used as measurement error rate for plaquette stabilizers.
+            z : int
+                Indicates the layer of which the stabilizers should be calculated.
+            GHZ_success : float, optional, default=1
+                Indicates the amount of GHZ stabilizers that have been completed.
+            stabs : list, optional, default=None
+                List containing the (subset of) stabilizers that should be measured.
+            measurement_errors : list, optional, default=None
+                List containing boolean values that indicate whether or not a measurement error has occurred. The
+                indices of the list should correspond with the indices of the stabilizers.
         """
-        stabs = self.S[z].values()
-        measurement_errors = None
-        if "stabs" in kwargs.keys():
-            stabs = kwargs["stabs"]
-        if "measurement_errors" in kwargs.keys():
-            measurement_errors = kwargs["measurement_errors"]
+        if stabs is None:
+            stabs = self.S[z].values()
 
         for i, stab in enumerate(stabs):
 

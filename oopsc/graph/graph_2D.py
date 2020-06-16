@@ -174,6 +174,8 @@ class toric(object):
         The measurement outcomes of the stabilizers, which are the vertices on the self are saved to their corresponding vertex objects.
         """
         stabs = self.S[0].values()
+        if "stabs" in kwargs.keys():
+            stabs = kwargs["stabs"]
 
         for i, stab in enumerate(stabs):
             for dir in self.dirs:
@@ -242,6 +244,17 @@ class toric(object):
                           GHZ_success=self.superoperator.GHZ_success)
 
     def apply_superoperator_rounds_naomi_order(self, z=0):
+        """
+            Method applies qubit and measurement errors to the qubits for the specified layer (z).
+            It is done in rounds per stabilizer to simulate the situation where GHZ states are used to create a
+            networked version of the surface code, as described in Naomi Nickerson's PhD Thesis. These rounds are used,
+            since each qubit can only allow for one entanglement link at the same time.
+
+            Parameters
+            ----------
+            z : int, optional, default=0
+                Integer that indicates the layer on which the error should be applied
+        """
         self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # First apply error to first round of plaquette stabilizers
@@ -288,6 +301,40 @@ class toric(object):
         self.superoperator_error(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2)
 
     def superoperator_error(self, stabs, superoperator_elements=None, z=0, qubit_errors=None, apply_error=True):
+        """
+            Based on the probability of the superoperator elements, this method applies error to the qubits of the
+            specified stabilizers and saves the according measurement error value (True or False) to a list. The
+            measurement error list together with the applied errors on the qubits sre return after.
+
+            Parameters
+            ----------
+            stabs : list
+                List of stabilizers on which qubits the (probabilistic) error should be applied on.
+            superoperator_elements : list, optional, default=None
+                List containing the superoperator elements corresponding to the stabilizers (stabs parameter) that have
+                been passed.
+            z : int, optional, default=0
+                Integer that specifies the layer that the error is applied on. In this method, if it is passed, it is
+                used to indicate that all qubits in the system should first obtain their error state from the previous
+                layer. So only for the very first stabilizer round each layer, this value should be passed. Otherwise
+                the error applied in the previous rounds will be overwritten.
+            qubit_errors : list, optional, default=None
+                List containing error configurations for the stabilizer qubits. The index corresponds with the index of
+                the stabilizer list.
+            apply_error : bool, optional, default=True
+                Used to only obtain the measurement error list and the qubit error list without actually applying the
+                error on the qubits. This can be used when the measurements are done prior to the application of the
+                error to the qubits.
+
+            Returns
+            -------
+            measurement_errors : list
+                List containing boolean values that indicate if a measurement error has happened. The indices of the
+                list correspond with the indices of the passed 'stabs' parameter.
+            qubit_errors : list
+                List containing the error configuration on the 4 qubits of a stabilizer. The indices of the list
+                correspond with the indices of the passed 'stabs' parameter.
+        """
         measurement_errors = []
         if qubit_errors is None:
             qubit_errors = []

@@ -148,6 +148,12 @@ class Superoperator:
         self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
 
     def _convert_second_round_elements(self):
+        """
+            This method creates the second round superoperator elements from the first round of superoperator elements.
+            As described in Naomi Nickerson's PhD Thesis, this second round superoperator elements are necessary since
+            the application is done after the measurement projection instead of before, which changes the original
+            (first round) superoperator elements accordingly.
+        """
         self.sup_op_elements_p2 = copy.deepcopy(self.sup_op_elements_p)
         self.sup_op_elements_s2 = copy.deepcopy(self.sup_op_elements_s)
 
@@ -157,7 +163,7 @@ class Superoperator:
             if (sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
 
-    def _get_stabilizer_rounds(self, graph, z=0):
+    def set_stabilizer_rounds(self, graph, z):
         """
             Obtain for both type of stabilizers the stabilizers that will be measured each round for every
             measurement layer z. These rounds are necessary when non local stabilizer measurements protocols
@@ -190,9 +196,6 @@ class Superoperator:
                     self.stabs_s2[z].append(stab)
                 else:
                     self.stabs_p2[z].append(stab)
-
-    def set_stabilizer_rounds(self, graph, z):
-        self._get_stabilizer_rounds(graph, z=z)
 
     @staticmethod
     def get_supop_el_by_prob(superoperator_elements):
