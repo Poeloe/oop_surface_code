@@ -257,7 +257,7 @@ class toric(object):
         """
         self.superoperator.set_stabilizer_rounds(self, z=z)
 
-        # First apply error to first round of plaquette stabilizers
+        # First apply error to first round of plaquette stabilizers qubits
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
                                                             self.superoperator.sup_op_elements_p,
                                                             z)
@@ -277,7 +277,7 @@ class toric(object):
                           measurement_errors=measurement_errors_p2,
                           GHZ_success=self.superoperator.GHZ_success)
 
-        # Now apply error on the second round of plaquette stabilizers
+        # Now apply error on the second round of plaquette stabilizers qubits
         self.superoperator_error(self.superoperator.stabs_p2[z], qubit_errors=qubit_errors_p2)
 
         # ----------------------------------------------------------------------------------

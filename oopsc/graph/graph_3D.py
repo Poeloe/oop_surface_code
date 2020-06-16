@@ -157,8 +157,11 @@ class toric(go.toric):
 
         """
         self.superoperator = superoperator
-        for z in self.range:
-            self.apply_superoperator_rounds_naomi_order(z)
+        for z in self.range[:-1]:
+            self.apply_superoperator_rounds_original_order(z)
+
+        self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
+        self.measure_stab(z=self.decode_layer)
 
         if self.gl_plot:
             for z in self.range:
@@ -170,6 +173,13 @@ class toric(go.toric):
             for z in self.range:
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
+
+    def set_qubit_states_to_state_previous_layer(self, z):
+        for qubitu in self.Q[z].values():
+
+            # Get qubit state from previous layer
+            if z != 0:
+                qubitu.E[0].state, qubitu.E[1].state = (self.Q[z-1][qubitu.qID].E[n].state for n in range(2))
 
     def init_erasure(self, pE=0, z=0, **kwargs):
         """
