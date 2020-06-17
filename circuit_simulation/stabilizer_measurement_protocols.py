@@ -179,9 +179,12 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode):
         exit()
 
     protocol = protocol.lower()
-    print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer.\n"
+    fn_text = ""
+    if sv and fn is not None:
+        fn_text = "A CSV file will be saved with the name: {}".format(fn)
+    print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer. {}\n"
           .format(protocol, pg, pm, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
-                  "plaquette" if stab_type == "Z" else "star"))
+                  "plaquette" if stab_type == "Z" else "star", fn_text))
 
     if print_mode:
         return []
