@@ -41,7 +41,8 @@ key_arguments = [
     ["-db", "--debug", "store_true", "enable debugging heuristics - toggle", dict()],
     ["-GHZ", "--GHZ_success", "store", "specify the percentage of GHZ states that are successfully created "
                                        "(works only with superoperator) - float [0-1]",
-     dict(type=float, nargs='*', metavar="")]
+     dict(type=float, nargs='*', metavar="")],
+    ["-c", "--cycles", "store", "Amount of stabilizer cycles (default=l)", dict(type=int, metavar="", default=None)]
 ]
 
 add_args(parser, arguments)

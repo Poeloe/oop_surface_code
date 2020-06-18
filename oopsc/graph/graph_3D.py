@@ -53,16 +53,22 @@ class toric(go.toric):
     Dim dimension is set to 3 and decoder_layer is set to last layer.
     '''
 
-    def __init__(self, size, decoder, plot_config={}, dim=3, *args, **kwargs):
+    def __init__(self, size, decoder, plot_config={}, dim=3, cycles=None, *args, **kwargs):
 
         plot2D = kwargs.pop("plot2D", 0)
         super().__init__(size, decoder, *args, plot2D=0, dim=3, **kwargs)
 
+        self.range = range(size)
         self.dim = 3
-        self.decode_layer = self.size - 1
+        self.decode_layer = self.range[-1]
         self.G = {}
+        if cycles is None:
+            cycles = size
 
-        for z in range(1, self.size):
+        self.cycles = cycles
+        self.decode_layer = cycles - 1
+
+        for z in range(1, cycles):
             self.init_graph_layer(z=z)
             self.G[z] = {}
 
@@ -157,9 +163,10 @@ class toric(go.toric):
 
         """
         self.superoperator = superoperator
-        for z in self.range[:-1]:
-            self.apply_superoperator_rounds_original_order(z)
+        for z in range(self.cycles-1):
+            self.apply_superoperator_rounds_naomi_order(z)
 
+        # For decoder layer get the qubit state of the previous layer and measure perfectly
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
         self.measure_stab(z=self.decode_layer)
 
@@ -176,7 +183,6 @@ class toric(go.toric):
 
     def set_qubit_states_to_state_previous_layer(self, z):
         for qubitu in self.Q[z].values():
-
             # Get qubit state from previous layer
             if z != 0:
                 qubitu.E[0].state, qubitu.E[1].state = (self.Q[z-1][qubitu.qID].E[n].state for n in range(2))

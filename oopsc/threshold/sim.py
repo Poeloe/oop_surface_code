@@ -59,6 +59,7 @@ def sim_thresholds(
         folder = ".",
         P_store=1000,
         debug=False,
+        cycles=None,
         **kwargs
         ):
     '''
@@ -104,9 +105,9 @@ def sim_thresholds(
         if multithreading:
             if threads is None:
                 threads = mp.cpu_count()
-            graph = [oopsc.lattice_type(lattice_type, config, decoder, go, lati) for _ in range(threads)]
+            graph = [oopsc.lattice_type(lattice_type, config, decoder, go, lati, cyles=cycles) for _ in range(threads)]
         else:
-            graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati)
+            graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati, cycles=cycles)
 
         for i, pi in enumerate(perror):
 

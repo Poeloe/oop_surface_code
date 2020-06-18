@@ -350,7 +350,7 @@ class toric(object):
             random_error_array = qubit_errors[stab_index]
 
             # Skip error apply loop if error-array equals the noiseless case for z==0 case. If z!=0, the error apply
-            # loop will update the qubits with the errors of previous rounds.
+            # loop will update the qubits with the errors of previous cycles.
             if random_error_array == ["I", "I", "I", "I"] and z == 0:
                 continue
 
@@ -365,7 +365,7 @@ class toric(object):
                     # In the first round of applying error, the qubits should be updated with the value in the previous
                     # z dimension
                     if z != 0:
-                        edge.qubit.E[0].state, edge.qubit.E[1].state = (self.Q[z-1][edge.qubit.qID].E[n].state
+                        edge.qubit.E[0].state, edge.qubit.E[1].state = (self.Q[z-1][edge.qubit.qID[:3]].E[n].state
                                                                         for n in [0, 1])
 
                     if random_error_array[i] == "I":

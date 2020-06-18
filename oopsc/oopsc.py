@@ -120,7 +120,7 @@ def single(
     if called:
         output = dict(
             N       = 1,
-            succes  = correct,
+            success  = correct,
         )
         if debug:
             try:
