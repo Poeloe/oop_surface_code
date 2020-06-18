@@ -37,11 +37,7 @@ Tree after merge:
 # TODO: Proper calculation of delay for erasures/empty nodes in the graph
 '''
 from termcolor import colored as cs
-<<<<<<< HEAD:oopsc/balancedbloom/directed.py
-from ..info.decorators import debug
-=======
 from ...info.decorators import debug
->>>>>>> upstream/master:oopsc/decoder/balancedbloom/directed.py
 
 class anyon_node(object):
     '''
@@ -139,19 +135,11 @@ class empty_node(anyon_node):
         self.dis = 0
 
 
-<<<<<<< HEAD:oopsc/balancedbloom/directed.py
-class bb(object):
-
-    @debug.init_counters_bb()
-    def __init__(self):
-        return
-=======
 class nodeset(object):
 
     @debug.init_counters_bb()
     def __init__(self, fbloom=.5):
         self.fbloom = fbloom
->>>>>>> upstream/master:oopsc/decoder/balancedbloom/directed.py
 
     def anyon_node(self, vertex):
         return anyon_node(vertex)
