@@ -266,7 +266,7 @@ class toric(go.toric):
 
             # If GHZ state is malformed measurement result will be the result of previous layer and rest will be skipped
             if random.random() > GHZ_success:
-                stab.parity = 0 if z == 0 else self.S[z-1][stab.sID[:3]].parity
+                stab.parity = 0 if z == 0 else self.S[z-1][stab.sID].parity
                 continue
 
             # Get parity of stabilizer
@@ -285,7 +285,7 @@ class toric(go.toric):
                     stab.mstate = 1
 
             # Save vertex as anyon if parity different than previous layer
-            stabd_state = 0 if z == 0 else self.S[z-1][stab.sID[:3]].parity
+            stabd_state = 0 if z == 0 else self.S[z-1][stab.sID].parity
             stab.state = 0 if stabd_state == stab.parity else 1
 
 
