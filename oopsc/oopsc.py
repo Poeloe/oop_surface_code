@@ -74,6 +74,7 @@ def single(
     paulix=0,
     pauliz=0,
     superoperator=None,
+    verify_superoperator=False,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -107,7 +108,7 @@ def single(
     if superoperator is None:
         graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
     else:
-        graph.apply_and_measure_superoperator_error(superoperator)
+        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, verify_superoperator)
 
     # Peeling decoder
     graph.decoder.decode()
@@ -150,6 +151,7 @@ def multiple(
     paulix=0,
     pauliz=0,
     superoperator=None,
+    verify_superoperator=False,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -181,6 +183,7 @@ def multiple(
     options = dict(
         ltype=ltype,
         superoperator=superoperator,
+        verify_superoperator=verify_superoperator,
         paulix=paulix,
         pauliz=pauliz,
         erasure=erasure,
@@ -198,7 +201,7 @@ def multiple(
     if called:
         output = dict(
             N       = iters,
-            succes  = sum(result)
+            success  = sum(result)
         )
         if debug:
             output.update(**get_mean_var(graph.matching_weight, "weight"))
@@ -209,7 +212,7 @@ def multiple(
     else:
         output = dict(
             N         = iters,
-            succes    = sum(result),
+            success    = sum(result),
         )
         if debug:
             output.update(weight = graph.matching_weight)

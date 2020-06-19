@@ -27,6 +27,8 @@ key_arguments = [
     ["-p", "--perror", "store", "error rates - verbose list float", dict(type=float, nargs='*', metavar="", default=[])],
     ["-so", "--superoperator_filenames", "store", "Use superoperator as error input - list of superoperator filenames",
          dict(type=str, nargs='*', metavar="")],
+    ["-vso", "--verify_superoperator", "store_true", "Run a threshold simulation with the superoperator to verify the "
+                                                     "working", dict()],
     ["-me", "--measurement_error", "store_true", "enable measurement error (2+1D) - toggle", dict()],
     ["-mt", "--multithreading", "store_true", "use multithreading - toggle", dict()],
     ["-nt", "--threads", "store", "number of threads", dict(type=int, metavar="")],

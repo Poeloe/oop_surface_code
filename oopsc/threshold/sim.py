@@ -50,6 +50,7 @@ def sim_thresholds(
         lattices = [],
         perror = [],
         superoperator_filenames=[],
+        verify_superoperator=False,
         iters = 0,
         measurement_error=False,
         multithreading=False,
@@ -120,6 +121,7 @@ def sim_thresholds(
             oopsc_args = dict(
                 paulix=pi,
                 superoperator=superoperator,
+                verify_superoperator=verify_superoperator,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,

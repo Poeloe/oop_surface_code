@@ -127,13 +127,16 @@ class toric(object):
         '''
 
         self.init_erasure(pE=pE)
-        self.init_pauli(pX=pX, pZ=pZ)         # initialize errors
-        self.measure_stab()                       # Measure stabiliziers
+        self.init_pauli(pX=pX, pZ=pZ)               # initialize errors
+        self.measure_stab()                         # Measure stabilizers
 
-    def apply_and_measure_superoperator_error(self, superoperator):
+    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, verify_superoperator=False):
         self.superoperator = superoperator
 
-        self.apply_superoperator_rounds_naomi_order()
+        if verify_superoperator:
+            self.stabilizer_cycle_verify_superoperator_implementation()
+        else:
+            self.stabilizer_cycle_with_superoperator_naomi_order()
 
     def init_erasure(self, pE=0, **kwargs):
         """
@@ -209,7 +212,43 @@ class toric(object):
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
 
-    def apply_superoperator_rounds_original_order(self, z=0):
+    def stabilizer_cycle_verify_superoperator_implementation(self, z=0):
+        self.superoperator.set_stabilizer_rounds(self, z=z)
+
+        # First apply error and measure plaquette stabilizers in two rounds
+        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
+                                                            self.superoperator.sup_op_elements_p,
+                                                            z)
+        measurement_errors_p2, _ = self.superoperator_error(self.superoperator.stabs_p2[z],
+                                                            self.superoperator.sup_op_elements_p,
+                                                            apply_error=False)
+        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
+                                                            self.superoperator.sup_op_elements_s,
+                                                            apply_error=False)
+        measurement_errors_s2, _ = self.superoperator_error(self.superoperator.stabs_s2[z],
+                                                            self.superoperator.sup_op_elements_s,
+                                                            apply_error=False)
+
+        self.measure_stab(stabs=self.superoperator.stabs_p1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p1,
+                          GHZ_success=self.superoperator.GHZ_success)
+        self.measure_stab(stabs=self.superoperator.stabs_p2[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # The apply error and measure star stabilizers in two rounds
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s1,
+                          GHZ_success=self.superoperator.GHZ_success)
+        self.measure_stab(stabs=self.superoperator.stabs_s2[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+    def stabilizer_cycle_with_superoperator(self, z=0):
         self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # First apply error and measure plaquette stabilizers in two rounds
@@ -243,7 +282,7 @@ class toric(object):
                           measurement_errors=measurement_errors_s2,
                           GHZ_success=self.superoperator.GHZ_success)
 
-    def apply_superoperator_rounds_naomi_order(self, z=0):
+    def stabilizer_cycle_with_superoperator_naomi_order(self, z=0):
         """
             Method applies qubit and measurement errors to the qubits for the specified layer (z).
             It is done in rounds per stabilizer to simulate the situation where GHZ states are used to create a

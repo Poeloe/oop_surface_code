@@ -134,9 +134,8 @@ class toric(go.toric):
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
 
         # final layer initialized with perfect measurements
-        self.init_erasure(pE=pE, z=self.decode_layer)
-        self.init_pauli(pX=pX, pZ=pZ, z=self.decode_layer, set_prev_value=True)
-        self.measure_stab(pmX=0, pmZ=0, z=self.decode_layer)
+        self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
+        self.measure_stab(z=self.decode_layer)
 
         if self.gl_plot:
             if pE != 0:
@@ -150,7 +149,7 @@ class toric(go.toric):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
-    def apply_and_measure_superoperator_error(self, superoperator):
+    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, verify_superoperator=False):
         """
             Method appoints the superoperator object to the superoperator attribute of the graph object. With this
             superoperator it invokes another method to apply qubit error and measurement errors for every 'z' layer.
@@ -163,7 +162,10 @@ class toric(go.toric):
         """
         self.superoperator = superoperator
         for z in range(self.cycles-1):
-            self.apply_superoperator_rounds_naomi_order(z)
+            if verify_superoperator:
+                self.stabilizer_cycle_verify_superoperator_implementation(z)
+            else:
+                self.stabilizer_cycle_with_superoperator_naomi_order(z)
 
         # For decoder layer get the qubit state of the previous layer and measure perfectly
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
