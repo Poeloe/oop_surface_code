@@ -23,7 +23,6 @@ The 3D graph (toric/planar) is a cubic lattice with many layer of these unit cel
 
 '''
 
-from ..superoperator import superoperator as so
 from . import graph_2D as go
 from ..plot import plot_graph_lattice as pgl
 from ..plot import plot_unionfind as puf
