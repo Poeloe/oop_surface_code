@@ -74,7 +74,7 @@ def single(
     paulix=0,
     pauliz=0,
     superoperator=None,
-    verify_superoperator=False,
+    network_architecture=False,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -93,8 +93,9 @@ def single(
     """
     # Initialize lattice
     if graph is None:
+        GHZ_success = superoperator.GHZ_success if superoperator is not None else None
         pr.print_configuration(config, 1, size=size, pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez,
-                               superoperator=superoperator)
+                               superoperator=superoperator, GHZ_success=GHZ_success)
         graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
     # Initialize errors
@@ -108,7 +109,7 @@ def single(
     if superoperator is None:
         graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
     else:
-        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, verify_superoperator)
+        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, network_architecture)
 
     # Peeling decoder
     graph.decoder.decode()
@@ -151,7 +152,7 @@ def multiple(
     paulix=0,
     pauliz=0,
     superoperator=None,
-    verify_superoperator=False,
+    network_architecture=False,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -171,7 +172,10 @@ def multiple(
     """
 
     if qres is None:
-        pr.print_configuration(config, iters, size=size, paulix=paulix, pauliz=pauliz, erasure=erasure, measurex=measurex, measurez=measurez, superoperator=superoperator)
+        GHZ_success = superoperator.GHZ_success if superoperator is not None else None
+        pr.print_configuration(config, iters, size=size, paulix=paulix, pauliz=pauliz, erasure=erasure,
+                               measurex=measurex, measurez=measurez, superoperator=superoperator,
+                               GHZ_success=GHZ_success, network_architecture=network_architecture)
     if graph is None:
         graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
@@ -183,7 +187,7 @@ def multiple(
     options = dict(
         ltype=ltype,
         superoperator=superoperator,
-        verify_superoperator=verify_superoperator,
+        network_architecture=network_architecture,
         paulix=paulix,
         pauliz=pauliz,
         erasure=erasure,

@@ -50,7 +50,7 @@ def sim_thresholds(
         lattices = [],
         perror = [],
         superoperator_filenames=[],
-        verify_superoperator=False,
+        network_architecture=False,
         iters = 0,
         measurement_error=False,
         multithreading=False,
@@ -92,13 +92,12 @@ def sim_thresholds(
     superoperators = []
     if superoperator_filenames:
         for i, superoperator_filename in enumerate(superoperator_filenames):
-            GHZ_success = 1.1
-            if kwargs["GHZ_success"] is not None:
-                GHZ_success = kwargs["GHZ_success"][i]
-            superoperator = so.Superoperator(superoperator_filename, GHZ_success)
-            superoperators.append(superoperator)
-            if i >= len(perror):
-                perror.append(superoperator.pg)
+            GHZ_successes = kwargs["GHZ_success"] if kwargs["GHZ_success"] else [1.1]
+            for GHZ_success in GHZ_successes:
+                superoperator = so.Superoperator(superoperator_filename, GHZ_success)
+                superoperators.append(superoperator)
+                if i >= len(perror):
+                    perror.append(superoperator.pg)
 
     # Simulate and save results to file
     for lati in lattices:
@@ -117,11 +116,13 @@ def sim_thresholds(
             superoperator = None
             if superoperators:
                 superoperator = superoperators[i]
+                network_architecture = bool(superoperator.pn) if not network_architecture else True
                 pi = 0
+
             oopsc_args = dict(
                 paulix=pi,
                 superoperator=superoperator,
-                verify_superoperator=verify_superoperator,
+                network_architecture=network_architecture,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,

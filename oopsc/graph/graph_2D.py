@@ -130,17 +130,17 @@ class toric(object):
         self.init_pauli(pX=pX, pZ=pZ)               # initialize errors
         self.measure_stab()                         # Measure stabilizers
 
-    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, verify_superoperator=False):
+    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, network_architecture=False):
         self.superoperator = superoperator
 
-        if verify_superoperator:
-            self.stabilizer_cycle_verify_superoperator_implementation()
+        if not network_architecture:
+            self.stabilizer_cycle_monolithic_architecture()
         else:
-            self.stabilizer_cycle_with_superoperator_naomi_order()
+            self.stabilizer_cycle_with_superoperator()
 
     def init_erasure(self, pE=0, **kwargs):
         """
-        Initializes an erasure error with probabilty pE, which will take form as a uniformly chosen pauli X and/or Z error.
+        Initializes an erasure error with probability pE, which will take form as a uniformly chosen pauli X and/or Z error.
         """
         if pE == 0:
             return
@@ -162,7 +162,7 @@ class toric(object):
 
     def init_pauli(self, pX=0, pZ=0, **kwargs):
         """
-        initates Pauli X and Z errors on the lattice based on the error rates
+        initiates Pauli X and Z errors on the lattice based on the error rates
         """
         for qubit in self.Q[0].values():
             if pX != 0 and random.random() < pX:
@@ -212,13 +212,28 @@ class toric(object):
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
 
-    def stabilizer_cycle_verify_superoperator_implementation(self, z=0):
+    def stabilizer_cycle_monolithic_architecture(self, z=0):
+        """
+            Method is used to run a full stabilizer measurement cycle that is used to verify the superoperator
+            implementation. When a superoperator is used that represents iid error on the stabilizer qubits, then
+            this method ensures a similar error implementation as the usual iid error implementation (see the
+            'apply_and_measure_errors' method). This way, threshold simulation results with the superoperator
+            implementation can be compared with the usual implementation to verify the implementation.
+
+            Parameters
+            ----------
+            z : int, optional, z=0
+                Integer value to indicate the layer for which the stabilizer measurement cycle should run.
+        """
         self.superoperator.set_stabilizer_rounds(self, z=z)
 
-        # First apply error and measure plaquette stabilizers in two rounds
+        # Only apply error once, since for each run of 'superoperator_error' there is looped over all qubits.
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
                                                             self.superoperator.sup_op_elements_p,
                                                             z)
+
+        # Run 'superoperator_error' three more times, but don't apply the selected error. It is only used to acquire the
+        # the measurement errors that will later be applied to the stabilizer measurements.
         measurement_errors_p2, _ = self.superoperator_error(self.superoperator.stabs_p2[z],
                                                             self.superoperator.sup_op_elements_p,
                                                             apply_error=False)
@@ -229,6 +244,7 @@ class toric(object):
                                                             self.superoperator.sup_op_elements_s,
                                                             apply_error=False)
 
+        # Measure all stabilizers and apply the according measurement errors found above.
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
                           measurement_errors=measurement_errors_p1,
@@ -238,7 +254,7 @@ class toric(object):
                           measurement_errors=measurement_errors_p2,
                           GHZ_success=self.superoperator.GHZ_success)
 
-        # The apply error and measure star stabilizers in two rounds
+        # The apply error and measure star stabilizers in two rounds.
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
                           measurement_errors=measurement_errors_s1,
@@ -249,6 +265,17 @@ class toric(object):
                           GHZ_success=self.superoperator.GHZ_success)
 
     def stabilizer_cycle_with_superoperator(self, z=0):
+        """
+            Performs a full stabilizer measurement cycle divived into two rounds per stabilizer. It is done in rounds
+            per stabilizer to simulate the situation where GHZ states are used to create a networked version of the
+            surface code, as described in Naomi Nickerson's PhD Thesis. These rounds are used, since each qubit can only
+            allow for one entanglement link at the same time.
+
+            Parameters
+            ----------
+            z : int, optional, z=0
+                Integer value to indicate the layer for which the stabilizer measurement cycle should run.
+        """
         self.superoperator.set_stabilizer_rounds(self, z=z)
 
         # First apply error and measure plaquette stabilizers in two rounds
@@ -287,7 +314,8 @@ class toric(object):
             Method applies qubit and measurement errors to the qubits for the specified layer (z).
             It is done in rounds per stabilizer to simulate the situation where GHZ states are used to create a
             networked version of the surface code, as described in Naomi Nickerson's PhD Thesis. These rounds are used,
-            since each qubit can only allow for one entanglement link at the same time.
+            since each qubit can only allow for one entanglement link at the same time. The order of applying error and
+            stabilizer measurements is similar to the order described in Naomi Nickerson's PhD thesis
 
             Parameters
             ----------

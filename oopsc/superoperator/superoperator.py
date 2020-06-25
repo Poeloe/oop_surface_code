@@ -57,9 +57,9 @@ class Superoperator:
         self.file_name = file_name
         self.GHZ_success = GHZ_success
 
-        self.pg = 0
-        self.pm = 0
-        self.pn = 0
+        self.pg = None
+        self.pm = None
+        self.pn = None
 
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
@@ -107,7 +107,7 @@ class Superoperator:
             CSV file format example
             -----------------------
             p_prob;     p_lie;  p_error;    s_prob;    s_lie;   s_error;    GHZ_success;    pg;     pm;    pn;
-            0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99       ;  0.01;   0.01;  0.01;
+            0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99       ;  0.01;   0.01;  0.1;
             0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;               ;      ;       ;      ;
         """
         path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
@@ -119,9 +119,9 @@ class Superoperator:
             if 'GHZ_success' in reader and self.GHZ_success == 1.1:
                 self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.').replace(" ", ""))
             if "pm" in reader:
-                self.pg = float(str(reader.pm[0]).replace(",", ".").replace(" ", ""))
+                self.pm = float(str(reader.pm[0]).replace(",", ".").replace(" ", ""))
             if "pg" in reader:
-                self.pm = float(str(reader.pg[0]).replace(",", ".").replace(" ", ""))
+                self.pg = float(str(reader.pg[0]).replace(",", ".").replace(" ", ""))
             if "pn" in reader:
                 self.pn = float(str(reader.pn[0]).replace(",", ".").replace(" ", ""))
 
