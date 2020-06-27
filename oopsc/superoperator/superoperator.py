@@ -113,17 +113,17 @@ class Superoperator:
         path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
 
         with open(path_to_file) as file:
-            reader = pd.read_csv(file, sep=";")
+            reader = pd.read_csv(file, sep=";", float_precision='round_trip')
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
             if 'GHZ_success' in reader and self.GHZ_success == 1.1:
                 self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.').replace(" ", ""))
             if "pm" in reader:
-                self.pm = float(str(reader.pm[0]).replace(",", ".").replace(" ", ""))
+                self.pm = round(float(str(reader.pm[0]).replace(",", ".").replace(" ", "")), 9)
             if "pg" in reader:
-                self.pg = float(str(reader.pg[0]).replace(",", ".").replace(" ", ""))
+                self.pg = round(float(str(reader.pg[0]).replace(",", ".").replace(" ", "")), 9)
             if "pn" in reader:
-                self.pn = float(str(reader.pn[0]).replace(",", ".").replace(" ", ""))
+                self.pn = round(float(str(reader.pn[0]).replace(",", ".").replace(" ", "")), 9)
 
             for i in range(len(list(reader.p_prob))):
                 # Do some parsing operations on the entries to ensure proper form

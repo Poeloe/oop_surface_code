@@ -50,6 +50,7 @@ def sim_thresholds(
         lattices = [],
         perror = [],
         superoperator_filenames=[],
+        GHZ_successes=[1.1],
         networked_architecture=False,
         iters = 0,
         measurement_error=False,
@@ -91,13 +92,12 @@ def sim_thresholds(
 
     superoperators = []
     if superoperator_filenames:
+        perror = []
         for i, superoperator_filename in enumerate(superoperator_filenames):
-            GHZ_successes = kwargs["GHZ_success"] if kwargs["GHZ_success"] else [1.1]
             for GHZ_success in GHZ_successes:
                 superoperator = so.Superoperator(superoperator_filename, GHZ_success)
                 superoperators.append(superoperator)
-                if i >= len(perror):
-                    perror.append(superoperator.pg)
+                perror.append(superoperator.pg)
 
     # Simulate and save results to file
     for lati in lattices:
@@ -111,13 +111,14 @@ def sim_thresholds(
 
         for i, pi in enumerate(perror):
 
-            print("Calculating for L = ", str(lati), "and p =", str(pi))
-
             superoperator = None
             if superoperators:
                 superoperator = superoperators[i]
                 networked_architecture = bool(superoperator.pn) if not networked_architecture else True
-                pi = 0
+
+            print("Calculating for L = {}{} and p = {}".format(lati, ', GHZ_success = ' +
+                                                               str(superoperator.GHZ_success) if
+                                                               superoperator else "", pi))
 
             oopsc_args = dict(
                 paulix=pi,
@@ -128,30 +129,36 @@ def sim_thresholds(
                 processes=threads,
                 progressbar=progressbar
             )
-            if measurement_error:
+            if measurement_error and not superoperator:
                 oopsc_args.update(measurex=pi)
             output = run_oopsc(lati, config, iters, graph=graph, **oopsc_args)
 
             pprint(dict(output))
             print("")
 
+            indices = [lattices, perror] if not superoperator else [lattices, perror, GHZ_successes]
+            indices_names = ["L", "p"] if not superoperator else ["L", "p", "GHZ_success"]
+
             if data is None:
                 if os.path.exists(file_path):
-                    data = pd.read_csv(file_path, header=0)
-                    data = data.set_index(["L", "p"])
+                    data = pd.read_csv(file_path, header=0, float_precision='round_trip')
+                    data = data.set_index(indices_names)
                 else:
                     columns = list(output.keys())
-                    index = pd.MultiIndex.from_product([lattices, perror], names=["L", "p"])
+                    index = pd.MultiIndex.from_product(indices, names=indices_names)
                     data = pd.DataFrame(
-                        np.zeros((len(lattices) * len(perror), len(columns))), index=index, columns=columns
+                        np.zeros((len(lattices) * len(perror) * len(GHZ_successes), len(columns))), index=index,
+                        columns=columns
                     )
 
-            if (lati, perror[i]) in data.index:
+            current_index = (lati, pi) if not superoperator else (lati, pi, superoperator.GHZ_success)
+
+            if current_index in data.index:
                 for key, value in output.items():
-                    data.loc[(lati, perror[i]), key] += value
+                    data.loc[current_index, key] += value
             else:
                 for key, value in output.items():
-                    data.loc[(lati, perror[i]), key] = value
+                    data.loc[current_index, key] = value
 
             data = data.sort_index()
             if save_result:

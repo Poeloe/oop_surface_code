@@ -40,9 +40,9 @@ key_arguments = [
     ["-dgc", "--dg_connections", "store_true", "use dg_connections pre-union processing - toggle", dict()],
     ["-dg", "--directed_graph", "store_true", "use directed graph for evengrow - toggle", dict()],
     ["-db", "--debug", "store_true", "enable debugging heuristics - toggle", dict()],
-    ["-GHZ", "--GHZ_success", "store", "specify the percentage of GHZ states that are successfully created "
-                                       "(works only with superoperator) - float [0-1]",
-     dict(type=float, nargs='*', metavar="")],
+    ["-GHZ", "--GHZ_successes", "store", "specify the percentage of GHZ states that are successfully created"
+                                         " (works only with superoperator) - float [0-1]",
+     dict(type=float, nargs='*', metavar="", default=[1.1])],
     ["-c", "--cycles", "store", "Amount of stabilizer cycles (default=l)", dict(type=int, metavar="", default=None)]
 ]
 
