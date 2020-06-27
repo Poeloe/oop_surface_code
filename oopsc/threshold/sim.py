@@ -50,7 +50,7 @@ def sim_thresholds(
         lattices = [],
         perror = [],
         superoperator_filenames=[],
-        network_architecture=False,
+        networked_architecture=False,
         iters = 0,
         measurement_error=False,
         multithreading=False,
@@ -116,13 +116,13 @@ def sim_thresholds(
             superoperator = None
             if superoperators:
                 superoperator = superoperators[i]
-                network_architecture = bool(superoperator.pn) if not network_architecture else True
+                networked_architecture = bool(superoperator.pn) if not networked_architecture else True
                 pi = 0
 
             oopsc_args = dict(
                 paulix=pi,
                 superoperator=superoperator,
-                network_architecture=network_architecture,
+                networked_architecture=networked_architecture,
                 lattice_type=lattice_type,
                 debug=debug,
                 processes=threads,

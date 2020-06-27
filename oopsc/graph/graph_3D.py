@@ -149,7 +149,7 @@ class toric(go.toric):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
-    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, network_architecture=False):
+    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, networked_architecture=False):
         """
             Method appoints the superoperator object to the superoperator attribute of the graph object. With this
             superoperator it invokes another method to apply qubit error and measurement errors for every 'z' layer.
@@ -162,7 +162,7 @@ class toric(go.toric):
         """
         self.superoperator = superoperator
         for z in range(self.cycles-1):
-            if not network_architecture:
+            if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
             else:
                 self.stabilizer_cycle_with_superoperator_naomi_order(z)

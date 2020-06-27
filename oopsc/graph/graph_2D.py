@@ -130,13 +130,13 @@ class toric(object):
         self.init_pauli(pX=pX, pZ=pZ)               # initialize errors
         self.measure_stab()                         # Measure stabilizers
 
-    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, network_architecture=False):
+    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, networked_architecture=False):
         self.superoperator = superoperator
 
-        if not network_architecture:
+        if not networked_architecture:
             self.stabilizer_cycle_monolithic_architecture()
         else:
-            self.stabilizer_cycle_with_superoperator()
+            self.stabilizer_cycle_with_superoperator_naomi_order()
 
     def init_erasure(self, pE=0, **kwargs):
         """

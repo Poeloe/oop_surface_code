@@ -74,7 +74,7 @@ def single(
     paulix=0,
     pauliz=0,
     superoperator=None,
-    network_architecture=False,
+    networked_architecture=False,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -109,7 +109,7 @@ def single(
     if superoperator is None:
         graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
     else:
-        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, network_architecture)
+        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, networked_architecture)
 
     # Peeling decoder
     graph.decoder.decode()
@@ -152,7 +152,7 @@ def multiple(
     paulix=0,
     pauliz=0,
     superoperator=None,
-    network_architecture=False,
+    networked_architecture=False,
     erasure=0,
     measurex=0,
     measurez=0,
@@ -175,7 +175,7 @@ def multiple(
         GHZ_success = superoperator.GHZ_success if superoperator is not None else None
         pr.print_configuration(config, iters, size=size, paulix=paulix, pauliz=pauliz, erasure=erasure,
                                measurex=measurex, measurez=measurez, superoperator=superoperator,
-                               GHZ_success=GHZ_success, network_architecture=network_architecture)
+                               GHZ_success=GHZ_success, networked_architecture=networked_architecture)
     if graph is None:
         graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
@@ -187,7 +187,7 @@ def multiple(
     options = dict(
         ltype=ltype,
         superoperator=superoperator,
-        network_architecture=network_architecture,
+        networked_architecture=networked_architecture,
         paulix=paulix,
         pauliz=pauliz,
         erasure=erasure,

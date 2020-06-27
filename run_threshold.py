@@ -27,7 +27,7 @@ key_arguments = [
     ["-p", "--perror", "store", "error rates - verbose list float", dict(type=float, nargs='*', metavar="", default=[])],
     ["-so", "--superoperator_filenames", "store", "Use superoperator as error input - list of superoperator filenames",
          dict(type=str, nargs='*', metavar="")],
-    ["-nw", "--network_architecture", "store_true", "Run threshold simulations for a networked architecture", dict()],
+    ["-nw", "--networked_architecture", "store_true", "Force to run threshold simulations with a networked architecture", dict()],
     ["-me", "--measurement_error", "store_true", "enable measurement error (2+1D) - toggle", dict()],
     ["-mt", "--multithreading", "store_true", "use multithreading - toggle", dict()],
     ["-nt", "--threads", "store", "number of threads", dict(type=int, metavar="")],
