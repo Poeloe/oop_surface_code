@@ -11,6 +11,7 @@ from collections import defaultdict
 from scipy import optimize
 import numpy as np
 import math
+from copy import deepcopy
 from .fit import fit_thresholds, get_fit_func
 from .sim import get_data, read_data
 
@@ -57,123 +58,133 @@ def plot_thresholds(
     '''
     apply fit and get parameter
     '''
-    if par is None:
-        (fitL, fitp, fitN, fitt), par = fit_thresholds(data, modified_ansatz, latts, probs)
-    else:
-        fitL, fitp, fitN, fitt = get_data(data, latts, probs)
+    GHZ_successes = set(data.index.get_level_values('GHZ_success')) if 'GHZ_success' in data.index.names else [None]
+
+    sub_data = data
+    f0_copy, f1_copy = deepcopy(f0), deepcopy(f1)
+    plot_title_copy = plot_title
+    for GHZ_index, GHZ_success in enumerate(sorted(GHZ_successes)):
+        if GHZ_success is not None:
+            sub_data = data.xs(GHZ_success, level='GHZ_success')
+            plot_title = plot_title_copy + " - GHZ success: {}".format(GHZ_success)
+            f0, f1 = deepcopy(f0_copy), deepcopy(f1_copy)
+
+        if par is None:
+            (fitL, fitp, fitN, fitt), par = fit_thresholds(sub_data, modified_ansatz, latts, probs)
+        else:
+            fitL, fitp, fitN, fitt = get_data(sub_data, latts, probs)
+
+        fit_func = get_fit_func(modified_ansatz)
+
+        '''
+        Plot and fit thresholds for a given dataset. Data is inputted as four lists for L, P, N and t.
+        '''
+
+        if f0 is None:
+            f0, ax0 = plt.subplots()
+        else:
+            ax0 = f0.axes[0]
+        if f1 is None:
+            f1, ax1 = plt.subplots()
+        else:
+            ax1 = f1.axes[0]
+
+        LP = defaultdict(list)
+        for L, P, N, T in zip(fitL, fitp, fitN, fitt):
+            LP[L].append([P, N, T])
+
+        if lattices is None:
+            lattices = sorted(set(fitL))
+
+        colors = {lati:f"C{i%10}" for i, lati in enumerate(lattices)}
+        markerlist = get_markers()
+        markers = {lati: markerlist[i%len(markerlist)] for i, lati in enumerate(lattices)}
+        legend = []
+
+        for i, lati in enumerate(lattices):
+            fp, fN, fs = map(list, zip(*sorted(LP[lati], key=lambda k: k[0])))
+            ft = [si / ni for si, ni in zip(fs, fN)]
+            ax0.plot(
+                [q * 100 for q in fp], ft, styles[0],
+                color=colors[lati],
+                marker=markers[lati],
+                ms=ms,
+                fillstyle="none",
+            )
+            X = np.linspace(min(fp), max(fp), plotn)
+            ax0.plot(
+                [x * 100 for x in X],
+                [fit_func((x, lati), *par) for x in X],
+                "-",
+                color=colors[lati],
+                lw=1.5,
+                alpha=0.6,
+                ls=styles[1],
+            )
+
+            legend.append(Line2D(
+                [0],
+                [0],
+                ls=styles[1],
+                label="L = {}".format(lati),
+                color=colors[lati],
+                marker=markers[lati],
+                ms=ms,
+                fillstyle="none"
+            ))
 
 
-    fit_func = get_fit_func(modified_ansatz)
+        DS = fit_func((par[0], 20), *par)
 
-    '''
-    Plot and fit thresholds for a given dataset. Data is inputted as four lists for L, P, N and t.
-    '''
-
-    if f0 is None:
-        f0, ax0 = plt.subplots()
-    else:
-        ax0 = f0.axes[0]
-    if f1 is None:
-        f1, ax1 = plt.subplots()
-    else:
-        ax1 = f1.axes[0]
-
-    LP = defaultdict(list)
-    for L, P, N, T in zip(fitL, fitp, fitN, fitt):
-        LP[L].append([P, N, T])
-
-    if lattices is None:
-        lattices = sorted(set(fitL))
-
-    colors = {lati:f"C{i%10}" for i, lati in enumerate(lattices)}
-    markerlist = get_markers()
-    markers = {lati: markerlist[i%len(markerlist)] for i, lati in enumerate(lattices)}
-    legend = []
-
-    for i, lati in enumerate(lattices):
-        fp, fN, fs = map(list, zip(*sorted(LP[lati], key=lambda k: k[0])))
-        ft = [si / ni for si, ni in zip(fs, fN)]
-        ax0.plot(
-            [q * 100 for q in fp], ft, styles[0],
-            color=colors[lati],
-            marker=markers[lati],
-            ms=ms,
-            fillstyle="none",
+        # ax0.axvline(par[0] * 100, ls="dotted", color="k", alpha=0.5)
+        ax0.annotate(
+            "$p_t$ = {}%, DS = {:.2f}".format(str(round(100 * par[0], 2)), DS),
+            (par[0] * 100, DS),
+            xytext=(10, 10),
+            textcoords="offset points",
+            fontsize=8,
         )
-        X = np.linspace(min(fp), max(fp), plotn)
-        ax0.plot(
-            [x * 100 for x in X],
-            [fit_func((x, lati), *par) for x in X],
-            "-",
-            color=colors[lati],
-            lw=1.5,
-            alpha=0.6,
-            ls=styles[1],
-        )
 
-        legend.append(Line2D(
-            [0],
-            [0],
-            ls=styles[1],
-            label="L = {}".format(lati),
-            color=colors[lati],
-            marker=markers[lati],
-            ms=ms,
-            fillstyle="none"
-        ))
+        plot_style(ax0, plot_title, "probability of Pauli X error (%)", "decoding success rate")
+        ax0.set_ylim(ymin, ymax)
+        ax0.legend(handles=legend, loc="lower left", ncol=2)
 
+        ''' Plot using the rescaled error rate'''
 
-    DS = fit_func((par[0], 20), *par)
+        for L, p, N, t in zip(fitL, fitp, fitN, fitt):
+            if L in lattices:
+                if modified_ansatz:
+                    plt.plot(
+                        (p - par[0]) * L ** (1 / par[5]),
+                        t / N - par[4] * L ** (-1 / par[6]),
+                        ".",
+                        color=colors[L],
+                        marker=markers[L],
+                        ms=ms,
+                        fillstyle="none",
+                    )
+                else:
+                    plt.plot(
+                        (p - par[0]) * L ** (1 / par[5]),
+                        t / N,
+                        ".",
+                        color=colors[L],
+                        marker=markers[L],
+                        ms=ms,
+                        fillstyle="none",
+                    )
+        x = np.linspace(*plt.xlim(), plotn)
+        ax1.plot(x, par[1] + par[2] * x + par[3] * x ** 2, "--", color="C0", alpha=0.5)
+        ax1.legend(handles=legend, loc="lower left", ncol=2)
 
-    # ax0.axvline(par[0] * 100, ls="dotted", color="k", alpha=0.5)
-    ax0.annotate(
-        "$p_t$ = {}%, DS = {:.2f}".format(str(round(100 * par[0], 2)), DS),
-        (par[0] * 100, DS),
-        xytext=(10, 10),
-        textcoords="offset points",
-        fontsize=8,
-    )
+        plot_style(ax1, "Modified curve " + plot_title, "Rescaled error rate", "Modified succces probability")
 
-    plot_style(ax0, plot_title, "probability of Pauli X error (%)", "decoding success rate")
-    ax0.set_ylim(ymin, ymax)
-    ax0.legend(handles=legend, loc="lower left", ncol=2)
+        if show_plot:
+            plt.show()
 
-    ''' Plot using the rescaled error rate'''
-
-    for L, p, N, t in zip(fitL, fitp, fitN, fitt):
-        if L in lattices:
-            if modified_ansatz:
-                plt.plot(
-                    (p - par[0]) * L ** (1 / par[5]),
-                    t / N - par[4] * L ** (-1 / par[6]),
-                    ".",
-                    color=colors[L],
-                    marker=markers[L],
-                    ms=ms,
-                    fillstyle="none",
-                )
-            else:
-                plt.plot(
-                    (p - par[0]) * L ** (1 / par[5]),
-                    t / N,
-                    ".",
-                    color=colors[L],
-                    marker=markers[L],
-                    ms=ms,
-                    fillstyle="none",
-                )
-    x = np.linspace(*plt.xlim(), plotn)
-    ax1.plot(x, par[1] + par[2] * x + par[3] * x ** 2, "--", color="C0", alpha=0.5)
-    ax1.legend(handles=legend, loc="lower left", ncol=2)
-
-    plot_style(ax1, "Modified curve " + plot_title, "Rescaled error rate", "Modified succces probability")
-
-    if show_plot:
-        plt.show()
-
-    if output:
-        if output [-4:] != ".pdf": output += ".pdf"
-        f0.savefig(output, transparent=True, format="pdf", bbox_inches="tight")
+        if output:
+            if output [-4:] != ".pdf": output += ".pdf"
+            f0.savefig(output, transparent=True, format="pdf", bbox_inches="tight")
 
     return f0, f1
 
