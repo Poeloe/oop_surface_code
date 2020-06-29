@@ -179,7 +179,7 @@ def plot_thresholds(
 
         plot_style(ax1, "Modified curve " + plot_title, "Rescaled error rate", "Modified succces probability")
 
-        if show_plot:
+        if show_plot and GHZ_index == (len(GHZ_successes) - 1):
             plt.show()
 
         if output:
