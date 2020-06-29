@@ -61,14 +61,15 @@ def plot_thresholds(
     GHZ_successes = set(data.index.get_level_values('GHZ_success')) if 'GHZ_success' in data.index.names else [None]
 
     sub_data = data
-    f0_copy, f1_copy = deepcopy(f0), deepcopy(f1)
+    f0_copy, f1_copy, latts_copy, probs_copy, par_copy = deepcopy(f0), deepcopy(f1), deepcopy(latts), deepcopy(probs),\
+                                                         deepcopy(par)
     plot_title_copy = plot_title
     for GHZ_index, GHZ_success in enumerate(sorted(GHZ_successes)):
         if GHZ_success is not None:
             sub_data = data.xs(GHZ_success, level='GHZ_success')
             plot_title = plot_title_copy + " - GHZ success: {}".format(GHZ_success)
-            f0, f1 = deepcopy(f0_copy), deepcopy(f1_copy)
-
+            f0, f1, latts, probs, par = deepcopy(f0_copy), deepcopy(f1_copy), deepcopy(latts_copy),\
+                                        deepcopy(probs_copy), deepcopy(par_copy)
         if par is None:
             (fitL, fitp, fitN, fitt), par = fit_thresholds(sub_data, modified_ansatz, latts, probs)
         else:
