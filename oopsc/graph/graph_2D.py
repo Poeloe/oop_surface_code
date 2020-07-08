@@ -25,6 +25,7 @@ from ..plot import plot_unionfind as puf
 import random
 import numpy as np
 from ..superoperator import superoperator as so
+from copy import copy
 
 
 class toric(object):
@@ -151,9 +152,9 @@ class toric(object):
                 rand = random.random()
                 if rand < 0.25:
                     qubit.E[0].state = 1
-                elif rand >= 0.25 and rand < 0.5:
+                elif 0.25 <= rand < 0.5:
                     qubit.E[1].state = 1
-                elif rand >= 0.5 and rand < 0.75:
+                elif 0.5 <= rand < 0.75:
                     qubit.E[0].state = 1
                     qubit.E[1].state = 1
 
@@ -166,7 +167,7 @@ class toric(object):
         """
         for qubit in self.Q[0].values():
             if pX != 0 and random.random() < pX:
-                qubit.E[0].state = 1 - qubit.E[0].state
+                qubit.E[0].state = 1
             if pZ != 0 and random.random() < pZ:
                 qubit.E[1].state = 1
 
@@ -226,14 +227,14 @@ class toric(object):
                 Integer value to indicate the layer for which the stabilizer measurement cycle should run.
         """
         self.superoperator.set_stabilizer_rounds(self, z=z)
+        self.set_qubit_states_to_state_previous_layer(z)
 
         # Only apply error once, since for each run of 'superoperator_error' there is looped over all qubits.
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p,
-                                                            z)
+                                                            self.superoperator.sup_op_elements_p)
 
         # Run 'superoperator_error' three more times, but don't apply the selected error. It is only used to acquire the
-        # the measurement errors that will later be applied to the stabilizer measurements.
+        # measurement errors that will later be applied to the stabilizer measurements.
         measurement_errors_p2, _ = self.superoperator_error(self.superoperator.stabs_p2[z],
                                                             self.superoperator.sup_op_elements_p,
                                                             apply_error=False)
@@ -266,7 +267,7 @@ class toric(object):
 
     def stabilizer_cycle_with_superoperator(self, z=0):
         """
-            Performs a full stabilizer measurement cycle divived into two rounds per stabilizer. It is done in rounds
+            Performs a full stabilizer measurement cycle divided into two rounds per stabilizer. It is done in rounds
             per stabilizer to simulate the situation where GHZ states are used to create a networked version of the
             surface code, as described in Naomi Nickerson's PhD Thesis. These rounds are used, since each qubit can only
             allow for one entanglement link at the same time.
@@ -277,11 +278,11 @@ class toric(object):
                 Integer value to indicate the layer for which the stabilizer measurement cycle should run.
         """
         self.superoperator.set_stabilizer_rounds(self, z=z)
+        self.set_qubit_states_to_state_previous_layer(z)
 
         # First apply error and measure plaquette stabilizers in two rounds
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p,
-                                                            z)
+                                                            self.superoperator.sup_op_elements_p)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
                           measurement_errors=measurement_errors_p1,
@@ -323,11 +324,11 @@ class toric(object):
                 Integer that indicates the layer on which the error should be applied
         """
         self.superoperator.set_stabilizer_rounds(self, z=z)
+        self.set_qubit_states_to_state_previous_layer(z)
 
         # First apply error to first round of plaquette stabilizers qubits
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p,
-                                                            z)
+                                                            self.superoperator.sup_op_elements_p)
 
         # Get the measurement errors and qubit errors from the second round, but do not yet apply the error
         measurement_errors_p2, qubit_errors_p2 = self.superoperator_error(self.superoperator.stabs_p2[z],
@@ -367,7 +368,7 @@ class toric(object):
 
         self.superoperator_error(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2)
 
-    def superoperator_error(self, stabs, superoperator_elements=None, z=0, qubit_errors=None, apply_error=True):
+    def superoperator_error(self, stabs, superoperator_elements=None, qubit_errors=None, apply_error=True):
         """
             Based on the probability of the superoperator elements, this method applies error to the qubits of the
             specified stabilizers and saves the according measurement error value (True or False) to a list. The
@@ -380,11 +381,6 @@ class toric(object):
             superoperator_elements : list, optional, default=None
                 List containing the superoperator elements corresponding to the stabilizers (stabs parameter) that have
                 been passed.
-            z : int, optional, default=0
-                Integer that specifies the layer that the error is applied on. In this method, if it is passed, it is
-                used to indicate that all qubits in the system should first obtain their error state from the previous
-                layer. So only for the very first stabilizer round each layer, this value should be passed. Otherwise
-                the error applied in the previous rounds will be overwritten.
             qubit_errors : list, optional, default=None
                 List containing error configurations for the stabilizer qubits. The index corresponds with the index of
                 the stabilizer list.
@@ -414,11 +410,10 @@ class toric(object):
 
             if not apply_error:
                 continue
-            random_error_array = qubit_errors[stab_index]
+            random_error_array = copy(qubit_errors[stab_index])
 
-            # Skip error apply loop if error-array equals the noiseless case for z==0 case. If z!=0, the error apply
-            # loop will update the qubits with the errors of previous cycles.
-            if random_error_array == ["I", "I", "I", "I"] and z == 0:
+            # Skip error apply loop if error-array equals the noiseless case
+            if random_error_array == ["I", "I", "I", "I"]:
                 continue
 
             # Apply 'Twirling' by shuffling the error array for the 4 qubits
@@ -426,27 +421,22 @@ class toric(object):
 
             for i, dir in enumerate(self.dirs):
 
+                if random_error_array[i] == "I":
+                    continue
+
                 if dir in stab.neighbors:
                     _, edge = stab.neighbors[dir]
 
-                    # In the first round of applying error, the qubits should be updated with the value in the previous
-                    # z dimension
-                    if z != 0:
-                        edge.qubit.E[0].state, edge.qubit.E[1].state = (self.Q[z-1][edge.qubit.qID[:3]].E[n].state
-                                                                        for n in [0, 1])
-
-                    if random_error_array[i] == "I":
-                        continue
-
                     if random_error_array[i] == "X":
-                        edge.qubit.E[0].state = (1 + edge.qubit.E[0].state) % 2
+                        # XOR (^) with current state of the qubit
+                        edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
 
                     elif random_error_array[i] == "Y":
-                        edge.qubit.E[0].state = (1 + edge.qubit.E[0].state) % 2
-                        edge.qubit.E[1].state = (1 + edge.qubit.E[1].state) % 2
+                        edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
+                        edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
 
                     elif random_error_array[i] == "Z":
-                        edge.qubit.E[1].state = (1 + edge.qubit.E[1].state) % 2
+                        edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
 
         if self.gl_plot: self.gl_plot.plot_errors()
 
@@ -500,6 +490,10 @@ class toric(object):
         for slayer in self.S.values():
             for stab in slayer.values():
                 stab.reset()
+
+    def set_qubit_states_to_state_previous_layer(self, z):
+        pass
+
 
 '''
 ########################################################################################
