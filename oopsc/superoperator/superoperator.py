@@ -215,7 +215,10 @@ class Superoperator:
         """
         r = random.random()
         index = 0
-        while r >= 0 and index < len(superoperator_elements):
+        while r >= 0 and index <= len(superoperator_elements):
+            # If total probability does not count up to 1, then return first element if 'r' lies outside the probability
+            if index == len(superoperator_elements):
+                return superoperator_elements[0]
             r -= superoperator_elements[index].p
             index += 1
         return superoperator_elements[index - 1]
