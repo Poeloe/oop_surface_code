@@ -74,7 +74,6 @@ class Superoperator:
         self._convert_error_list()
         self._convert_second_round_elements()
 
-
     def __repr__(self):
         return "Superoperator ({})".format(self.file_name)
 
@@ -247,7 +246,7 @@ class SuperoperatorElement:
         self.id = str(p) + str(lie) + str(error_array)
 
     def __repr__(self):
-        return "SuperOperatorElement(p:{}, lie:{}, errors:{})".format(self.p, self.lie, self.error_array)
+        return "SuperoperatorElement(p:{}, lie:{}, errors:{})".format(self.p, self.lie, self.error_array)
 
     def __str__(self):
         return self.__repr__()
