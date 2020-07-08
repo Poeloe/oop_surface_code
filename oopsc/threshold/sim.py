@@ -106,7 +106,7 @@ def sim_thresholds(
         if multithreading:
             if threads is None:
                 threads = mp.cpu_count()
-            graph = [oopsc.lattice_type(lattice_type, config, decoder, go, lati, cyles=cycles) for _ in range(threads)]
+            graph = [oopsc.lattice_type(lattice_type, config, decoder, go, lati, cycles=cycles) for _ in range(threads)]
         else:
             graph = oopsc.lattice_type(lattice_type, config, decoder, go, lati, cycles=cycles)
 
