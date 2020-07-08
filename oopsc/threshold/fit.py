@@ -70,5 +70,6 @@ def fit_thresholds(data, modified_ansatz=False, latts=[], probs=[], P_store=1):
     print("Threshold =", par[0], "+-", perr[0])
     print("A=", par[1], "B=", par[2], "C=", par[3])
     print("D=", par[4], "nu=", par[5], "mu=", par[6])
+    print("")
 
     return (fitL, fitp, fitN, fitt), par
