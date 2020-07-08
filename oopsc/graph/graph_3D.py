@@ -168,7 +168,6 @@ class toric(go.toric):
                 self.stabilizer_cycle_with_superoperator_naomi_order(z)
 
         # For decoder layer get the qubit state of the previous layer and measure perfectly
-        self.superoperator.set_stabilizer_rounds(self, z=self.decode_layer)
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
         self.measure_stab(z=self.decode_layer)
 
@@ -206,8 +205,13 @@ class toric(go.toric):
     def set_qubit_states_to_state_previous_layer(self, z):
         if z == 0:
             return
-        for qubitu in self.Q[z].values():
-            qubitu.E[0].state, qubitu.E[1].state = (self.Q[z-1][qubitu.qID].E[n].state for n in range(2))
+        for qubit in self.Q[z-1].values():
+            if not qubit.E[0].state and not qubit.E[1].state:
+                continue
+            if qubit.E[0].state:
+                self.Q[z][qubit.qID].E[0].state = 1
+            if qubit.E[1].state:
+                self.Q[z][qubit.qID].E[1].state = 1
 
     def init_erasure(self, pE=0, z=0, **kwargs):
         """

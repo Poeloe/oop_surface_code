@@ -492,7 +492,7 @@ class toric(object):
                 stab.reset()
 
     def set_qubit_states_to_state_previous_layer(self, z):
-        pass
+        return
 
 
 '''
