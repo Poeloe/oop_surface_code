@@ -57,17 +57,13 @@ class toric(go.toric):
         plot2D = kwargs.pop("plot2D", 0)
         super().__init__(size, decoder, *args, plot2D=0, dim=3, **kwargs)
 
-        self.range = range(size)
+        self.cycles = cycles if cycles is not None else size
+        self.decode_layer = self.cycles - 1
         self.dim = 3
-        self.decode_layer = self.range[-1]
         self.G = {}
-        if cycles is None:
-            cycles = size
+        self.GHZ_failed = {}
 
-        self.cycles = cycles
-        self.decode_layer = cycles - 1
-
-        for z in range(1, cycles):
+        for z in range(1, self.cycles):
             self.init_graph_layer(z=z)
             self.G[z] = {}
 
@@ -99,7 +95,7 @@ class toric(go.toric):
         Applies count_matching_weight() method of parent graph_2D object on each layer of the cubic lattice. Additionally counts the weight of the edges in the bridge objects present in the 3D graph.
         '''
         weight = 0
-        for z in self.range:
+        for z in range(self.cycles):
             for qubit in self.Q[z].values():
                 if qubit.E[0].matching == 1:
                     weight += 1
@@ -128,7 +124,7 @@ class toric(go.toric):
         '''
 
         # first layers initilized with measurement error
-        for z in self.range[:-1]:
+        for z in range(self.cycles)[:-1]:
             self.init_erasure(pE=pE, z=z)
             self.init_pauli(pX=pX, pZ=pZ, pE=pE, z=z, set_prev_value=True)
             self.measure_stab(pmX=pmX, pmZ=pmZ, z=z)
@@ -139,13 +135,13 @@ class toric(go.toric):
 
         if self.gl_plot:
             if pE != 0:
-                for z in self.range:
+                for z in range(self.cycles):
                     self.gl_plot.plot_erasures(z, draw=False)
                 self.gl_plot.draw_plot()
-            for z in self.range:
+            for z in range(self.cycles):
                 self.gl_plot.plot_errors(z, draw=False)
             self.gl_plot.draw_plot()
-            for z in self.range:
+            for z in range(self.cycles):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
@@ -158,39 +154,64 @@ class toric(go.toric):
             ----------
             superoperator : Superoperator object
                 A Superoperator object that will be used to apply qubit and measurement error to the system.
+            networked_architecture : bool, optional, default=False
+                If True, stabilizers measurements will be handled such that it mimics the situation for a surface code
+                with a networked architecture.
+
 
         """
         self.superoperator = superoperator
-        for z in range(self.cycles-1):
+        for z in range(self.cycles)[:-1]:
             if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
             else:
                 self.stabilizer_cycle_with_superoperator_naomi_order(z)
 
         # For decoder layer get the qubit state of the previous layer and measure perfectly
+        self.superoperator.set_stabilizer_rounds(self, z=self.decode_layer)
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
         self.measure_stab(z=self.decode_layer)
 
         if self.gl_plot:
-            for z in self.range:
+            for z in range(self.cycles):
                 self.gl_plot.plot_erasures(z, draw=False)
             self.gl_plot.draw_plot()
-            for z in self.range:
+            for z in range(self.cycles):
                 self.gl_plot.plot_errors(z, draw=False)
             self.gl_plot.draw_plot()
-            for z in self.range:
+            for z in range(self.cycles):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
+    def post_process_failed_stabilizers(self):
+        if self.size < 4:
+            return
+        for sID, failed_stabs in self.GHZ_failed.items():
+            skip_layers = [stab.z for stab in failed_stabs]
+            parities = [self.S[layer][sID].parity for layer in range(self.cycles) if (layer not in skip_layers)]
+            parity = 1 if parities.count(1) > (int(len(parities)/2)) else 0
+
+            for failed_stab in failed_stabs:
+                failed_stab.parity = parity
+
+    def post_process_failed_stabilizers_lower_upper(self):
+        for sID, failed_stabs in self.GHZ_failed.items():
+            skip_layers = [stab.z for stab in failed_stabs]
+            for stab in failed_stabs:
+                parities = [self.S[layer][sID].parity if layer != -1 else 0 for layer in [stab.z - 1, stab.z + 1] if
+                            (layer not in skip_layers)]
+                stab.parity = 1 if parities.count(1) > int(len(parities)/2) else 0
+                skip_layers.remove(stab.z)
+
     def set_qubit_states_to_state_previous_layer(self, z):
+        if z == 0:
+            return
         for qubitu in self.Q[z].values():
-            # Get qubit state from previous layer
-            if z != 0:
-                qubitu.E[0].state, qubitu.E[1].state = (self.Q[z-1][qubitu.qID].E[n].state for n in range(2))
+            qubitu.E[0].state, qubitu.E[1].state = (self.Q[z-1][qubitu.qID].E[n].state for n in range(2))
 
     def init_erasure(self, pE=0, z=0, **kwargs):
         """
-        Initializes an erasure error with probabilty pE, which will take form as a uniformly chosen pauli X and/or Z error.
+        Initializes an erasure error with probability pE, which will take form as a uniformly chosen pauli X and/or Z error.
         Qubit states from previous layer are copied to this layer, whereafter erasure error is applied.
         """
 
@@ -218,7 +239,7 @@ class toric(go.toric):
 
     def init_pauli(self, pX=0, pZ=0, pE=0, z=0, set_prev_value=False, **kwargs):
         """
-        initates Pauli X and Z errors on the lattice based on the error rates
+        initiates Pauli X and Z errors on the lattice based on the error rates
         Qubit states from previous layer are copied to this layer, whereafter pauli error is applied.
         """
 
@@ -267,6 +288,10 @@ class toric(go.toric):
 
             # If GHZ state is malformed measurement result will be the result of previous layer and rest will be skipped
             if random.random() > GHZ_success:
+                if stab.sID in self.GHZ_failed:
+                    self.GHZ_failed[stab.sID].append(stab)
+                else:
+                    self.GHZ_failed[stab.sID] = [stab]
                 stab.parity = 0 if z == 0 else self.S[z-1][stab.sID].parity
                 continue
 
@@ -313,6 +338,7 @@ class toric(go.toric):
         Applies reset() method of parent graph_2D object. Also resets all the bridge objects present in the 3D graph.
         '''
         super().reset()
+        self.GHZ_failed = {}
         for layer in self.G.values():
             for bridge in layer.values():
                 bridge.reset()
@@ -368,6 +394,6 @@ class Bridge(object):
 
     def reset(self):
         """
-        Changes all iteration paramters to their initial value
+        Changes all iteration parameters to their initial value
         """
         self.E.reset()
