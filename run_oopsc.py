@@ -42,6 +42,8 @@ if __name__ == "__main__":
         ["-pz", "--pauliz", "store", "Pauli Y error rate - float {0,1}", dict(type=float, default=0, metavar="")],
         ["-so", "--superoperator", "store", "Use superoperator as error input - {file directory}",
          dict(type=str, default=None, metavar="")],
+        ["-c", "--cycles", "store", "Amount of stabilizer cycles (default=l)",
+         dict(type=int, metavar="", default=None)],
         ["-GHZ", "--GHZ_success", "store", "specify the percentage of GHZ states that are successfully created "
                                            "(works only with superoperator) - float [0-1]",
          dict(type=float, metavar="")],
@@ -109,6 +111,7 @@ if __name__ == "__main__":
     kwargs = dict(
         ltype=config.pop("lattice_type"),
         superoperator=superoperator,
+        cycles=config.pop("cycles"),
         paulix=config.pop("paulix"),
         pauliz=config.pop("pauliz"),
         erasure=config.pop("erasure"),
