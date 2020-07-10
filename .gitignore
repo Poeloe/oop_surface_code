@@ -29,3 +29,5 @@ _trial_temp/
 .vscode/
 !requirements.txt
 cartesiusdata
+!csv_files/
+!expedient*.csv
