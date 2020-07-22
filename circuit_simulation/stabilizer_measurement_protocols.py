@@ -9,8 +9,8 @@ import time
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm)
-    qc.add_top_qubit(ket_p)
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True)
+    qc.add_top_qubit(ket_p, p_prep=pm)
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
     qc.apply_2_qubit_gate(operation, 0, 5)
@@ -120,7 +120,7 @@ def compose_parser():
                         help='Specifies the amount of gate error present in the system',
                         type=float,
                         nargs="*",
-                        default=0.006)
+                        default=[0.006])
     parser.add_argument('--pm_equals_pg',
                         help='Specify if measurement error equals the gate error. "-pm" will then be disregarded',
                         required=False,
@@ -130,13 +130,13 @@ def compose_parser():
                         help='Specifies the amount of measurement error present in the system',
                         type=float,
                         nargs="*",
-                        default=0.006)
+                        default=[0.006])
     parser.add_argument('-pn',
                         '--network_error_probability',
                         help='Specifies the amount of network error present in the system',
                         type=float,
                         nargs="*",
-                        default=0.006)
+                        default=[0.0])
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',

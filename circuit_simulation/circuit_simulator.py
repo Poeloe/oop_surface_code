@@ -106,7 +106,7 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=None, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=0.1):
+                 pn=None):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -329,7 +329,7 @@ class QuantumCircuit:
             rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
             density_matrix = rho
 
-            if noise:
+            if noise and pn:
                 density_matrix = self._N_network(density_matrix, pn)
 
             self.density_matrix = sp.kron(density_matrix, self.density_matrix) if (self.density_matrix is not None) \
@@ -345,7 +345,7 @@ class QuantumCircuit:
                 self._effective_measurements -= 2
             self._add_draw_operation(sign, (0, 1))
 
-    def add_top_qubit(self, qubit_state=ket_0, user_operation=True):
+    def add_top_qubit(self, qubit_state=ket_0, p_prep=0, user_operation=True):
         """
         qc.add_top_qubit(qubit_state=ket_0)
 
@@ -363,6 +363,8 @@ class QuantumCircuit:
         """
         if user_operation:
             self._user_operation_order.append({"add_top_qubit": [qubit_state]})
+        if self.noise:
+            qubit_state = self._N_preparation(state=qubit_state, p_prep=p_prep)
 
         self._qubit_array.insert(0, qubit_state)
         self.num_qubits += 1
@@ -733,6 +735,20 @@ class QuantumCircuit:
                 Amount of network noise present in the system.
         """
         return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4))
+
+    @staticmethod
+    def _N_preparation(state, p_prep):
+        opp_state = state
+        if np.array_equal(state, ket_0):
+            opp_state = ket_1
+        if np.array_equal(state, ket_1):
+            opp_state = ket_0
+        if np.array_equal(state, ket_p):
+            opp_state = ket_m
+        if np.array_equal(state, ket_m):
+            opp_state = ket_p
+
+        return (1-p_prep) * state + p_prep * opp_state
 
     def _sum_pauli_error_single(self, tqubit):
         """
@@ -1665,8 +1681,10 @@ class QuantumCircuit:
                            (opp_stab + '_lie'): lies,
                            (opp_stab + '_error'): s_error_arrays})
         df_parameters = pd.DataFrame({"pg": [self.pg],
-                                      "pm": [self.pm],
-                                      "pn": [self.pn]})
+                                      "pm": [self.pm]})
+
+        if self.pn and self.pn != 0.0:
+            df_parameters.append({"pn": [self.pn]})
 
         df = pd.concat([df_values, df_parameters], axis=1)
 
