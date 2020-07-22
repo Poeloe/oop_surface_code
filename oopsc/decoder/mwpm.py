@@ -13,7 +13,6 @@ The C implementation (in folder blossom5) is highly recommended as it evidently 
 '''
 from .blossom5 import pyMatch as pm
 from ..info.decorators import debug
-import time
 
 
 class toric(object):
@@ -31,11 +30,11 @@ class toric(object):
 
 
     @debug.get_counters()
-    def decode(self, time_dict=None):
+    def decode(self):
         '''
         Decode functions for the MWPM toric decoder
         '''
-        self.get_matching(time_dict)
+        self.get_matching()
         self.apply_matching()
         if self.graph.gl_plot: self.graph.gl_plot.plot_lines(self.matching)
 
@@ -88,7 +87,7 @@ class toric(object):
                 w_ij = (i - j) % self.graph.size
                 self.space_weight_lookup[i][j] = 2*min([w_ij, self.graph.size - w_ij])
 
-    def get_matching(self, time_dict=None):
+    def get_matching(self):
         """
         Uses the BlossomV algorithm to get the matchings. A list of combinations of all the anyons and their respective weights are feeded to the blossom5 algorithm. To apply the matchings, we walk from each matching vertex to where their paths meet perpendicualarly, flipping the edges on the way over.
         """
@@ -107,10 +106,8 @@ class toric(object):
 
         self.matching = []
         if verts:
-            time_dict['anyons_S'].append(len(verts))
             self.matching += get_matching(verts, d_verts)
         if plaqs:
-            time_dict['anyons_P'].append(len(plaqs))
             self.matching += get_matching(plaqs, d_plaqs)
 
 

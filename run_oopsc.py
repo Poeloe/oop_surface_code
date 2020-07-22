@@ -9,7 +9,6 @@ import argparse
 from pprint import pprint
 from oopsc.oopsc import single, multiple, multiprocess
 from oopsc.superoperator import superoperator as so
-import os
 
 
 def add_args(parser, args):
@@ -152,6 +151,3 @@ if __name__ == "__main__":
         output = multiprocess(size, config, iters, dec=decode, go=go, debug=debug, processes=threads, **kwargs)
 
     pprint(output)
-
-    os.system('say "Jouw check run met grootte {} is klaar en van de {} iteraties waren er {} succesvol."'
-              .format(size, iters, output['success']))
