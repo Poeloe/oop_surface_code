@@ -24,16 +24,18 @@ class toric(object):
     @debug.init_counters_uf()
     def __init__(self, *args, **kwargs):
         self.type = "mwpm"
+        self.cutoff = 15
         for key, value in kwargs.items():
             setattr(self, key, value)
+        self.space_weight_lookup = {}
 
 
     @debug.get_counters()
-    def decode(self):
+    def decode(self, time_dict=None):
         '''
         Decode functions for the MWPM toric decoder
         '''
-        self.get_matching()
+        self.get_matching(time_dict)
         self.apply_matching()
         if self.graph.gl_plot: self.graph.gl_plot.plot_lines(self.matching)
 
@@ -62,19 +64,31 @@ class toric(object):
         Periodic boundary conditions are applied in x and y directions.
         '''
         edges = []
+        self.construct_weight_lookup()
+
         for i0, v0 in enumerate(anyons[:-1]):
             (y0, x0), z0 = v0.sID[1:], v0.z
-            for i1, v1 in enumerate(anyons[i0 + 1 :]):
+            for i1, v1 in enumerate(anyons[i0 + 1:]):
                 (y1, x1), z1 = v1.sID[1:], v1.z
-                wy = (y0 - y1) % (self.graph.size)
-                wx = (x0 - x1) % (self.graph.size)
                 wz = abs(z0 - z1)
-                weight = min([wy, self.graph.size - wy]) + min([wx, self.graph.size - wx]) + wz
+                if wz >= self.cutoff:
+                    break
+                weight = self.space_weight_lookup[y0][y1] + self.space_weight_lookup[x0][x1] + wz
                 edges.append([i0, i1 + i0 + 1, weight])
         return edges
 
+    def construct_weight_lookup(self):
+        # Collect the distances in space between stabilizers once and save it for future lookup
+        if self.space_weight_lookup:
+            return
 
-    def get_matching(self):
+        for i in range(self.graph.size):
+            self.space_weight_lookup[i] = {}
+            for j in range(self.graph.size):
+                w_ij = (i - j) % self.graph.size
+                self.space_weight_lookup[i][j] = 2*min([w_ij, self.graph.size - w_ij])
+
+    def get_matching(self, time_dict=None):
         """
         Uses the BlossomV algorithm to get the matchings. A list of combinations of all the anyons and their respective weights are feeded to the blossom5 algorithm. To apply the matchings, we walk from each matching vertex to where their paths meet perpendicualarly, flipping the edges on the way over.
         """
@@ -93,8 +107,10 @@ class toric(object):
 
         self.matching = []
         if verts:
+            time_dict['anyons_S'].append(len(verts))
             self.matching += get_matching(verts, d_verts)
         if plaqs:
+            time_dict['anyons_P'].append(len(plaqs))
             self.matching += get_matching(plaqs, d_plaqs)
 
 

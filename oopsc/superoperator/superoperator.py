@@ -135,7 +135,7 @@ class Superoperator:
                 self.sup_op_elements_s.append(SuperoperatorElement(s_prob, bool(int(reader.s_lie[i])), s_error))
 
         # Check if the probabilities add up to 1 to ensure a valid decomposition
-        if round(sum(self.sup_op_elements_p), 6) != 1.0 or round(sum(self.sup_op_elements_s), 6) != 1.0:
+        if round(sum(self.sup_op_elements_p), 4) != 1.0 or round(sum(self.sup_op_elements_s), 4) != 1.0:
             raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
                              "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
                              "Check your superoperator csv."
@@ -162,7 +162,7 @@ class Superoperator:
             if (sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
 
-    def set_stabilizer_rounds(self, graph, z):
+    def set_stabilizer_rounds(self, graph):
         """
             Obtain for both type of stabilizers the stabilizers that will be measured each round for every
             measurement layer z. These rounds are necessary when non local stabilizer measurements protocols
@@ -172,29 +172,39 @@ class Superoperator:
             ----------
             graph : graph object
                 The graph object that the Superoperator object is applied to
-            z : int, optional, default=0
-                The measurement layer for which the stabilizers should be divided in rounds
         """
-        if z in self.stabs_p1:
+        # Return if the stabilizer rounds have already been configured
+        if self.stabs_s1:
             return
-        else:
+
+        # Initialise stabilizer round dictionaries with empty arrays for each layer
+        for z in range(graph.cycles):
             self.stabs_p1[z] = []
             self.stabs_p2[z] = []
             self.stabs_s1[z] = []
             self.stabs_s2[z] = []
 
-        for stab in graph.S[z].values():
+        # Append the stabilizer to the stabilizer round list according to the layer they belong
+        def append_stabilizers(stabilizer_list, sID):
+            for z in range(graph.cycles):
+                stabilizer_list[z].append(graph.S[z][sID])
+
+        # Determine for a stabilizer position (no matter the layer) in which list it belongs
+        for stab in graph.S[0].values():
             even_odd = stab.sID[1] % 2
             if stab.sID[2] % 2 == even_odd:
                 if stab.sID[0] == 0:
-                    self.stabs_s1[z].append(stab)
+                    append_stabilizers(self.stabs_s1, stab.sID)
                 else:
-                    self.stabs_p1[z].append(stab)
+                    append_stabilizers(self.stabs_p1, stab.sID)
             else:
                 if stab.sID[0] == 0:
-                    self.stabs_s2[z].append(stab)
+                    append_stabilizers(self.stabs_s2, stab.sID)
                 else:
-                    self.stabs_p2[z].append(stab)
+                    append_stabilizers(self.stabs_p2, stab.sID)
+
+    def reset_stabilizer_rounds(self):
+        self.stabs_p1.clear(), self.stabs_p2.clear(), self.stabs_s1.clear(), self.stabs_s2.clear()
 
     @staticmethod
     def get_supop_el_by_prob(superoperator_elements):

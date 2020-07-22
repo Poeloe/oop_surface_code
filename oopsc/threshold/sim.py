@@ -94,7 +94,7 @@ def sim_thresholds(
     superoperators = []
     if superoperator_filenames:
         perror = []
-        for i, superoperator_filename in enumerate(superoperator_filenames):
+        for superoperator_filename in superoperator_filenames:
             for GHZ_success in GHZ_successes:
                 superoperator = so.Superoperator(superoperator_filename, GHZ_success)
                 superoperators.append(superoperator)
@@ -115,6 +115,7 @@ def sim_thresholds(
             superoperator = None
             if superoperators:
                 superoperator = superoperators[i]
+                superoperator.reset_stabilizer_rounds()
                 networked_architecture = bool(superoperator.pn) if not networked_architecture else True
 
             print("Calculating for L = {}{} and p = {}".format(lati, ', GHZ_success = ' +

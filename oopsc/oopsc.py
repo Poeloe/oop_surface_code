@@ -86,6 +86,7 @@ def single(
     seed=None,
     called=True,
     debug=False,
+    time_dict={},
     **kwargs
 ):
     """
@@ -106,13 +107,19 @@ def single(
     elif config["seeds"]:
         apply_random_seed(config["seeds"][0])
 
+    start = time.time()
     if superoperator is None:
         graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
     else:
-        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, networked_architecture)
+        networked_architecture = bool(superoperator.pn) if not networked_architecture else True
+        graph.perform_stabilizer_measurement_cycles_with_superoperator(superoperator, networked_architecture, time_dict)
+
+    time_dict['iterations'].append(time.time() - start)
 
     # Peeling decoder
-    graph.decoder.decode()
+    start_dec = time.time()
+    graph.decoder.decode(time_dict)
+    time_dict['decoding'].append(time.time() - start_dec)
 
     # Measure logical operator
     graph.count_matching_weight()
@@ -198,9 +205,26 @@ def multiple(
         called=0,
         debug=debug,
     )
+    time_dict = {'cycles': [], 'iterations': [], 'decoding': [], 'anyons_P': [], 'anyons_S': []}
 
     zipped = zip(ProgIter(range(iters)), seeds) if progressbar else zip(range(iters), seeds)
-    result = [single(size, config, iter=iter, seed=seed, **options, **kwargs) for iter, seed in zipped]
+    result = [single(size, config, iter=iter, seed=seed, time_dict=time_dict, **options, **kwargs) for iter, seed in zipped]
+
+    c = time_dict['cycles']
+    i = time_dict['iterations']
+    d = time_dict['decoding']
+    a_p = time_dict['anyons_P']
+    a_s = time_dict['anyons_S']
+    print("\n\nCycles--> min: {}, max: {}, avg: {}\n"
+          "Iterations--> min: {}, max: {}, avg: {}\n"
+          "Decoding--> min: {}, max: {}, avg: {}\n"
+          "Anyons P--> min: {}, max: {}, avg: {}\n"
+          "Anyons_S--> min: {}, max: {}, avg: {}\n\n"
+          .format(min(c), max(c), sum(c) / float(len(c)),
+                  min(i), max(i), sum(i) / float(len(i)),
+                  min(d), max(d), sum(d) / float(len(d)),
+                  min(a_p), max(a_p), sum(a_p) / float(len(a_p)),
+                  min(a_s), max(a_s), sum(a_s) / float(len(a_s))))
 
     if called:
         output = dict(

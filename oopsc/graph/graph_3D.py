@@ -27,7 +27,7 @@ from . import graph_2D as go
 from ..plot import plot_graph_lattice as pgl
 from ..plot import plot_unionfind as puf
 import random
-
+import time
 
 class toric(go.toric):
     '''
@@ -145,7 +145,7 @@ class toric(go.toric):
                 self.gl_plot.plot_syndrome(z)
                 self.gl_plot.draw_plot()
 
-    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, networked_architecture=False):
+    def perform_stabilizer_measurement_cycles_with_superoperator(self, superoperator, networked_architecture=False, time_dict=None):
         """
             Method appoints the superoperator object to the superoperator attribute of the graph object. With this
             superoperator it invokes another method to apply qubit error and measurement errors for every 'z' layer.
@@ -161,11 +161,14 @@ class toric(go.toric):
 
         """
         self.superoperator = superoperator
+        self.superoperator.set_stabilizer_rounds(self)
         for z in range(self.cycles)[:-1]:
+            start = time.time()
             if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
             else:
-                self.stabilizer_cycle_with_superoperator_naomi_order(z)
+                self.stabilizer_cycle_with_superoperator(z)
+            time_dict['cycles'].append(time.time() - start)
 
         # For decoder layer get the qubit state of the previous layer and measure perfectly
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
@@ -327,7 +330,7 @@ class toric(go.toric):
             self.gl2_plot = pgl.plot_2D(self, z=self.decode_layer, from3D=1, **self.plot_config)
             self.gl2_plot.new_iter("Final layer errors")
             self.gl2_plot.plot_errors(z=self.decode_layer, draw=1)
-        return super().logical_error(z=self.size-1)
+        return super().logical_error(z=self.decode_layer)
 
     '''
     ########################################################################################

@@ -226,7 +226,6 @@ class toric(object):
             z : int, optional, z=0
                 Integer value to indicate the layer for which the stabilizer measurement cycle should run.
         """
-        self.superoperator.set_stabilizer_rounds(self, z=z)
         self.set_qubit_states_to_state_previous_layer(z)
 
         # Only apply error once, since for each run of 'superoperator_error' there is looped over all qubits.
@@ -277,7 +276,6 @@ class toric(object):
             z : int, optional, z=0
                 Integer value to indicate the layer for which the stabilizer measurement cycle should run.
         """
-        self.superoperator.set_stabilizer_rounds(self, z=z)
         self.set_qubit_states_to_state_previous_layer(z)
 
         # First apply error and measure plaquette stabilizers in two rounds
@@ -323,7 +321,6 @@ class toric(object):
             z : int, optional, default=0
                 Integer that indicates the layer on which the error should be applied
         """
-        self.superoperator.set_stabilizer_rounds(self, z=z)
         self.set_qubit_states_to_state_previous_layer(z)
 
         # First apply error to first round of plaquette stabilizers qubits
