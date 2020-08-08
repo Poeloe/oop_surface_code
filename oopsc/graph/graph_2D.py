@@ -365,6 +365,144 @@ class toric(object):
 
         self.superoperator_error(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2)
 
+    def stabilizer_cycle_with_superoperator_naomi_order_adapted(self, z=0):
+        """
+            Method applies qubit and measurement errors to the qubits for the specified layer (z).
+            It is done in rounds per stabilizer to simulate the situation where GHZ states are used to create a
+            networked version of the surface code, as described in Naomi Nickerson's PhD Thesis. These rounds are used,
+            since each qubit can only allow for one entanglement link at the same time. The order of applying error and
+            stabilizer measurements is similar to the order described in Naomi Nickerson's PhD thesis
+
+            Parameters
+            ----------
+            z : int, optional, default=0
+                Integer that indicates the layer on which the error should be applied
+        """
+        self.set_qubit_states_to_state_previous_layer(z)
+
+        # First apply error to first round of plaquette stabilizers qubits
+        measurement_errors_p1, _, _ = self.superoperator_error_adapted(self.superoperator.stabs_p1[z],
+                                                                       self.superoperator.sup_op_elements_p)
+
+        # Get the measurement errors and qubit errors from the second round, but do not yet apply the error
+        measurement_errors_p2, qubit_errors_p2, dirs_p2 = self.superoperator_error_adapted(
+            self.superoperator.stabs_p2[z], self.superoperator.sup_op_elements_p2, apply_error=False)
+
+        # Measure all plaquette stabilizers and apply the corresponding measurement errors
+        self.measure_stab(stabs=self.superoperator.stabs_p1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p1,
+                          GHZ_success=self.superoperator.GHZ_success)
+        self.measure_stab(stabs=self.superoperator.stabs_p2[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # Now apply error on the second round of plaquette stabilizers qubits
+        self.superoperator_error_adapted(self.superoperator.stabs_p2[z], qubit_errors=qubit_errors_p2, dirs=dirs_p2)
+
+        # ----------------------------------------------------------------------------------
+        # -------------- Same as above only now for the star stabilizers -------------------
+        # ----------------------------------------------------------------------------------
+        measurement_errors_s1, _, _ = self.superoperator_error_adapted(self.superoperator.stabs_s1[z],
+                                                                       self.superoperator.sup_op_elements_s)
+
+        measurement_errors_s2, qubit_errors_s2, dirs_s2 = self.superoperator_error_adapted(
+            self.superoperator.stabs_s2[z], self.superoperator.sup_op_elements_s2, apply_error=False)
+
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s1,
+                          GHZ_success=self.superoperator.GHZ_success)
+        self.measure_stab(stabs=self.superoperator.stabs_s2[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        self.superoperator_error_adapted(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2, dirs=dirs_s2)
+
+    def superoperator_error_adapted(self, stabs, superoperator_elements=None, qubit_errors=None, apply_error=True,
+                                    dirs=None):
+        """
+            Based on the probability of the superoperator elements, this method applies error to the qubits of the
+            specified stabilizers and saves the according measurement error value (True or False) to a list. The
+            measurement error list together with the applied errors on the qubits sre return after.
+
+            Parameters
+            ----------
+            stabs : list
+                List of stabilizers on which qubits the (probabilistic) error should be applied on.
+            superoperator_elements : list, optional, default=None
+                List containing the superoperator elements corresponding to the stabilizers (stabs parameter) that have
+                been passed.
+            qubit_errors : list, optional, default=None
+                List containing error configurations for the stabilizer qubits. The index corresponds with the index of
+                the stabilizer list.
+            apply_error : bool, optional, default=True
+                Used to only obtain the measurement error list and the qubit error list without actually applying the
+                error on the qubits. This can be used when the measurements are done prior to the application of the
+                error to the qubits.
+
+            Returns
+            -------
+            measurement_errors : list
+                List containing boolean values that indicate if a measurement error has happened. The indices of the
+                list correspond with the indices of the passed 'stabs' parameter.
+            qubit_errors : list
+                List containing the error configuration on the 4 qubits of a stabilizer. The indices of the list
+                correspond with the indices of the passed 'stabs' parameter.
+        """
+        measurement_errors = []
+        if qubit_errors is None:
+            qubit_errors = []
+
+        if dirs is None:
+            dirs = []
+
+        for stab_index, stab in enumerate(stabs):
+            if superoperator_elements is not None:
+                random_super_op_element, r = self.superoperator.get_supop_el_by_prob(superoperator_elements)
+
+                # Twirling
+                random_direction = ['n', 'e', 's', 'w']
+                random.shuffle(random_direction, random=random.random)
+                dirs.append(random_direction)
+
+                self.random_numbers[(stab.z, stab.sID)] = (r, random_super_op_element, random_direction)
+
+                qubit_errors.append(random_super_op_element.error_array)
+                measurement_errors.append(random_super_op_element.lie)
+
+            if not apply_error:
+                continue
+            random_error_array = qubit_errors[stab_index]
+
+            # Skip error apply loop if error-array equals the noiseless case
+            if random_error_array == ["I", "I", "I", "I"]:
+                continue
+
+            _, edge_1 = stab.neighbors[dirs[stab_index][0]]
+            _, edge_2 = stab.neighbors[dirs[stab_index][1]]
+
+            for i, edge in enumerate([edge_1, edge_2]):
+                if random_error_array[i+2] == "X":
+                    edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
+                    self.random_numbers[(stab.z, stab.sID)] = tuple(list(self.random_numbers[(stab.z, stab.sID)]) +
+                                                                    [edge.qubit.E[0]])
+                elif random_error_array[i+2] == "Z":
+                    edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
+                    self.random_numbers[(stab.z, stab.sID)] = tuple(list(self.random_numbers[(stab.z, stab.sID)]) +
+                                                                    [edge.qubit.E[1]])
+                elif random_error_array[i+2] == "Y":
+                    edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
+                    edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
+                    self.random_numbers[(stab.z, stab.sID)] = tuple(list(self.random_numbers[(stab.z, stab.sID)]) +
+                                                                    [edge.qubit.E[0], edge.qubit.E[1]])
+
+        if self.gl_plot: self.gl_plot.plot_errors()
+
+        return measurement_errors, qubit_errors, dirs
+
     def superoperator_error(self, stabs, superoperator_elements=None, qubit_errors=None, apply_error=True):
         """
             Based on the probability of the superoperator elements, this method applies error to the qubits of the

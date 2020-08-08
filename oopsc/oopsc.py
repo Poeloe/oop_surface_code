@@ -99,12 +99,13 @@ def single(
         graph = lattice_type(ltype, config, dec, go, size, **kwargs)
 
     # Initialize errors
-    if seed is None and not config["seeds"]:
-        init_random_seed(worker=worker, iteration=iter)
-    elif seed is not None:
-        apply_random_seed(seed)
-    elif config["seeds"]:
-        apply_random_seed(config["seeds"][0])
+    if not superoperator:
+        if seed is None and not config["seeds"]:
+            init_random_seed(worker=worker, iteration=iter)
+        elif seed is not None:
+            random.seed(seed)
+        elif config["seeds"]:
+            random.seed(seed)
 
     if superoperator is None:
         graph.apply_and_measure_errors(pX=paulix, pZ=pauliz, pE=erasure, pmX=measurex, pmZ=measurez)
@@ -182,8 +183,13 @@ def multiple(
 
     if seeds is None and not config["seeds"]:
         seeds = [init_random_seed(worker=worker, iteration=iter) for iter in range(iters)]
-    elif not config["seeds"]:
+    elif seeds is None:
         seeds = config["seeds"]
+
+    if type(seeds) in [int, float]:
+        seeds = iters*[seeds]
+    elif type(seeds) is list and len(seeds) == 1:
+        seeds = iters*[seeds[0]]
 
     options = dict(
         ltype=ltype,
@@ -206,12 +212,16 @@ def multiple(
     if called:
         output = dict(
             N       = iters,
-            success  = sum(result)
+            success  = sum(result),
         )
         if debug:
             output.update(**get_mean_var(graph.matching_weight, "weight"))
             for key, value in graph.decoder.clist.items():
                 output.update(**get_mean_var(value, key))
+                output['plaquettes'] = graph.decoder.amount_plaqs
+                output['stars'] = graph.decoder.amount_stars
+                output['avg_plaqs'] = sum(graph.decoder.amount_plaqs) / len(graph.decoder.amount_plaqs)
+                output['avg_stars'] = sum(graph.decoder.amount_stars) / len(graph.decoder.amount_stars)
             db.reset_counters(graph)
         return output
     else:
@@ -224,7 +234,6 @@ def multiple(
             output.update(**graph.decoder.clist)
             db.reset_counters(graph)
         qres.put(output)
-
 
 def multiprocess(
         size,

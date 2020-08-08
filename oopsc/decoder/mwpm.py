@@ -27,6 +27,8 @@ class toric(object):
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.space_weight_lookup = {}
+        self.amount_stars = []
+        self.amount_plaqs = []
 
 
     @debug.get_counters()
@@ -92,7 +94,8 @@ class toric(object):
         Uses the BlossomV algorithm to get the matchings. A list of combinations of all the anyons and their respective weights are feeded to the blossom5 algorithm. To apply the matchings, we walk from each matching vertex to where their paths meet perpendicualarly, flipping the edges on the way over.
         """
         verts, plaqs, d_verts, d_plaqs = self.get_stabs()
-
+        self.amount_plaqs.append(len(plaqs))
+        self.amount_stars.append(len(verts))
         # def get_matching(anyons, d_anyons):
         #     edges = self.get_edges(anyons)
         #     for i0, i1, weight in edges:

@@ -7,7 +7,7 @@ import copy
 
 class Superoperator:
 
-    def __init__(self, file_name, GHZ_success=1.1):
+    def __init__(self, file_name, GHZ_success=1.1, seed=None):
         """
             Superoperator(file_name, graph, GHZ_success=1.1)
 
@@ -73,6 +73,9 @@ class Superoperator:
         # self._get_stabilizer_rounds(graph)
         self._convert_error_list()
         self._convert_second_round_elements()
+
+        if seed is not None:
+            random.seed(seed)
 
     def __repr__(self):
         return "Superoperator ({})".format(self.file_name)
@@ -143,8 +146,8 @@ class Superoperator:
                                      sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
 
         # Sort the entries such that the most likely entries will be listed first
-        self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
-        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
+        self.sup_op_elements_p = sorted(self.sup_op_elements_p, key=self._sort_supop_elements, reverse=True)
+        self.sup_op_elements_s = sorted(self.sup_op_elements_s, key=self._sort_supop_elements, reverse=True)
 
     def _convert_second_round_elements(self):
         """
@@ -161,6 +164,9 @@ class Superoperator:
                 sup_op_el_p2.lie = not sup_op_el_p2.lie
             if (sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
+
+        self.sup_op_elements_p2 = sorted(self.sup_op_elements_p2, key=self._sort_supop_elements, reverse=True)
+        self.sup_op_elements_s2 = sorted(self.sup_op_elements_s2, key=self._sort_supop_elements, reverse=True)
 
     def set_stabilizer_rounds(self, graph):
         """
@@ -206,8 +212,7 @@ class Superoperator:
     def reset_stabilizer_rounds(self):
         self.stabs_p1.clear(), self.stabs_p2.clear(), self.stabs_s1.clear(), self.stabs_s2.clear()
 
-    @staticmethod
-    def get_supop_el_by_prob(superoperator_elements):
+    def get_supop_el_by_prob(self, superoperator_elements):
         """
             Retrieve a SuperoperatorElement from a list of SuperoperatorElements based on the probabilities of
             these SuperoperatorElements. This means, that the method is more likely to return a SuperoperatorElement
@@ -224,14 +229,18 @@ class Superoperator:
                 A SuperoperatorElement is returned from the superoperator_elements list based on the probability
         """
         r = random.random()
+        number = copy.copy(r)
         index = 0
         while r >= 0 and index <= len(superoperator_elements):
             # If total probability does not count up to 1, then return first element if 'r' lies outside the probability
             if index == len(superoperator_elements):
-                return superoperator_elements[0]
+                return superoperator_elements[0], number
             r -= superoperator_elements[index].p
             index += 1
-        return superoperator_elements[index - 1]
+        return superoperator_elements[index - 1], number
+
+    def _sort_supop_elements(self, el):
+        return (el.p, el.error_array, el.lie)
 
 
 class SuperoperatorElement:

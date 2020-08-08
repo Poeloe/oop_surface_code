@@ -61,6 +61,7 @@ class toric(go.toric):
         self.dim = 3
         self.G = {}
         self.GHZ_failed = {}
+        self.random_numbers = {}
 
         for z in range(1, self.cycles):
             self.init_graph_layer(z=z)
@@ -165,7 +166,7 @@ class toric(go.toric):
             if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
             else:
-                self.stabilizer_cycle_with_superoperator(z)
+                self.stabilizer_cycle_with_superoperator_naomi_order_adapted(z)
 
         # For decoder layer get the qubit state of the previous layer and measure perfectly
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
@@ -291,13 +292,14 @@ class toric(go.toric):
         for i, stab in enumerate(stabs):
 
             # If GHZ state is malformed measurement result will be the result of previous layer and rest will be skipped
-            if random.random() > GHZ_success:
-                if stab.sID in self.GHZ_failed:
-                    self.GHZ_failed[stab.sID].append(stab)
-                else:
-                    self.GHZ_failed[stab.sID] = [stab]
-                stab.parity = 0 if z == 0 else self.S[z-1][stab.sID].parity
-                continue
+            if GHZ_success < 1 and z != self.decode_layer:
+                if random.random() > GHZ_success:
+                    if stab.sID in self.GHZ_failed:
+                        self.GHZ_failed[stab.sID].append(stab)
+                    else:
+                        self.GHZ_failed[stab.sID] = [stab]
+                    stab.parity = 0 if z == 0 else self.S[z-1][stab.sID].parity
+                    continue
 
             # Get parity of stabilizer
             stab.parity = 0
@@ -310,13 +312,23 @@ class toric(go.toric):
             # Apply measurement error unless the layer is equal to the decode layer
             if z != self.decode_layer:
                 pM = pmX if stab.sID[0] == 0 else pmZ
-                if (pM != 0 and random.random() < pM) or (measurement_errors is not None and measurement_errors[i]):
+                random_measure_error = False
+                if pM != 0:
+                    random_measure_error = True if random.random() < pM else False
+                if (measurement_errors is not None and measurement_errors[i]) or random_measure_error:
                     stab.parity = 1 - stab.parity
                     stab.mstate = 1
 
             # Save vertex as anyon if parity different than previous layer
             stabd_state = 0 if z == 0 else self.S[z-1][stab.sID].parity
             stab.state = 0 if stabd_state == stab.parity else 1
+
+            if z != (self.cycles - 1):
+                random_numbers_item = list(self.random_numbers[(stab.z, stab.sID)])
+                random_numbers_item.insert(2, stab.parity)
+                random_numbers_item.insert(3, stab.state)
+                random_numbers_item.insert(4, stab.mstate)
+                self.random_numbers[(stab.z, stab.sID)] = tuple(random_numbers_item)
 
 
     def logical_error(self):
@@ -344,6 +356,7 @@ class toric(go.toric):
         '''
         super().reset()
         self.GHZ_failed = {}
+        self.random_numbers = {}
         for layer in self.G.values():
             for bridge in layer.values():
                 bridge.reset()

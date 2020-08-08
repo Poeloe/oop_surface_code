@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     if superoperator:
         GHZ_success = 1.1 if not GHZ_success else GHZ_success
-        superoperator = so.Superoperator(superoperator, GHZ_success)
+        superoperator = so.Superoperator(superoperator, GHZ_success, seed=config['seeds'][0] if config['seeds'] else None)
 
     kwargs = dict(
         ltype=config.pop("lattice_type"),
