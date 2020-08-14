@@ -22,7 +22,7 @@ def create_pdf_from_qasm(file_name, tex_file_name):
         if not retcode == 0:
             os.unlink(pdf_file_name)
             raise ValueError("Failed to execute latex to pdf command!")
-        output_file_path = os.path.join(os.path.abspath(os.getcwd()), tex_file_name.split("/")[-1])
+        output_file_path = os.path.join(os.path.abspath(os.getcwd()), tex_file_name.split(os.sep)[-1])
 
         os.unlink(tex_file_name)
         os.unlink(output_file_path.replace(".tex", ".idx"))
@@ -33,6 +33,6 @@ def create_pdf_from_qasm(file_name, tex_file_name):
                                  "circuit_pdfs",
                                  tex_file_name.split("/")[-1].replace(".tex", ".pdf")))
 
-    os.unlink(os.path.join(destination_file_path, tex_file_name.split("/")[-1].replace(".tex", ".qasm")))
+    os.unlink(os.path.join(destination_file_path, tex_file_name.split(os.sep)[-1].replace(".tex", ".qasm")))
     print("\nPlease open circuit pdf manually with file name: {}\n".format(pdf_file_name))
 
