@@ -194,20 +194,20 @@ class toric(object):
 
     def logical_error(self, z=0):
         """
-        Finds whether there are any logical errors on the lattice/self. The logical error is returned as [Xvertical, Xhorizontal, Zvertical, Zhorizontal], where each item represents a homological Loop
+        Finds whether there are any logical errors on the lattice/self. The logical error is returned as
+        [Xvertical, Xhorizontal, Zvertical, Zhorizontal], where each item represents a homological Loop
         """
         if self.gl_plot: self.gl_plot.plot_final()
 
         logical_error = [0, 0, 0, 0]
-
         for i in self.range:
-            if self.Q[z][(0, i, 0)].E[0].state:
+            if self.Q[z][(1, i, 0)].E[0].state:
                 logical_error[0] = 1 - logical_error[0]
-            if self.Q[z][(1, 0, i)].E[0].state:
+            if self.Q[z][(0, 0, i)].E[0].state:
                 logical_error[1] = 1 - logical_error[1]
-            if self.Q[z][(1, i, 0)].E[1].state:
+            if self.Q[z][(0, i, 0)].E[1].state:
                 logical_error[2] = 1 - logical_error[2]
-            if self.Q[z][(0, 0, i)].E[1].state:
+            if self.Q[z][(1, 0, i)].E[1].state:
                 logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
@@ -486,16 +486,16 @@ class toric(object):
 
             for i, edge in enumerate([edge_1, edge_2]):
                 if random_error_array[i+2] == "X":
-                    edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
+                    edge.qubit.E[0].state ^= 1
                     self.random_numbers[(stab.z, stab.sID)] = tuple(list(self.random_numbers[(stab.z, stab.sID)]) +
                                                                     [edge.qubit.E[0]])
                 elif random_error_array[i+2] == "Z":
-                    edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
+                    edge.qubit.E[1].state ^= 1
                     self.random_numbers[(stab.z, stab.sID)] = tuple(list(self.random_numbers[(stab.z, stab.sID)]) +
                                                                     [edge.qubit.E[1]])
                 elif random_error_array[i+2] == "Y":
-                    edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
-                    edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
+                    edge.qubit.E[0].state ^= 1
+                    edge.qubit.E[1].state ^= 1
                     self.random_numbers[(stab.z, stab.sID)] = tuple(list(self.random_numbers[(stab.z, stab.sID)]) +
                                                                     [edge.qubit.E[0], edge.qubit.E[1]])
 
@@ -607,7 +607,7 @@ class toric(object):
         """Adds an edge with edge ID number qID with pointers to vertices. Also adds pointers to this edge on the vertices. """
 
         qubit = self.Q[z][(td, y, x)] = Qubit(qID=(td, y, x), z=z)
-        E1, E2 = (qubit.E[0], qubit.E[1]) if td == 0 else (qubit.E[1], qubit.E[0])
+        E1, E2 = (qubit.E[0], qubit.E[1]) if td == 1 else (qubit.E[1], qubit.E[0])
 
         vW.neighbors["e"] = (vE, E1)
         vE.neighbors["w"] = (vW, E1)
@@ -629,6 +629,25 @@ class toric(object):
     def set_qubit_states_to_state_previous_layer(self, z):
         return
 
+    def create_overview(self, z=None):
+        overview = [[1 for _ in range(self.size*2)] for _ in range(self.size*2)]
+        for stab, qubit in zip(self.S[z].values(), self.Q[z].values()):
+
+            stab_x = stab.sID[2]*2
+            stab_y = stab.sID[1]*2
+            qubit_x = qubit.qID[2]*2 + 1
+            qubit_y = qubit.qID[1]*2
+
+            if stab.sID[0] == 1:
+                stab_x += 1
+                stab_y += 1
+            if qubit.qID[0] == 1:
+                qubit_x -= 1
+                qubit_y += 1
+
+            overview[stab_y][stab_x] = -1 if stab.state else 1
+            overview[qubit_y][qubit_x] = [-1 if qubit.E[0].state else 1, -1 if qubit.E[1].state else 1]
+        return overview
 
 '''
 ########################################################################################

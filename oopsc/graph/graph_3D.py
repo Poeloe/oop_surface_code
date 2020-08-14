@@ -401,7 +401,7 @@ class Bridge(object):
         self.qID = qID       # (ertype, y, x)
         self.z = z
         self.erasure = 0
-        self.E = go.Edge(self, ertype=qID[0], edge_type=1, z=z)
+        self.E = go.Edge(self, ertype=(qID[0] ^ 1), edge_type=1, z=z)
 
     def __repr__(self):
         errortype = "X" if self.qID[0] == 0 else "Z"
