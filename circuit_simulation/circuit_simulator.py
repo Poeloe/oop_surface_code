@@ -1692,7 +1692,7 @@ class QuantumCircuit:
         if file_name is None:
             self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
         else:
-            path_to_file = os.path.join(path_to_file.rpartition("/")[0], file_name.replace("/", "") + ".csv")
+            path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
             self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
         df.to_csv(path_to_file, sep=';', index=False)
 
