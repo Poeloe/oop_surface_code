@@ -222,6 +222,8 @@ def multiple(
                 output['stars'] = graph.decoder.amount_stars
                 output['avg_plaqs'] = sum(graph.decoder.amount_plaqs) / len(graph.decoder.amount_plaqs)
                 output['avg_stars'] = sum(graph.decoder.amount_stars) / len(graph.decoder.amount_stars)
+                output['positions_p'] = graph.decoder.plaq_pos
+                output['positions_s'] = graph.decoder.star_pos
             db.reset_counters(graph)
         return output
     else:

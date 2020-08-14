@@ -29,6 +29,8 @@ class toric(object):
         self.space_weight_lookup = {}
         self.amount_stars = []
         self.amount_plaqs = []
+        self.plaq_pos = []
+        self.star_pos = []
 
 
     @debug.get_counters()
@@ -61,7 +63,7 @@ class toric(object):
 
     def get_edges(self, anyons):
         '''
-        Computes all edges and their respective weights between all all nodes that are inputted.
+        Computes all edges and their respective weights between all nodes that are inputted.
         Periodic boundary conditions are applied in x and y directions.
         '''
         edges = []
@@ -94,6 +96,8 @@ class toric(object):
         Uses the BlossomV algorithm to get the matchings. A list of combinations of all the anyons and their respective weights are feeded to the blossom5 algorithm. To apply the matchings, we walk from each matching vertex to where their paths meet perpendicualarly, flipping the edges on the way over.
         """
         verts, plaqs, d_verts, d_plaqs = self.get_stabs()
+        self.plaq_pos.append(sorted([(plaq.sID[2]*2+1, plaq.sID[1]*2+1) for plaq in plaqs if plaq.z == self.graph.cycles-1]))
+        self.star_pos.append(sorted([(star.sID[2]*2, star.sID[1]*2) for star in verts if star.z == self.graph.cycles-1]))
         self.amount_plaqs.append(len(plaqs))
         self.amount_stars.append(len(verts))
         # def get_matching(anyons, d_anyons):
@@ -104,7 +108,8 @@ class toric(object):
         #     return [[d_anyons[i0], d_anyons[i1]] for i0, i1 in output]
 
         def get_matching(anyons, d_anyons):
-            output = pm.getMatching(len(anyons), self.get_edges(anyons))
+            edges = self.get_edges(anyons)
+            output = pm.getMatching(len(anyons), edges)
             return [[d_anyons[i0], d_anyons[i1], anyons[i0], anyons[i1]] for i0, i1 in enumerate(output) if i0 > i1]
 
         self.matching = []
