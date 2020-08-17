@@ -20,7 +20,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     qc.draw_circuit(color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -57,7 +57,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.draw_circuit(no_color=color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -98,7 +98,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.draw_circuit(no_color=color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=color, to_csv=save_csv,
+    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines

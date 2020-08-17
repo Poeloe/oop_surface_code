@@ -180,6 +180,7 @@
 import re
 import sys
 import os
+os.sep = '/'
 import fileinput
 from struct import *
 from string import *
@@ -622,7 +623,7 @@ class qcircuit:  # quantum circuit class
 
         f.write("\documentclass{article}\n")  # output latex header
         f.write("\\usepackage[paperwidth=40cm,paperheight=20cm]{geometry}\n")
-        f.write("\input{" + os.path.dirname(os.path.realpath(__file__)) + os.sep + "xyqcirc.tex" + "}\n")
+        f.write("\input{" + os.path.join(os.path.dirname(os.path.realpath(__file__)), "xyqcirc.tex") + "}\n")
 
         # now go through all gates and output latex definitions
         f.write("\n")
