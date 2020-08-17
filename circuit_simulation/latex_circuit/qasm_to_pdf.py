@@ -28,6 +28,8 @@ def create_pdf_from_qasm(file_name, tex_file_name):
         os.unlink(output_file_path.replace(".tex", ".idx"))
         os.unlink(output_file_path.replace(".tex", ".aux"))
         os.unlink(output_file_path.replace(".tex", ".log"))
+        if not os.path.exists(os.path.join(destination_file_path,"circuit_pdfs")):
+            os.mkdir(os.path.join(destination_file_path,"circuit_pdfs"))
         shutil.move(output_file_path.replace(".tex", ".pdf"),
                     os.path.join(destination_file_path,
                                  "circuit_pdfs",
