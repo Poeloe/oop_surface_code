@@ -66,6 +66,18 @@ class QuantumCircuit:
             pm : float [0-1], optional, default=0.01
                 The overall amount of measurement error that will be applied when 'noise' set to
                 True.
+            pn : float [0-1], optional, default=None
+                The overall amount of network noise that will be applied when 'noise is set to True.
+            basis_transformation_noise : bool, optional, default = None
+                Set to true if the transformation from the computational basis to the X-basis for a
+                measurement should be noisy.
+            network_noise_type : int, optional, default=0
+                The type of network noise that should be used. At this point in time, two variants are
+                available:
+
+                0 ->    NV centre specific noise for the creation of a Bell pair
+                1 ->    Noise specified by Naomi Nickerson in her master thesis
+
 
             Attributes
             ----------
@@ -106,13 +118,14 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=None, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None):
+                 pn=None, network_noise_type=0):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
         self.pg = pg
         self.pm = pm
         self.pn = pn
+        self.network_noise_type = network_noise_type
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
@@ -277,7 +290,7 @@ class QuantumCircuit:
             self._add_draw_operation("#", (qubit1, qubit2))
 
     def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None,
-                              user_operation=True):
+                              user_operation=True, network_noise_type=None):
         """
         qc.create_bell_pair(N, pn=0.1)
 
@@ -307,6 +320,9 @@ class QuantumCircuit:
             user_operation : bool, optional, default=True
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
+            network_noise_type : int, optional, default=None
+                Typw of network noise that should be used. If not specified, the network noise type known for the
+                QuantumCircuit object is used
 
             Example
             -------
@@ -322,6 +338,9 @@ class QuantumCircuit:
         elif pn is None:
             pn = self.pn
 
+        if network_noise_type is None:
+            network_noise_type = self.network_noise_type
+
         for i in range(0, 2 * N, 2):
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
@@ -330,7 +349,7 @@ class QuantumCircuit:
             density_matrix = rho
 
             if noise and pn:
-                density_matrix = self._N_network(density_matrix, pn)
+                density_matrix = self._N_network(density_matrix, pn, network_noise_type)
 
             self.density_matrix = sp.kron(density_matrix, self.density_matrix) if (self.density_matrix is not None) \
                 else density_matrix
@@ -725,7 +744,7 @@ class QuantumCircuit:
                                             (pg / 15) * self._double_sum_pauli_error(cqubit, tqubit))
 
     @staticmethod
-    def _N_network(density_matrix, pn):
+    def _N_network(density_matrix, pn, network_noise_type):
         """
             Parameters
             ----------
@@ -734,7 +753,12 @@ class QuantumCircuit:
             pn : float [0-1]
                 Amount of network noise present in the system.
         """
-        return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4))
+        if network_noise_type == 1:
+            return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4))
+        else:
+            error_density = sp.lil_matrix(4, 4)
+            error_density[3,3] = 1
+            return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn * error_density)
 
     @staticmethod
     def _N_preparation(state, p_prep):
