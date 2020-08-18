@@ -77,6 +77,9 @@ class QuantumCircuit:
 
                 0 ->    NV centre specific noise for the creation of a Bell pair
                 1 ->    Noise specified by Naomi Nickerson in her master thesis
+            no_single_qubit_error : bool, optional, default=False
+                When single qubit gates are free of noise, but noise in general is present, this boolean
+                is set to True. It prevents the addition of noise when applying a single qubit gate
 
 
             Attributes
@@ -118,7 +121,7 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=None, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None, network_noise_type=0):
+                 pn=None, network_noise_type=0, no_single_qubit_error=False):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -126,6 +129,7 @@ class QuantumCircuit:
         self.pm = pm
         self.pn = pn
         self.network_noise_type = network_noise_type
+        self.no_single_qubit_error = no_single_qubit_error
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
@@ -435,7 +439,7 @@ class QuantumCircuit:
         one_qubit_gate = self._create_1_qubit_gate(gate, tqubit)
         self.density_matrix = sp.csr_matrix(one_qubit_gate.dot(CT(self.density_matrix, one_qubit_gate)))
 
-        if noise:
+        if noise and not self.no_single_qubit_error:
             self._N_single(pg, tqubit)
 
         if draw:
@@ -547,13 +551,72 @@ class QuantumCircuit:
         for _ in range(times):
             self.apply_1_qubit_gate(H, tqubit, noise, pg, draw, user_operation=user_operation)
 
+    def Rx(self, tqubit, theta, times=1, noise=None, pg=None, draw=True, user_operation=True):
+        """ Applies a rotation gate around the x-axis to the specified target qubit with the specified angle.
+
+            Parameters
+            ----------
+            theta : float (radians)
+                Angle of rotation that should be applied. Value should be specified in radians
+        """
+        if noise is None:
+            noise = self.noise
+        if pg is None:
+            pg = self.pg
+
+        R = np.array([[np.cos(theta/2), -1j * np.sin(theta/2)],
+                      [-1j * np.sin(theta/2), np.cos(theta/2)]])
+
+        for _ in range(times):
+            self.apply_1_qubit_gate(R, tqubit, noise, pg, draw, user_operation=user_operation)
+
+    def Ry(self, tqubit, theta, times=1, noise=None, pg=None, draw=True, user_operation=True):
+        """ Applies a rotation gate around the y-axis to the specified target qubit with the specified angle.
+
+            Parameters
+            ----------
+            theta : float (radians)
+                Angle of rotation that should be applied. Value should be specified in radians
+        """
+        if noise is None:
+            noise = self.noise
+        if pg is None:
+            pg = self.pg
+
+        R = np.array([[np.cos(theta/2), -1 * np.sin(theta/2)],
+                      [1 * np.sin(theta/2), np.cos(theta/2)]])
+
+        for _ in range(times):
+            self.apply_1_qubit_gate(R, tqubit, noise, pg, draw, user_operation=user_operation)
+
+    def Rz(self, tqubit, theta, times=1, noise=None, pg=None, draw=True, user_operation=True):
+        """ Applies a rotation gate around the x axis to the specified target qubit with the specified angle.
+
+            Parameters
+            ----------
+            theta : float (radians)
+                Angle of rotation that should be applied. Value should be specified in radians
+
+        """
+        if noise is None:
+            noise = self.noise
+        if pg is None:
+            pg = self.pg
+
+        R = np.array([np.exp(-1j * theta/2), 0],
+                     [0, np.exp(1j * theta/2)])
+
+        for _ in range(times):
+            self.apply_1_qubit_gate(R, tqubit, noise, pg, draw, user_operation=user_operation)
+
     """
         ---------------------------------------------------------------------------------------------------------
                                                 Two-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
+    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True, gate_2=None,
+                           user_operation=True):
         """
             Applies a two qubit gate according to the specified control and target qubits. This will update the density
             matrix of the system accordingly.
@@ -575,6 +638,9 @@ class QuantumCircuit:
                 initialised with a 'pg' parameter, this will be used if not specified otherwise
             draw : bool, optional, default=True
                 If true, the specified gate will appear when the circuit is visualised.
+            gate_2 : array, optional, default=None
+                Array of dimension 2x2. This parameter can be used to specify a gate that is applied to the
+                target qubit for the case that the control qubit is in the |0> state.
             user_operation : bool, optional, default=True
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
@@ -585,7 +651,8 @@ class QuantumCircuit:
             noise = self.noise
         if pg is None:
             pg = self.pg
-        two_qubit_gate = self._create_2_qubit_gate(gate, cqubit, tqubit)
+
+        two_qubit_gate = self._create_2_qubit_gate(gate, cqubit, tqubit, gate_2=gate_2)
 
         self.density_matrix = sp.csr_matrix(two_qubit_gate.dot(CT(self.density_matrix, two_qubit_gate)))
 
@@ -596,7 +663,7 @@ class QuantumCircuit:
             gate_repr = colored("~", 'red') + gate_name(gate) if noise else gate_name(gate)
             self._add_draw_operation(gate_repr, (cqubit, tqubit))
 
-    def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
+    def _create_2_qubit_gate(self, gate, cqubit, tqubit, gate_2=None, num_qubits=None):
         """
         Create a controlled gate matrix for the density matrix according to the control and target qubits given.
         This is done by
@@ -624,19 +691,31 @@ class QuantumCircuit:
             Integer that indicates the control qubit. Note that the qubit counting starts at 0.
         tqubit : int
             Integer that indicates the target qubit. Note that the qubit counting starts at 0.
+        gate_2 : array, optional, default=None
+            Array of dimension 2x2. This parameter can be used to specify a gate that is applied to the target qubit for
+            the case that the control qubit is in the |0> state.
+
         """
         if num_qubits is None:
             num_qubits = self.num_qubits
         if cqubit == tqubit:
             raise ValueError("Control qubit cannot be the same as the target qubit!")
 
-        gate_1 = self._create_1_qubit_gate(CT(ket_0), cqubit, num_qubits=num_qubits)
-        gate_2 = self._create_1_qubit_gate(CT(ket_1), cqubit, num_qubits=num_qubits)
+        # Initialise the gates for both states of the control qubit
+        gate_0_state = self._create_1_qubit_gate(CT(ket_0), cqubit, num_qubits=num_qubits)
+        gate_1_state = self._create_1_qubit_gate(CT(ket_1), cqubit, num_qubits=num_qubits)
 
+        # Specify the gate to apply to the target qubit in case the control qubit is in the |1> state
         one_qubit_gate = self._create_1_qubit_gate(gate, tqubit, num_qubits=num_qubits)
-        gate_2 = one_qubit_gate.dot(gate_2)
+        gate_1_state = one_qubit_gate.dot(gate_1_state)
 
-        return sp.csr_matrix(gate_1 + gate_2)
+        # if gate_2 is specified, specify the gate to apply to the target qubit in case the control qubit is in the |0>
+        # state. If not specified, identity gate is assumed
+        if gate_2 is not None:
+            one_qubit_gate_2 = self._create_1_qubit_gate(gate_2, tqubit, num_qubits=num_qubits)
+            gate_0_state = one_qubit_gate_2.dot(gate_0_state)
+
+        return sp.csr_matrix(gate_0_state + gate_1_state)
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
@@ -655,6 +734,22 @@ class QuantumCircuit:
             pg = self.pg
 
         self.apply_2_qubit_gate(Z, cqubit, tqubit, noise, pg, user_operation=user_operation)
+
+    def two_qubit_gate_NV(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
+        """ Applies the two-qubit gate that is specific to the actual NV center"""
+        if noise is None:
+            noise = self.noise
+        if pg is None:
+            pg = self.pg
+
+        Ry_1 = np.array([[np.cos(np.pi/4), -1 * np.sin(np.pi/4)],
+                         [1 * np.sin(np.pi/4), np.cos(np.pi/4)]])
+
+        Ry_2 = np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4)],
+                         [-1 * np.sin(np.pi/4), np.cos(np.pi/4)]])
+
+        self.apply_2_qubit_gate(Ry_1, cqubit, tqubit, noise, pg, draw, gate_2=Ry_2, user_operation=user_operation)
+
 
     """
         ---------------------------------------------------------------------------------------------------------
