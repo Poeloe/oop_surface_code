@@ -3,7 +3,6 @@ import sys
 import argparse
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
-from circuit_simulation.basic_operations import gate_name_to_array
 from multiprocessing import Pool
 import time
 
@@ -20,7 +19,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     qc.draw_circuit(not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=(not color), to_csv=save_csv,
+    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -31,21 +30,21 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     # Noisy ancilla Bell pair is now between are now 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z, new_qubit=True)
-    qc.double_selection(X)
+    qc.double_selection(Z_gate, new_qubit=True)
+    qc.double_selection(X_gate)
 
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z, new_qubit=True)
-    qc.double_selection(X)
+    qc.double_selection(Z_gate, new_qubit=True)
+    qc.double_selection(X_gate)
 
     # Now entanglement between ancilla 0 and 3 is made
-    qc.single_dot(Z, 2, 5)
-    qc.single_dot(Z, 2, 5)
+    qc.single_dot(Z_gate, 2, 5)
+    qc.single_dot(Z_gate, 2, 5)
 
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
-    qc.single_dot(Z, 3, 4)
-    qc.single_dot(Z, 3, 4)
+    qc.single_dot(Z_gate, 3, 4)
+    qc.single_dot(Z_gate, 3, 4)
 
     qc.apply_2_qubit_gate(operation, 0, 4)
     qc.apply_2_qubit_gate(operation, 1, 6)
@@ -57,7 +56,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=(not color), to_csv=save_csv,
+    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -68,25 +67,25 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     # Noisy ancilla Bell pair between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z, new_qubit=True)
-    qc.double_selection(X)
-    qc.double_dot(Z, 2, 3)
-    qc.double_dot(X, 2, 3)
+    qc.double_selection(Z_gate, new_qubit=True)
+    qc.double_selection(X_gate)
+    qc.double_dot(Z_gate, 2, 3)
+    qc.double_dot(X_gate, 2, 3)
 
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z, new_qubit=True)
-    qc.double_selection(X)
-    qc.double_dot(Z, 2, 3)
-    qc.double_dot(X, 2, 3)
+    qc.double_selection(Z_gate, new_qubit=True)
+    qc.double_selection(X_gate)
+    qc.double_dot(Z_gate, 2, 3)
+    qc.double_dot(X_gate, 2, 3)
 
     # Now entanglement between ancilla 0 and 3 is made
-    qc.double_dot(Z, 2, 5)
-    qc.double_dot(Z, 2, 5)
+    qc.double_dot(Z_gate, 2, 5)
+    qc.double_dot(Z_gate, 2, 5)
 
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
-    qc.double_dot(Z, 3, 4)
-    qc.double_dot(Z, 3, 4)
+    qc.double_dot(Z_gate, 3, 4)
+    qc.double_dot(Z_gate, 3, 4)
 
     qc.apply_2_qubit_gate(operation, 0, 4)
     qc.apply_2_qubit_gate(operation, 1, 6)
@@ -98,7 +97,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], gate_name(operation), no_color=(not color), to_csv=save_csv,
+    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -189,12 +188,14 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode):
     if print_mode:
         return []
 
+    gate = Z_gate if stab_type == "Z" else X_gate
+
     if protocol == "monolithic":
-        return monolithic(gate_name_to_array(stab_type), pg, pm, color, ltsv, sv, fn)
+        return monolithic(gate, pg, pm, color, ltsv, sv, fn)
     elif protocol == "expedient":
-        return expedient(gate_name_to_array(stab_type), pg, pm, pn, color, ltsv, sv, fn)
+        return expedient(gate, pg, pm, pn, color, ltsv, sv, fn)
     elif protocol == "stringent":
-        return stringent(gate_name_to_array(stab_type), pg, pm, pn, color, ltsv, sv, fn)
+        return stringent(gate, pg, pm, pn, color, ltsv, sv, fn)
     else:
         print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
         exit()

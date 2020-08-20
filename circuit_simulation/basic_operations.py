@@ -20,32 +20,19 @@ def state_repr(state):
 
 def gate_name(gate):
     """ Returns the (visual) representation of the given gate if known """
-    if np.array_equal(gate, X):
+    if np.array_equal(gate, X_gate.matrix):
         return "X"
-    if np.array_equal(gate, Y):
+    if np.array_equal(gate, Y_gate.matrix):
         return "Y"
-    if np.array_equal(gate, Z):
+    if np.array_equal(gate, Z_gate.matrix):
         return "Z"
-    if np.array_equal(gate, I):
+    if np.array_equal(gate, I_gate.matrix):
         return "I"
-    if np.array_equal(gate, H):
+    if np.array_equal(gate, H_gate.matrix):
         return "H"
-    return None
-
-
-def gate_name_to_array(gate_name):
-    """ Translates the (visual) representation of the given gate to the corresponding matrix if known """
-    if gate_name == "X":
-        return X
-    if gate_name == "Y":
-        return Y
-    if gate_name == "Z":
-        return Z
-    if gate_name == "I":
-        return I
-    if gate_name == "H":
-        return H
-    return gate_name
+    if np.array_equal(gate, S_gate.matrix):
+        return "S"
+    return "?"
 
 
 def get_value_by_prob(array, p):
@@ -64,6 +51,8 @@ def KP(*args):
     for state in args:
         if state is None:
             continue
+        if type(state) == State:
+            state = state.vector
         if result is None:
             result = sp.csr_matrix(state)
             continue
@@ -73,6 +62,11 @@ def KP(*args):
 
 def CT(state1, state2=None):
     """ returns the dot prodcut of the two passed states, where the second state will be the conjugate transpose """
+    if type(state1) == State:
+        state1 = state1.vector
+    if type(state2) == State:
+        state2 = state2.vector
+
     state2 = state1 if state2 is None else state2
     return sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
 

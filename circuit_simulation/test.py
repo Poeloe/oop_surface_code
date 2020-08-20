@@ -14,4 +14,4 @@ def smallest_circuit(operation, measure):
 
 if __name__ == "__main__":
 
-    smallest_circuit(X, 1)
+    smallest_circuit(X_gate, 1)
