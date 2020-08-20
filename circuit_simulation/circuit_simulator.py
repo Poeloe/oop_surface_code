@@ -842,7 +842,11 @@ class QuantumCircuit:
         if state == ket_m:
             opp_state = ket_p
 
-        return (1-p_prep) * state + p_prep * opp_state
+        error_state = State("Prep error state",
+                            (1-p_prep) * state.vector + p_prep * opp_state.vector,
+                            colored("~", 'red') + state.representation)
+
+        return error_state
 
     def _sum_pauli_error_single(self, tqubit):
         """
@@ -1857,27 +1861,44 @@ class QuantumCircuit:
         ----------------------------------------------------------------------------------------------------------     
     """
 
-    def draw_circuit(self, no_color=False):
+    def draw_circuit(self, no_color=False, print=True):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
         legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
-                  "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement, " + colored("~", 'red') + \
-                  ": noisy operation (gate/measurement)\n"
-        init = self._draw_init()
+                  "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement,"\
+                  " {}: noisy operation (gate/measurement)\n".format("~" if no_color else colored("~", 'red'))
+        init = self._draw_init(no_color)
         self._draw_gates(init, no_color)
         init[-1] += "\n\n"
         self._print_lines.append(legenda)
         self._print_lines.extend(init)
+        if print:
+            self.print()
 
     def draw_circuit_latex(self, meas_error=False):
         qasm_file_name = self._create_qasm_file(meas_error)
         create_pdf_from_qasm(qasm_file_name, qasm_file_name.replace(".qasm", ".tex"))
 
-    def _draw_init(self):
+    def _draw_init(self, no_color):
         """ Returns an array containing the visual representation of the initial state of the qubits. """
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         init_state_repr = []
         for state in self._qubit_array:
-            init_state_repr.append("\n\n{} ---".format(state.representation))
+            init_state_repr.append("\n\n{} ---".format(ansi_escape.sub("", state.representation) if no_color else
+                                                       state.representation))
+
+        for a, b in it.combinations(enumerate(init_state_repr), 2):
+            # Since colored ansi code is shown as color and not text it should be stripped for length comparison
+            a_stripped = ansi_escape.sub("", init_state_repr[a[0]])
+            b_stripped = ansi_escape.sub("", init_state_repr[b[0]])
+
+            if (diff := len(b_stripped) - len(a_stripped)) > 0:
+                state_repr_split = init_state_repr[a[0]].split(" ")
+                init_state_repr[a[0]] = state_repr_split[0] + ((diff+1) * " ") + state_repr_split[1]
+            elif (diff := len(a_stripped) - len(b_stripped)) > 0:
+                state_repr_split = init_state_repr[b[0]].split(" ")
+                init_state_repr[b[0]] = state_repr_split[0] + ((diff+1) * " ") + state_repr_split[1]
+
         return init_state_repr
 
     def _draw_gates(self, init, no_color):

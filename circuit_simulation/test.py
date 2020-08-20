@@ -11,7 +11,14 @@ def smallest_circuit(operation, measure):
 
     qc.save_density_matrix()
 
+def two_qubit_gate_tryout():
+    qc = QuantumCircuit(2, 0)
+    qc.Ry(1, np.pi/2)
+    qc.two_qubit_gate_NV(0, 1)
+    qc.draw_circuit()
+    print(qc)
 
 if __name__ == "__main__":
 
-    smallest_circuit(X_gate, 1)
+    two_qubit_gate_tryout()
+    # smallest_circuit(X_gate, 1)
