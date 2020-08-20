@@ -571,7 +571,7 @@ class QuantumCircuit:
         R_gate = SingleQubitGate("Rotation gate",
                       np.array([[np.cos(theta / 2), -1 * np.sin(theta / 2)],
                                 [1 * np.sin(theta / 2), np.cos(theta / 2)]]),
-                      "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                      "Ry({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_1_qubit_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -588,7 +588,7 @@ class QuantumCircuit:
         R_gate = SingleQubitGate("Rotation gate",
                       np.array([np.exp(-1j * theta / 2), 0],
                                [0, np.exp(1j * theta / 2)]),
-                      "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                      "Rz({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_1_qubit_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -696,7 +696,7 @@ class QuantumCircuit:
 
         # if gate_2 is specified, specify the gate to apply to the target qubit in case the control qubit is in the |0>
         # state. If not specified, identity gate is assumed
-        if np.array_equal(zero_state_matrix, I_gate.matrix):
+        if not np.array_equal(zero_state_matrix, I_gate.matrix):
             one_qubit_gate_2 = self._create_1_qubit_gate(zero_state_matrix, tqubit, num_qubits=num_qubits)
             gate_0_state = one_qubit_gate_2.dot(gate_0_state)
 

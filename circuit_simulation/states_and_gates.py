@@ -22,7 +22,7 @@ class Gate(ABC):
         return self._representation
 
     def __repr__(self):
-        return self.representation
+        return "{}:\n{}".format(self._representation, self.matrix)
 
     def __eq__(self, other):
         return np.array_equal(self.matrix, other.matrix)
