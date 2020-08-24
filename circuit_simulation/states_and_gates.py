@@ -1,5 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
+import circuit_simulation.circuit_simulator as cs
 
 
 class Gate(ABC):
@@ -21,6 +22,10 @@ class Gate(ABC):
     def representation(self):
         return self._representation
 
+    @property
+    def dagger(self):
+        return self.matrix.conj().T
+
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
 
@@ -32,6 +37,10 @@ class SingleQubitGate(Gate):
 
     def __init__(self, name, matrix, representation):
         super().__init__(name, matrix, representation)
+
+    def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
+        qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
+        return qc._create_1_qubit_gate(self, target_qubit)
 
 
 class TwoQubitGate(Gate):
@@ -48,6 +57,10 @@ class TwoQubitGate(Gate):
     @property
     def one_state_matrix(self):
         return self._one_state_matrix
+
+    def get_circuit_dimension_matrix(self, num_qubits, control_qubit, target_qubit):
+        qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
+        return qc._create_2_qubit_gate(self, control_qubit, target_qubit)
 
 
 class State(object):
