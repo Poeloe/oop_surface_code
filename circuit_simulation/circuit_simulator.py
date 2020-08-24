@@ -871,7 +871,7 @@ class QuantumCircuit:
             for tqubit in included_qubits:
                 self._N_single(self.p_dec, tqubit)
                 if not drawn:
-                    self._add_draw_operation("{}xD".format(times), tqubit)
+                    self._add_draw_operation("{}xD".format(times), tqubit, noise=True)
             drawn = True
 
     def _sum_pauli_error_single(self, tqubit):

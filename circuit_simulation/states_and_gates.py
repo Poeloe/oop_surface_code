@@ -55,8 +55,9 @@ class SingleQubitGate(Gate):
 
 class TwoQubitGate(Gate):
 
-    def __init__(self, name, matrix, representation, control_repr="o"):
+    def __init__(self, name, matrix, representation, duration=0, control_repr="o"):
         super().__init__(name, matrix, representation)
+        self._duration = duration
         self._control_repr = control_repr
         self._one_state_matrix = matrix[2:, 2:]
         self._zero_state_matrix = matrix[:2, :2]
