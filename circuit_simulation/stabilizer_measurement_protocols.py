@@ -8,7 +8,7 @@ import time
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, p_dec=0.04, basis_transformation_noise=True, network_noise_type=1)
     qc.add_top_qubit(ket_p, p_prep=pm)
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
@@ -19,7 +19,8 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     qc.draw_circuit(not color, print=False)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -56,7 +57,8 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.draw_circuit(no_color=not color, print=False)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -97,7 +99,8 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.draw_circuit(no_color=not color, print=False)
     if save_latex_pdf:
         qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
@@ -188,7 +191,7 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode):
     if print_mode:
         return []
 
-    gate = Z_gate if stab_type == "Z" else X_gate
+    gate = CZ_gate if stab_type == "Z" else CNOT_gate
 
     if protocol == "monolithic":
         return monolithic(gate, pg, pm, color, ltsv, sv, fn)

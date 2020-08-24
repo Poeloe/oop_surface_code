@@ -18,6 +18,7 @@ from itertools import combinations, permutations, product
 from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
 import pandas as pd
 from fractions import Fraction as Fr
+import math
 
 
 # Uncomment this if a segmentation error when diagonalising the density matrix for a circuit with a large amount of
@@ -122,14 +123,17 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None, network_noise_type=0, no_single_qubit_error=False):
+                 pn=None, p_dec=0, time_step=1, measurement_duration=4, network_noise_type=0, no_single_qubit_error=False):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
         self.pg = pg
         self.pm = pm
         self.pn = pn
+        self.p_dec = p_dec
         self.network_noise_type = network_noise_type
+        self.time_step = time_step
+        self.measurement_duration = measurement_duration
         self.no_single_qubit_error = no_single_qubit_error
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
@@ -443,6 +447,9 @@ class QuantumCircuit:
         if noise and not self.no_single_qubit_error:
             self._N_single(pg, tqubit)
 
+        if self.p_dec != 0:
+            self._N_decoherence([tqubit], gate)
+
         if draw:
             gate_repr = colored("~", 'red') + gate.representation if noise else gate.representation
             self._add_draw_operation(gate_repr, tqubit)
@@ -646,6 +653,9 @@ class QuantumCircuit:
             gate_repr = colored("~", 'red') + gate.representation if noise else gate.representation
             self._add_draw_operation(gate_repr, (cqubit, tqubit))
 
+        if self.p_dec != 0:
+            self._N_decoherence([tqubit, cqubit], gate)
+
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         """
         Create a controlled gate matrix for the density matrix according to the control and target qubits given.
@@ -848,6 +858,25 @@ class QuantumCircuit:
 
         return error_state
 
+    def _N_decoherence(self, excluded_qubits, gate=None, times=None):
+        if gate and times is None:
+            times = int(math.ceil(gate.duration/self.time_step))
+        elif times is None:
+            times = 1
+
+        # apply decoherence to the qubits not involved in the operation. REMOVING OF ANCILLA QUBITS THAT ARE USED
+        # TO CALCULATE THE SUPEROPERATOR IS HARDCODED NOW FOR THE CASE OF A GHZ WITH 4 NODES
+        included_qubits = set([i for i in range(self.num_qubits)]).difference(excluded_qubits)
+        included_qubits = included_qubits.difference([(self.num_qubits - 1) - (2*i) for i in range(4)])
+
+        drawn = False
+        for _ in range(times):
+            for tqubit in included_qubits:
+                self._N_single(self.p_dec, tqubit)
+                if not drawn:
+                    self._add_draw_operation("{}xD".format(times), tqubit)
+            drawn = True
+
     def _sum_pauli_error_single(self, tqubit):
         """
             Private method that calculates the pauli gate sum part of the equation specified in _N_single
@@ -985,6 +1014,11 @@ class QuantumCircuit:
             self._measurement_first_qubit(measure_new, noise=noise, pm=pm)
             self._add_draw_operation("{}M_{}:{}"
                                      .format((colored("~", 'red') if noise else ""), basis, measure_new), qubit)
+            if self.p_dec != 0:
+                self._effective_measurements += 1
+                times = int(math.ceil(self.measurement_duration/self.time_step))
+                self._N_decoherence([0], times=times)
+                self._effective_measurements += -1
         self._effective_measurements += N
 
     def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):

@@ -5,10 +5,11 @@ import circuit_simulation.circuit_simulator as cs
 
 class Gate(ABC):
 
-    def __init__(self, name, matrix, representation):
+    def __init__(self, name, matrix, representation, duration=0):
         self._name = name
         self._matrix = matrix
         self._representation = representation
+        self._duration = duration
 
     @property
     def name(self):
@@ -23,8 +24,17 @@ class Gate(ABC):
         return self._representation
 
     @property
+    def duration(self):
+        return self._duration
+
+    @property
     def dagger(self):
         return self.matrix.conj().T
+
+    @duration.setter
+    def duration(self, duration):
+        self._duration = duration
+
 
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
@@ -35,8 +45,8 @@ class Gate(ABC):
 
 class SingleQubitGate(Gate):
 
-    def __init__(self, name, matrix, representation):
-        super().__init__(name, matrix, representation)
+    def __init__(self, name, matrix, representation, duration=0):
+        super().__init__(name, matrix, representation, duration)
 
     def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
@@ -45,8 +55,8 @@ class SingleQubitGate(Gate):
 
 class TwoQubitGate(Gate):
 
-    def __init__(self, name, matrix, representation):
-        super().__init__(name, matrix, representation)
+    def __init__(self, name, matrix, representation, duration=0):
+        super().__init__(name, matrix, representation, duration)
         self._one_state_matrix = matrix[2:, 2:]
         self._zero_state_matrix = matrix[:2, :2]
 
@@ -114,13 +124,15 @@ CNOT_gate = TwoQubitGate("CNOT",
                                    [0, 1, 0, 0],
                                    [0, 0, 0, 1],
                                    [0, 0, 1, 0]]),
-                         "X")
+                         "X",
+                         4)
 CZ_gate = TwoQubitGate("CPhase",
                        np.array([[1, 0, 0, 0],
                                  [0, 1, 0, 0],
                                  [0, 0, 1, 0],
                                  [0, 0, 0, -1]]),
-                       "Z")
+                       "Z",
+                       4)
 NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                  np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
                                            [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],
