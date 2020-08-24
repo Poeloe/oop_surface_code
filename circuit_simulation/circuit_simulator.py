@@ -211,7 +211,7 @@ class QuantumCircuit:
         density_matrix[self.d - 1, self.d - 1] = 1 / 2
 
         for i in range(1, self.num_qubits):
-            self._add_draw_operation(CNOT_gate.representation, (0, i))
+            self._add_draw_operation(CNOT_gate, (0, i))
 
         return density_matrix
 
@@ -364,14 +364,13 @@ class QuantumCircuit:
                 else density_matrix
 
             # Drawing the Bell Pair
-            sign = '@' if noise else '#'
             if new_qubit:
                 self._qubit_array.insert(0, ket_0)
                 self._qubit_array.insert(0, ket_0)
                 self._correct_for_n_top_qubit_additions(n=2)
             else:
                 self._effective_measurements -= 2
-            self._add_draw_operation(sign, (0, 1))
+            self._add_draw_operation("#", (0, 1), noise)
 
     def add_top_qubit(self, qubit_state=ket_0, p_prep=0, user_operation=True):
         """
@@ -451,8 +450,7 @@ class QuantumCircuit:
             self._N_decoherence([tqubit], gate)
 
         if draw:
-            gate_repr = colored("~", 'red') + gate.representation if noise else gate.representation
-            self._add_draw_operation(gate_repr, tqubit)
+            self._add_draw_operation(gate, tqubit, noise)
 
     def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None):
         """
@@ -650,8 +648,7 @@ class QuantumCircuit:
             self._N(pg, cqubit, tqubit)
 
         if draw:
-            gate_repr = colored("~", 'red') + gate.representation if noise else gate.representation
-            self._add_draw_operation(gate_repr, (cqubit, tqubit))
+            self._add_draw_operation(gate, (cqubit, tqubit), noise)
 
         if self.p_dec != 0:
             self._N_decoherence([tqubit, cqubit], gate)
@@ -1939,21 +1936,34 @@ class QuantumCircuit:
         """ Adds the visual representation of the operations applied on the qubits """
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
-        for gate_item in self._draw_order:
-            gate = next(iter(gate_item))
-            value = gate_item[gate]
-            if no_color:
-                gate = ansi_escape.sub("", gate)
-            if type(value) == tuple:
-                control = "o" if "~" not in gate or no_color else colored("~", 'red') + "o"
-                if gate == "#" or gate == "@":
+        for draw_item in self._draw_order:
+            gate = draw_item[0]
+            qubits = draw_item[1]
+            noise = draw_item[2]
+
+            if type(qubits) == tuple:
+                if type(gate) in [SingleQubitGate, TwoQubitGate]:
+                    control = gate.control_repr if type(gate) == TwoQubitGate else "o"
+                    gate = gate.representation
+                elif gate == "#":
                     control = gate
-                cqubit = value[0]
-                tqubit = value[1]
+                else:
+                    control = "o"
+
+                if noise:
+                    control = "~" + control if no_color else colored("~", 'red') + control
+                    gate = "~" + gate if no_color else colored('~', 'red') + gate
+
+                cqubit = qubits[0]
+                tqubit = qubits[1]
                 init[cqubit] += "---{}---".format(control)
                 init[tqubit] += "---{}---".format(gate)
             else:
-                init[value] += "---{}---".format(gate)
+                if type(gate) == SingleQubitGate:
+                    gate = gate.representation
+                if noise:
+                    gate = "~" + gate if no_color else colored("~", 'red') + gate
+                init[qubits] += "---{}---".format(gate)
 
             for a, b in it.combinations(enumerate(init), 2):
                 # Since colored ansi code is shown as color and not text it should be stripped for length comparison
@@ -1996,35 +2006,38 @@ class QuantumCircuit:
 
         file.write("\n")
 
-        for gate_item in self._draw_order:
-            gate = next(iter(gate_item))
-            value = gate_item[gate]
+        for draw_item in self._draw_order:
+            gate = draw_item[0]
+            qubits = draw_item[1]
+            noise = draw_item[2]
+
+            if type(gate) in [SingleQubitGate, TwoQubitGate]:
+                gate = gate.representation
+
             gate = ansi_escape.sub("", gate)
             gate = gate.lower()
-            if type(value) == tuple:
+            if type(qubits) == tuple:
                 if 'z' in gate:
-                    gate = "c-z" if "~" not in gate else "n-cz"
+                    gate = "c-z" if not noise else "n-cz"
                 elif 'x' in gate:
-                    gate = 'cnot' if "~" not in gate else "n-cnot"
+                    gate = 'cnot' if not noise else "n-cnot"
                 elif '#' in gate:
-                    gate = 'bell'
-                elif '@' in gate:
-                    gate = 'n-bell'
-                cqubit = value[0]
-                tqubit = value[1]
+                    gate = 'bell' if not noise else "n-bell"
+                cqubit = qubits[0]
+                tqubit = qubits[1]
                 file.write("\t" + gate + " " + str(cqubit) + "," + str(tqubit) + "\n")
             elif "m" in gate:
                 gate = "meas " if "~" not in gate else "n-meas "
-                file.write("\t" + gate + str(value) + "\n")
+                file.write("\t" + gate + str(qubits) + "\n")
             else:
-                gate = gate if "~" not in gate else "n-"+gate
-                file.write("\t" + gate + " " + str(value) + "\n")
+                gate = gate if "~" not in gate or not noise else "n-"+gate
+                file.write("\t" + gate + " " + str(qubits) + "\n")
 
         file.close()
 
         return file_path
 
-    def _add_draw_operation(self, operation, qubits):
+    def _add_draw_operation(self, operation, qubits, noise=False):
         """
             Adds an operation to the draw order list.
 
@@ -2060,7 +2073,7 @@ class QuantumCircuit:
 
                 if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
                     qubits += len(self._measured_qubits)
-        item = {operation: qubits}
+        item = [operation, qubits, noise]
         self._draw_order.append(item)
 
     def _correct_for_n_top_qubit_additions(self, n=1):
@@ -2084,12 +2097,13 @@ class QuantumCircuit:
         self._measured_qubits = [(x + n) for x in self._measured_qubits]
         self._effective_measurements = 0
         for i, draw_item in enumerate(self._draw_order):
-            operation = list(draw_item.keys())[0]
-            qubits = list(draw_item.values())[0]
+            operation = draw_item[0]
+            qubits = draw_item[1]
+            noise = draw_item[2]
             if type(qubits) == tuple:
-                self._draw_order[i] = {operation: (qubits[0] + n, qubits[1] + n)}
+                self._draw_order[i] = [operation, (qubits[0] + n, qubits[1] + n), noise]
             else:
-                self._draw_order[i] = {operation: qubits + n}
+                self._draw_order[i] = [operation, qubits + n, noise]
 
     def save_density_matrix(self, filename=None):
         if filename is None:
