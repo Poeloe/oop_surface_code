@@ -31,21 +31,21 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     # Noisy ancilla Bell pair is now between are now 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z_gate, new_qubit=True)
-    qc.double_selection(X_gate)
+    qc.double_selection(CZ_gate, new_qubit=True)
+    qc.double_selection(CNOT_gate)
 
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z_gate, new_qubit=True)
-    qc.double_selection(X_gate)
+    qc.double_selection(CZ_gate, new_qubit=True)
+    qc.double_selection(CNOT_gate)
 
     # Now entanglement between ancilla 0 and 3 is made
-    qc.single_dot(Z_gate, 2, 5)
-    qc.single_dot(Z_gate, 2, 5)
+    qc.single_dot(CZ_gate, 2, 5)
+    qc.single_dot(CZ_gate, 2, 5)
 
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
-    qc.single_dot(Z_gate, 3, 4)
-    qc.single_dot(Z_gate, 3, 4)
+    qc.single_dot(CZ_gate, 3, 4)
+    qc.single_dot(CZ_gate, 3, 4)
 
     qc.apply_2_qubit_gate(operation, 0, 4)
     qc.apply_2_qubit_gate(operation, 1, 6)
@@ -69,25 +69,25 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     # Noisy ancilla Bell pair between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z_gate, new_qubit=True)
-    qc.double_selection(X_gate)
-    qc.double_dot(Z_gate, 2, 3)
-    qc.double_dot(X_gate, 2, 3)
+    qc.double_selection(CZ_gate, new_qubit=True)
+    qc.double_selection(CNOT_gate)
+    qc.double_dot(CZ_gate, 2, 3)
+    qc.double_dot(CNOT_gate, 2, 3)
 
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
     qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(Z_gate, new_qubit=True)
-    qc.double_selection(X_gate)
-    qc.double_dot(Z_gate, 2, 3)
-    qc.double_dot(X_gate, 2, 3)
+    qc.double_selection(CZ_gate, new_qubit=True)
+    qc.double_selection(CNOT_gate)
+    qc.double_dot(CZ_gate, 2, 3)
+    qc.double_dot(CNOT_gate, 2, 3)
 
     # Now entanglement between ancilla 0 and 3 is made
-    qc.double_dot(Z_gate, 2, 5)
-    qc.double_dot(Z_gate, 2, 5)
+    qc.double_dot(CZ_gate, 2, 5)
+    qc.double_dot(CZ_gate, 2, 5)
 
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
-    qc.double_dot(Z_gate, 3, 4)
-    qc.double_dot(Z_gate, 3, 4)
+    qc.double_dot(CZ_gate, 3, 4)
+    qc.double_dot(CZ_gate, 3, 4)
 
     qc.apply_2_qubit_gate(operation, 0, 4)
     qc.apply_2_qubit_gate(operation, 1, 6)
