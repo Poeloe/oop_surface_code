@@ -22,7 +22,7 @@ class Gate(ABC):
 
     """
 
-    def __init__(self, name, matrix, representation, duration):
+    def __init__(self, name, matrix, representation, duration=0):
         self._name = name
         self._matrix = matrix
         self._representation = representation
@@ -61,7 +61,7 @@ class SingleQubitGate(Gate):
         SingleQubitGate class inherits the abstract Gate class
     """
 
-    def __init__(self, name, matrix, representation, duration):
+    def __init__(self, name, matrix, representation, duration=0):
         super().__init__(name, matrix, representation, duration)
 
     def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
@@ -94,7 +94,7 @@ class TwoQubitGate(Gate):
             True if only upper left matrix and lower right matrix are non-zero
     """
 
-    def __init__(self, name, matrix, representation, duration, control_repr="o"):
+    def __init__(self, name, matrix, representation, duration=0, control_repr="o"):
         super().__init__(name, matrix, representation, duration)
         self._control_repr = control_repr
         self._upper_left_matrix = matrix[2:, 2:]
