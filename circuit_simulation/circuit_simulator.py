@@ -634,12 +634,10 @@ class QuantumCircuit:
             pg = self.pg
 
         two_qubit_gate = self._create_2_qubit_gate(gate, cqubit, tqubit)
-
         self.density_matrix = sp.csr_matrix(two_qubit_gate.dot(CT(self.density_matrix, two_qubit_gate)))
 
         if noise:
             self._N(pg, cqubit, tqubit)
-
         if draw:
             self._add_draw_operation(gate, (cqubit, tqubit), noise)
 
@@ -656,12 +654,18 @@ class QuantumCircuit:
         So for creating a CNOT gate with the control on the 2nd qubit and target on the first qubit on a system with 3
         qubits one will get:
 
-                1. I#I#I + I#I#I
-                2. I#|0><0|#I + I#|1><1|#I
-                3. I#|0><0|#I + X_t#|1><1|#I
+                1. I#I#I + I#I#I + I#I#I + I#I#I
+                2. I#|0><0|#I + I#|1><1|#I + 0#|0><1|#I + 0#|1><0|#I
+                3. I#|0><0|#I + X_t#|1><1|#I + 0#|0><1|#I + 0#|1><0|#I
 
-        (In which '#' is the Kronecker Product) (https://quantumcomputing.stackexchange.com/questions/4252/
-        how-to-derive-the-cnot-matrix-for-a-3-qbit-system-where-the-control-target-qbi)
+        (In which '#' is the Kronecker Product, and '0' is the zero matrix)
+        (https://quantumcomputing.stackexchange.com/questions/4252/
+        how-to-derive-the-cnot-matrix-for-a-3-qbit-system-where-the-control-target-qbi and
+        https://quantumcomputing.stackexchange.com/questions/9181/swap-gate-on-2-qubits-in-3-entangled-qubit-system)
+
+        The 'create_component_2_qubit_gate' method defined within creates one of the 4 components that is shown in
+        step 3 above. Thus 'first_part = create_component_2_qubit_gate(CT(ket_0), zero_state_matrix)' creates the first
+        component namely I#|0><0|#I in case of the CNOT mentioned.
 
         Parameters
         ----------
@@ -680,24 +684,35 @@ class QuantumCircuit:
             num_qubits = self.num_qubits
         if cqubit == tqubit:
             raise ValueError("Control qubit cannot be the same as the target qubit!")
-        one_state_matrix = gate.matrix if type(gate) == SingleQubitGate else gate.one_state_matrix
-        zero_state_matrix = I_gate.matrix if type(gate) == SingleQubitGate else gate.zero_state_matrix
 
-        # Initialise the gates for both states of the control qubit
-        gate_0_state = self._create_1_qubit_gate(CT(ket_0), cqubit, num_qubits=num_qubits)
-        gate_1_state = self._create_1_qubit_gate(CT(ket_1), cqubit, num_qubits=num_qubits)
+        def create_component_2_qubit_gate(control_qubit_matrix, target_qubit_matrix):
+            # Initialise the only identity case with on the place of the control qubit the identity replaced
+            # with the specified control_qubit_matrix
+            control_gate = self._create_1_qubit_gate(control_qubit_matrix, cqubit, num_qubits=num_qubits)
 
-        # Specify the gate to apply to the target qubit in case the control qubit is in the |1> state
-        one_qubit_gate = self._create_1_qubit_gate(one_state_matrix, tqubit, num_qubits=num_qubits)
-        gate_1_state = one_qubit_gate.dot(gate_1_state)
+            # Initialise the only identity case with on the place of the target qubit the identity replaced
+            # with the specified target_qubit_matrix
+            if not np.array_equal(target_qubit_matrix, I_gate):
+                target_gate = self._create_1_qubit_gate(target_qubit_matrix, tqubit, num_qubits=num_qubits)
 
-        # if gate_2 is specified, specify the gate to apply to the target qubit in case the control qubit is in the |0>
-        # state. If not specified, identity gate is assumed
-        if not np.array_equal(zero_state_matrix, I_gate.matrix):
-            one_qubit_gate_2 = self._create_1_qubit_gate(zero_state_matrix, tqubit, num_qubits=num_qubits)
-            gate_0_state = one_qubit_gate_2.dot(gate_0_state)
+                # Matrix multiply the two cases to obtain the total gate
+                return target_gate.dot(control_gate)
 
-        return sp.csr_matrix(gate_0_state + gate_1_state)
+            return control_gate
+
+        one_state_matrix = gate.matrix if type(gate) == SingleQubitGate else gate.upper_left_matrix
+        zero_state_matrix = I_gate.matrix if type(gate) == SingleQubitGate else gate.lower_right_matrix
+
+        first_part = create_component_2_qubit_gate(CT(ket_0), zero_state_matrix)
+        second_part = create_component_2_qubit_gate(CT(ket_1), one_state_matrix)
+
+        if type(gate) == TwoQubitGate and not gate.is_cntrl_gate:
+            third_part = create_component_2_qubit_gate(CT(ket_0, ket_1), gate.upper_right_matrix)
+            fourth_part = create_component_2_qubit_gate(CT(ket_1, ket_0), gate.lower_left_matrix)
+
+            return sp.csr_matrix(first_part + second_part + third_part + fourth_part)
+
+        return sp.csr_matrix(first_part + second_part)
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
@@ -708,6 +723,10 @@ class QuantumCircuit:
         """ Applies the CZ gate to the specified target qubit. See apply_2_qubit_gate for more info """
 
         self.apply_2_qubit_gate(CZ_gate, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
+
+    def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
+
+        self.apply_2_qubit_gate(SWAP_gate, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
 
     def two_qubit_gate_NV(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the two-qubit gate that is specific to the actual NV center"""

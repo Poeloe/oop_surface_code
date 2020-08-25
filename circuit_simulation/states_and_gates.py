@@ -29,9 +29,6 @@ class Gate(ABC):
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
 
-    def __eq__(self, other):
-        return np.array_equal(self.matrix, other.matrix)
-
 
 class SingleQubitGate(Gate):
 
@@ -42,31 +39,56 @@ class SingleQubitGate(Gate):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
         return qc._create_1_qubit_gate(self, target_qubit)
 
+    def __eq__(self, other):
+        if type(other) != SingleQubitGate:
+            return False
+        return np.array_equal(self.matrix, other.matrix)
+
 
 class TwoQubitGate(Gate):
 
     def __init__(self, name, matrix, representation, control_repr="o"):
         super().__init__(name, matrix, representation)
         self._control_repr = control_repr
-        self._one_state_matrix = matrix[2:, 2:]
-        self._zero_state_matrix = matrix[:2, :2]
+        self._upper_left_matrix = matrix[2:, 2:]
+        self._lower_right_matrix = matrix[:2, :2]
+        self._upper_right_matrix = matrix[:2, 2:]
+        self._lower_left_matrix = matrix[2:, :2]
+        self._cntrl_gate = True if np.array_equal(self._upper_right_matrix, np.zeros((2, 2))) and \
+                                   np.array_equal(self._lower_left_matrix, np.zeros((2, 2))) else False
 
     @property
     def control_repr(self):
         return self._control_repr
 
     @property
-    def zero_state_matrix(self):
-        return self._zero_state_matrix
+    def lower_right_matrix(self):
+        return self._lower_right_matrix
 
     @property
-    def one_state_matrix(self):
-        return self._one_state_matrix
+    def upper_left_matrix(self):
+        return self._upper_left_matrix
+
+    @property
+    def lower_left_matrix(self):
+        return self._lower_left_matrix
+
+    @property
+    def upper_right_matrix(self):
+        return self._upper_right_matrix
+
+    @property
+    def is_cntrl_gate(self):
+        return self._cntrl_gate
 
     def get_circuit_dimension_matrix(self, num_qubits, control_qubit, target_qubit):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
         return qc._create_2_qubit_gate(self, control_qubit, target_qubit)
 
+    def __eq__(self, other):
+        if type(other) != TwoQubitGate:
+            return False
+        return np.array_equal(self.matrix, other.matrix)
 
 class State(object):
 
@@ -91,6 +113,8 @@ class State(object):
         return self.representation
 
     def __eq__(self, other):
+        if type(other) != State:
+            return False
         return np.array_equal(self.vector, other.vector)
 
 """
@@ -132,3 +156,11 @@ NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                            [0, 0, np.cos(np.pi/4), -1 * np.sin(np.pi/4)],
                                            [0, 0, 1 * np.sin(np.pi/4), np.cos(np.pi/4)]]),
                                  "NV")
+
+SWAP_gate = TwoQubitGate("Swap",
+                         np.array([[1, 0, 0, 0],
+                                   [0, 0, 1, 0],
+                                   [0, 1, 0, 0],
+                                   [0, 0, 0, 1]]),
+                         "(X)",
+                         control_repr="(X)")
