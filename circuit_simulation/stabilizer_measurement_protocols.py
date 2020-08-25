@@ -29,7 +29,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1)
 
-    # Noisy ancilla Bell pair is now between are now 0 and 1
+    # Noisy ancilla Bell pair now between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
     qc.double_selection(CZ_gate, new_qubit=True)
     qc.double_selection(CNOT_gate)
