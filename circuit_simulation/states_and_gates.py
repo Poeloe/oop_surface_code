@@ -4,11 +4,29 @@ import circuit_simulation.circuit_simulator as cs
 
 
 class Gate(ABC):
+    """
+    Abstract class Gate
 
-    def __init__(self, name, matrix, representation):
+    This class should be inherited when creating a gate class. The common attributes are:
+
+    Attributes
+    ----------
+    name : str
+        Name that will be used to refer to the gate
+    matrix : numpy array
+        Matrix that represents the gate operation.
+    representation : str
+        Representation is used in the drawing of the circuits
+    duration : int
+        Duration of the gate in time unit
+
+    """
+
+    def __init__(self, name, matrix, representation, duration):
         self._name = name
         self._matrix = matrix
         self._representation = representation
+        self._duration = duration
 
     @property
     def name(self):
@@ -23,17 +41,28 @@ class Gate(ABC):
         return self._representation
 
     @property
+    def duration(self):
+        return self._duration
+
+    @property
     def dagger(self):
         return self.matrix.conj().T
+
+    @duration.setter
+    def duration(self, duration):
+        self._duration = duration
 
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
 
 
 class SingleQubitGate(Gate):
+    """
+        SingleQubitGate class inherits the abstract Gate class
+    """
 
-    def __init__(self, name, matrix, representation):
-        super().__init__(name, matrix, representation)
+    def __init__(self, name, matrix, representation, duration):
+        super().__init__(name, matrix, representation, duration)
 
     def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
@@ -46,9 +75,27 @@ class SingleQubitGate(Gate):
 
 
 class TwoQubitGate(Gate):
+    """
+        TwoQubitGate class inherits from the abstract Gate class
 
-    def __init__(self, name, matrix, representation, control_repr="o"):
-        super().__init__(name, matrix, representation)
+        Extra Attributes
+        ----------------
+        control_repr : str, default="o"
+            Representation of the control operation on the control qubit when drawing circuits. Default is "o".
+        upper_left_matrix : 2x2 numpy array
+            The upper left matrix of the 4x4 matrix attribute
+        lower_right_matrix : 2x2 numpy array
+            The lower right matrix of the 4x4 matrix attribute
+        upper_right_matrix : 2x2 numpy array
+            The upper right matrix of the 4x4 matrix attribute
+        lower_left_matrix : 2x2 numpy array
+            The lower left matrix of the 4x4 matrix attribute
+        is_cntrl_gate : bool
+            True if only upper left matrix and lower right matrix are non-zero
+    """
+
+    def __init__(self, name, matrix, representation, duration, control_repr="o"):
+        super().__init__(name, matrix, representation, duration)
         self._control_repr = control_repr
         self._upper_left_matrix = matrix[2:, 2:]
         self._lower_right_matrix = matrix[:2, :2]
@@ -91,6 +138,20 @@ class TwoQubitGate(Gate):
         return np.array_equal(self.matrix, other.matrix)
 
 class State(object):
+    """
+        State class
+
+        Class defines a state with the attributes
+
+        Attributes
+        ----------
+        name : str
+            Name that will be used to refer to the state
+        vector : numpy array
+            Vector that represents the state
+        representation : str
+            Representation is used in the drawing of the circuits
+    """
 
     def __init__(self, name, vector, representation):
         self._name = name
