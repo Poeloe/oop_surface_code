@@ -2121,5 +2121,7 @@ class QuantumCircuit:
     def copy(self):
         return self.__copy__()
 
-    def print(self):
+    def print(self, empty_print_lines=True):
         print(*self._print_lines)
+        if empty_print_lines:
+            self._print_lines.clear()
