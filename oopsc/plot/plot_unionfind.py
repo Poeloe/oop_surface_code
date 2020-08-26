@@ -46,8 +46,8 @@ class plot_2D(gp.plot_2D):
 
         le_xv = self.legend_circle("X-vertex", mew=0, mfc=self.cX)
         le_zv = self.legend_circle("Z-vertex", mew=0, mfc=self.cZ)
-        le_xe = self.legend_circle("X-edge", lw=self.linewidth, color=self.cx, marker=None)
-        le_ze = self.legend_circle("Z-edge", ls="--", lw=self.linewidth, color=self.cz, marker=None)
+        le_xe = self.legend_circle("X-edge", ls="--", lw=self.linewidth, color=self.cx, marker=None)
+        le_ze = self.legend_circle("Z-edge", ls="-", lw=self.linewidth, color=self.cz, marker=None)
         self.ax.legend(
             handles=[le_xv, le_zv, le_xe, le_ze],
             bbox_to_anchor=(x, y),
@@ -90,7 +90,7 @@ class plot_2D(gp.plot_2D):
 
     def get_edge_data(self, ertype, type, y0, x0):
 
-        if ertype == 0:
+        if ertype == 1:
             (y1, x1) = (
                 (y0, (x0 + 1) % self.size)
                 if type == 0
@@ -141,8 +141,8 @@ class plot_2D(gp.plot_2D):
 
         x0, y0, xm, ym, x1, y1 = self.get_edge_data(ertype, type, y0, x0)
 
-        up1 = self.draw_line([x0,  xm], [y0,  ym], Z=qubit.z, color=color, lw=self.linewidth, ls=self.LS[ertype], alpha=alpha)
-        up2 = self.draw_line([xm,  x1], [ym,  y1], Z=qubit.z, color=color, lw=self.linewidth, ls=self.LS[ertype], alpha=alpha)
+        up1 = self.draw_line([x0,  xm], [y0,  ym], Z=qubit.z, color=color, lw=self.linewidth, ls=self.LS[ertype-1], alpha=alpha)
+        up2 = self.draw_line([xm,  x1], [ym,  y1], Z=qubit.z, color=color, lw=self.linewidth, ls=self.LS[ertype-1], alpha=alpha)
         up1.object = up2.object = qubit.E[ertype]
         qubit.E[ertype].pu = [up1, up2]
 
@@ -206,7 +206,7 @@ class plot_2D(gp.plot_2D):
             (ye, xe) = edge.qubit.qID[1:3]
             (yv, xv) = vertex.sID[1:3]
             id = 0 if (ye == yv and xe == xv) else 1
-            color = self.Cx if edge.ertype ==0 else self.Cz
+            color = self.cx if edge.ertype == edge.edge_type else self.cz
             self.new_attributes(edge.pu[id], dict(color=color, alpha=self.alpha))
             self.new_attributes(edge.pu[1-id], dict(color=self.cl, alpha=self.alpha2))
         elif edge.support == 2:
@@ -388,7 +388,7 @@ class plot_3D(plot_2D, gp.plot_3D):
             (ye, xe), ze = edge.qubit.qID[1:3], edge.z
             (yv, xv), zv = vertex.sID[1:3], vertex.z
 
-            color = self.Cx if edge.ertype == 0 else self.Cz
+            color = self.Cx if (edge.ertype == edge.edge_type) else self.Cz
             if edge.edge_type == 0:
                 id = 0 if (ye == yv and xe == xv) else 1
             else:
