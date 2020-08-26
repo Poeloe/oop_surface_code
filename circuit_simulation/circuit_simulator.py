@@ -299,8 +299,8 @@ class QuantumCircuit:
             self.CNOT(qubit1, qubit2, noise=False, draw=False, user_operation=False)
             self._add_draw_operation("#", (qubit1, qubit2))
 
-    def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None,
-                              user_operation=True, network_noise_type=None):
+    def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
+                              user_operation=True):
         """
         qc.create_bell_pair(N, pn=0.1)
 
@@ -331,8 +331,14 @@ class QuantumCircuit:
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
             network_noise_type : int, optional, default=None
-                Typw of network noise that should be used. If not specified, the network noise type known for the
+                Type of network noise that should be used. If not specified, the network noise type known for the
                 QuantumCircuit object is used
+            bell_state_type : int [1-4], optional, default=1
+                Choose the Bell state type which should be created, types are:
+                    1 : |00> + |11>
+                    2 : |00> - |11>
+                    3 : |01> + |10>
+                    4 : |01> - |10>
 
             Example
             -------
@@ -354,9 +360,7 @@ class QuantumCircuit:
         for i in range(0, 2 * N, 2):
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
-            rho = sp.lil_matrix((4, 4))
-            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
-            density_matrix = rho
+            density_matrix = self._get_bell_state_by_type(bell_state_type)
 
             if noise and pn:
                 density_matrix = self._N_network(density_matrix, pn, network_noise_type)
@@ -372,6 +376,27 @@ class QuantumCircuit:
             else:
                 self._effective_measurements -= 2
             self._add_draw_operation("#", (0, 1), noise)
+
+    @staticmethod
+    def _get_bell_state_by_type(bell_state_type):
+        """
+            Returns a Bell state density matrix based on the type provided. types are:
+                    1 : |00> + |11>
+                    2 : |00> - |11>
+                    3 : |01> + |10>
+                    4 : |01> - |10>
+        """
+        rho = sp.lil_matrix((4, 4))
+        if bell_state_type == 1:
+            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
+        elif bell_state_type == 2:
+            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, -1 / 2, -1 / 2, 1 / 2
+        elif bell_state_type == 3:
+            rho[1, 1], rho[1, 2], rho[2, 1], rho[2, 2] = 1 / 2, -1 / 2, -1 / 2, 1 / 2
+        elif bell_state_type == 4:
+            rho[1, 1], rho[1, 2], rho[2, 1], rho[2, 2] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
+        else:
+            raise ValueError("A non-valid Bell state type was requested. Known types are 1, 2, 3, and 4.")
 
     def add_top_qubit(self, qubit_state=ket_0, p_prep=0, user_operation=True):
         """
@@ -849,7 +874,7 @@ class QuantumCircuit:
         else:
             error_density = sp.lil_matrix(4, 4)
             error_density[3,3] = 1
-            return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn * error_density)
+            return sp.csr_matrix((1-pn) * density_matrix + pn * error_density)
 
     @staticmethod
     def _N_preparation(state, p_prep):
