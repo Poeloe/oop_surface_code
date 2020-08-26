@@ -201,13 +201,13 @@ class toric(object):
         logical_error = [0, 0, 0, 0]
 
         for i in self.range:
-            if self.Q[z][(0, i, 0)].E[0].state:
+            if self.Q[z][(1, i, 0)].E[0].state:
                 logical_error[0] = 1 - logical_error[0]
-            if self.Q[z][(1, 0, i)].E[0].state:
+            if self.Q[z][(0, 0, i)].E[0].state:
                 logical_error[1] = 1 - logical_error[1]
-            if self.Q[z][(1, i, 0)].E[1].state:
+            if self.Q[z][(0, i, 0)].E[1].state:
                 logical_error[2] = 1 - logical_error[2]
-            if self.Q[z][(0, 0, i)].E[1].state:
+            if self.Q[z][(1, 0, i)].E[1].state:
                 logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
@@ -469,7 +469,7 @@ class toric(object):
         """Adds an edge with edge ID number qID with pointers to vertices. Also adds pointers to this edge on the vertices. """
 
         qubit = self.Q[z][(td, y, x)] = Qubit(qID=(td, y, x), z=z)
-        E1, E2 = (qubit.E[0], qubit.E[1]) if td == 0 else (qubit.E[1], qubit.E[0])
+        E1, E2 = (qubit.E[0], qubit.E[1]) if td == 1 else (qubit.E[1], qubit.E[0])
 
         vW.neighbors["e"] = (vE, E1)
         vE.neighbors["w"] = (vW, E1)
