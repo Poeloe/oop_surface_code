@@ -1920,6 +1920,8 @@ class QuantumCircuit:
         init = self._draw_init(no_color)
         self._draw_gates(init, no_color)
         init[-1] += "\n\n"
+        if self._print_lines:
+            self._print_lines.clear()
         self._print_lines.append(legenda)
         self._print_lines.extend(init)
         if print:

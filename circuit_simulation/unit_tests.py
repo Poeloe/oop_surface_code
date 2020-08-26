@@ -129,6 +129,18 @@ class TestQuantumCircuitGates(unittest.TestCase):
         gate_result = qc._create_2_qubit_gate(CZ_gate, 1, 0)
         np.testing.assert_array_equal(gate_result.toarray(), CZ_gate_test)
 
+    def test_SWAP_gate(self):
+        qc = QC(2, 0)
+
+        gate_result = qc._create_2_qubit_gate(SWAP_gate, 1, 0)
+        np.testing.assert_array_equal(gate_result.toarray(), SWAP_gate.matrix)
+
+    def test_SWAP_gate_cqubit_1(self):
+        qc = QC(2, 0)
+
+        gate_result = qc._create_2_qubit_gate(SWAP_gate, 0, 1)
+        np.testing.assert_array_equal(gate_result.toarray(), SWAP_gate.matrix)
+
 
 class TestErrorImplementation(unittest.TestCase):
 
