@@ -81,6 +81,10 @@ class QuantumCircuit:
             no_single_qubit_error : bool, optional, default=False
                 When single qubit gates are free of noise, but noise in general is present, this boolean
                 is set to True. It prevents the addition of noise when applying a single qubit gate
+            thread_safe_printing : bool, optional, deafult=False
+                If working with threas, this can be set to True. This prevents print statements from being
+                printed in real-time. Instead the lines will be saved and can at all time be printed all in once
+                when running the 'print' method. Print lines are always saved in the _print_lines array until printing
 
 
             Attributes
@@ -122,7 +126,7 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None, network_noise_type=0, no_single_qubit_error=False):
+                 pn=None, network_noise_type=0, no_single_qubit_error=False, thread_safe_printing=False):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -139,6 +143,7 @@ class QuantumCircuit:
         self._measured_qubits = []
         self.density_matrix = None
         self._print_lines = []
+        self._thread_safe_printing=thread_safe_printing
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
@@ -1224,6 +1229,8 @@ class QuantumCircuit:
             print_line += "eigenvalue: {}\n\neigenvector:\n {}\n---\n".format(eigenvalue, eigenvectors[i].toarray())
 
         self._print_lines.append(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
+        if not self._thread_safe_printing:
+            self.print()
 
     def decompose_non_zero_eigenvectors(self):
         """
@@ -1436,7 +1443,6 @@ class QuantumCircuit:
             self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name)
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
-
         return superoperator
 
     def _get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
@@ -1757,6 +1763,9 @@ class QuantumCircuit:
         self._print_lines.append("\n\nSum of the probabilities is: {}\n".format(total))
         self._print_lines.append("\n---- End of Superoperator ----\n")
 
+        if not self._thread_safe_printing:
+            self.print()
+
     def _superoperator_to_csv(self, superoperator, proj_type, file_name=None):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
@@ -1812,6 +1821,8 @@ class QuantumCircuit:
             path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
             self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
         df.to_csv(path_to_file, sep=';', index=False)
+        if not self._thread_safe_printing:
+            self.print()
 
     def get_kraus_operator(self, print_to_console=True):
         """
@@ -1871,13 +1882,16 @@ class QuantumCircuit:
 
         self._print_lines.append(*print_lines)
 
+        if not self._thread_safe_printing:
+            self.print()
+
     """
         ----------------------------------------------------------------------------------------------------------
                                             Circuit drawing Methods
         ----------------------------------------------------------------------------------------------------------     
     """
 
-    def draw_circuit(self, no_color=False, print=True):
+    def draw_circuit(self, no_color=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
         legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
@@ -1888,7 +1902,7 @@ class QuantumCircuit:
         init[-1] += "\n\n"
         self._print_lines.append(legenda)
         self._print_lines.extend(init)
-        if print:
+        if not self._thread_safe_printing:
             self.print()
 
     def draw_circuit_latex(self, meas_error=False):

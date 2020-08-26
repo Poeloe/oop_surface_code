@@ -8,7 +8,8 @@ import time
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True, network_noise_type=1,
+                        thread_safe_printing=True)
     qc.add_top_qubit(ket_p, p_prep=pm)
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
@@ -26,7 +27,8 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
+                        thread_safe_printing=True)
 
     # Noisy ancilla Bell pair now between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -63,7 +65,8 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
+                        thread_safe_printing=True)
 
     # Noisy ancilla Bell pair between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
