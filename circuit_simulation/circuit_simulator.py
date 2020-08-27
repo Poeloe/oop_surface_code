@@ -1078,6 +1078,58 @@ class QuantumCircuit:
         self.num_qubits -= 1
         self.d = 2 ** self.num_qubits
 
+    def _get_measurement_outcome_probability(self, qubit, outcome):
+        """
+            Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
+
+            To explain the approach taken, consider that:
+                    |a_1|   |b_1|   |c_1|   |a_1 b_1 c_1|                        |a_1 b_1 c_1 a_1 b_1 c_1 ... |
+                    |   | * |   | * |   | = |a_1 b_1 c_2|  ---> density matrix:  |a_1 b_1 c_1 a_1 b_1 c_2 ... |
+                    |a_2|   |b_2|   |c_2|   |a_1 b_2 c_1|                        |a_1 b_1 c_1 a_1 b_2 c_1 ... |
+                                            |    ...    |                        |          ...               |
+
+            When the second qubit (with the elements b_1 and b_2) is measured and the outcome is a 1, it means
+            that b_1 is 0 and b_2 is 1. This thus means that all elements of the density matrix that are built up
+            out of b_1 elements are 0 and only the elements not containing b_1 elements survive. This way a new
+            density matrix can be constructed of which the trace is equal to the probability of this outcome occurring.
+            Pattern of the elements across the density matrix can be compared with a chess pattern, where the square
+            dimension reduce by a factor of 2 with the qubit number.
+
+            Parameters
+            ----------
+            qubit : int
+                qubit for which the measurement outcome probability should be measured
+            outcome : int [0,1]
+                Outcome for which the probability and resulting density matrix should be calculated
+        """
+        if qubit >= self.num_qubits:
+            raise ValueError("Specified qubit number is not in range. Please consider a qubit number between {} and {}."
+                             .format(0, self.num_qubits))
+
+        dimension_block = int(self.d / (2 ** (qubit + 1)))
+        start = 0 if outcome == 0 else dimension_block
+        start_rows = [i for i in range(start, self.d, dimension_block * 2)]
+        new_density_matrix = None
+
+        for row in start_rows:
+            temp_array = None
+            for column in start_rows:
+                if temp_array is None:
+                    temp_array = self.density_matrix[row:(row + dimension_block), column:(column + dimension_block)]
+                else:
+                    block = self.density_matrix[row:(row + dimension_block), column:(column + dimension_block)]
+                    temp_array = sp.hstack((temp_array, block))
+
+            if new_density_matrix is None:
+                new_density_matrix = temp_array
+            else:
+                new_density_matrix = sp.vstack((new_density_matrix, temp_array))
+
+        prob = trace(new_density_matrix)
+        new_density_matrix = new_density_matrix / trace(new_density_matrix)
+
+        return prob, new_density_matrix
+
     def measure(self, qubit, measure=None, basis="X", user_operation=False):
         """
             Measurement that can be applied to any qubit and does NOT remove the qubit from the system.
