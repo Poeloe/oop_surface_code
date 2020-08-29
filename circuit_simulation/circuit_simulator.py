@@ -181,7 +181,7 @@ class QuantumCircuit:
         density_matrix[self.d / 2, 0] = 1 / 2
         density_matrix[self.d / 2, self.d / 2] = 1 / 2
 
-        return density_matrix
+        return sp.csr_matrix(density_matrix)
 
     def _init_density_matrix_bell_pair_state(self, draw=True):
         """ Realises init_type option 2. See class description for more info. """
@@ -197,7 +197,7 @@ class QuantumCircuit:
             if draw:
                 self._add_draw_operation("#", (i, i + 1))
 
-        return density_matrix
+        return sp.csr_matrix(density_matrix)
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
         """ Realises init_type option 3. See class description for more info. """
@@ -214,7 +214,7 @@ class QuantumCircuit:
         for i in range(1, self.num_qubits):
             self._add_draw_operation(CNOT_gate, (0, i))
 
-        return density_matrix
+        return sp.csr_matrix(density_matrix)
 
     def _init_parameters_to_dict(self):
         init_params = {'num_qubits': self.num_qubits,
@@ -365,8 +365,8 @@ class QuantumCircuit:
             if noise and pn:
                 density_matrix = self._N_network(density_matrix, pn, network_noise_type)
 
-            self.density_matrix = sp.kron(density_matrix, self.density_matrix) if (self.density_matrix is not None) \
-                else density_matrix
+            self.density_matrix = sp.csr_matrix(sp.kron(density_matrix, self.density_matrix)) \
+                                  if (self.density_matrix is not None) else density_matrix
 
             # Drawing the Bell Pair
             if new_qubit:
@@ -1074,48 +1074,119 @@ class QuantumCircuit:
         self.num_qubits -= 1
         self.d = 2 ** self.num_qubits
 
-    def measure(self, qubit, measure=None, basis="X", user_operation=False):
+    def measure(self, qubit, outcome=None, basis="X", basis_transformation_noise=None, user_operation=False):
         """
-            Measurement that can be applied to any qubit and does NOT remove the qubit from the system.
-
-            *** THIS METHOD IS VERY SLOW FOR LARGER SYSTEMS, SINCE IT DETERMINES THE SYSTEM STATE AFTER
-            THE MEASUREMENT BY DIAGONALISING THE DENSITY MATRIX ***
+            Measurement that can be applied to any qubit and removes the qubit from the system.
 
             Parameters
             ----------
             qubit : int
                 Indicates the qubit to be measured (qubit count starts at 0)
-            measure : int [0 or 1], optional, default=None
+            outcome : int [0 or 1], optional, default=None
                 The measurement outcome for the qubit, either 0 or 1. If None, the method will choose
                 randomly according to the probability of the outcome.
             basis : str ["X" or "Z"], optional, default="X"
                 Whether the qubit is measured in the X-basis or in the computational basis (Z-basis)
+            basis_transformation_noise : bool, optional, default=False
+                Whether the H-gate that is applied to transform the basis in which the qubit is measured should be
             user_operation : bool, optional, default=True
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
-
         """
         if user_operation:
-            self._user_operation_order.append({"measure": [qubit, measure, basis]})
+            self._user_operation_order.append({"measure": [qubit, outcome, basis]})
+        if basis_transformation_noise is None:
+            basis_transformation_noise = self.basis_transformation_noise
         if basis == "X":
-            self.H(qubit, noise=False, user_operation=False)
+            self.H(qubit, noise=basis_transformation_noise, user_operation=False)
 
         # If no specific measurement outcome is given it is chosen by the hand of the probability
-        if measure is None:
-            # eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
-            prob1, density_matrix1 = self._measurement(qubit, measure=0)
-            prob2, density_matrix2 = self._measurement(qubit, measure=1)
+        if outcome is None:
+            prob1, density_matrix1 = self._get_measurement_outcome_probability(qubit, outcome=0)
+            prob2, density_matrix2 = self._get_measurement_outcome_probability(qubit, outcome=1)
 
             self.density_matrix = get_value_by_prob([density_matrix1, density_matrix2], [prob1, prob2])
         else:
-            self.density_matrix = self._measurement(qubit, measure)[1]
+            self.density_matrix = self._get_measurement_outcome_probability(qubit, outcome)[1]
 
         self._add_draw_operation("M", qubit)
 
         if basis == "X":
-            self.H(qubit, noise=False, user_operation=False)
+            self.H(qubit, noise=basis_transformation_noise, user_operation=False)
 
-    def _measurement(self, qubit, measure=0, eigenval=None, eigenvec=None):
+    def _get_measurement_outcome_probability(self, qubit, outcome, keep_qubit=True):
+        """
+            Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
+
+            *** THIS METHOD IS VERY SLOW FOR LARGER SYSTEMS, SINCE IT DETERMINES THE SYSTEM STATE AFTER
+            THE MEASUREMENT BY DIAGONALISING THE DENSITY MATRIX ***
+
+            To explain the approach taken, consider that:
+                    |a_1|   |b_1|   |c_1|   |a_1 b_1 c_1|                        |a_1 b_1 c_1 a_1 b_1 c_1 ... |
+                    |   | * |   | * |   | = |a_1 b_1 c_2|  ---> density matrix:  |a_1 b_1 c_1 a_1 b_1 c_2 ... |
+                    |a_2|   |b_2|   |c_2|   |a_1 b_2 c_1|                        |a_1 b_1 c_1 a_1 b_2 c_1 ... |
+                                            |    ...    |                        |          ...               |
+
+            When the second qubit (with the elements b_1 and b_2) is measured and the outcome is a 1, it means
+            that b_1 is 0 and b_2 is 1. This thus means that all elements of the density matrix that are built up
+            out of b_1 elements are 0 and only the elements not containing b_1 elements survive. This way a new
+            density matrix can be constructed of which the trace is equal to the probability of this outcome occurring.
+            Pattern of the elements across the density matrix can be compared with a chess pattern, where the square
+            dimension reduce by a factor of 2 with the qubit number.
+
+            Parameters
+            ----------
+            qubit : int
+                qubit for which the measurement outcome probability should be measured
+            outcome : int [0,1]
+                Outcome for which the probability and resulting density matrix should be calculated
+        """
+        if qubit >= self.num_qubits:
+            raise ValueError("Specified qubit number is not in range. Please consider a qubit number between {} and {}."
+                             .format(0, self.num_qubits))
+
+        dimension_block = int(self.d / (2 ** (qubit + 1)))
+        non_zero_rows = self.density_matrix.nonzero()[0]
+        non_zero_columns = self.density_matrix.nonzero()[1]
+
+        if keep_qubit:
+            new_density_matrix = sp.lil_matrix(copy.copy(self.density_matrix))
+            start = 0 if outcome == 1 else dimension_block
+            rows_columns_to_zero = [i+j for i in range(start, self.d, dimension_block * 2)
+                                    for j in range(dimension_block)]
+            non_zero_rows_unique = np.array(list(set(rows_columns_to_zero).intersection(non_zero_rows)))
+            non_zero_columns_unique = np.array(list(set(rows_columns_to_zero).intersection(non_zero_columns)))
+            if non_zero_columns_unique.size != 0:
+                for row in non_zero_rows_unique:
+                    column_indices = [i for i, e in enumerate(non_zero_rows) if e == row]
+                    new_density_matrix[row, non_zero_columns[column_indices]] = 0
+            if non_zero_columns_unique.size != 0:
+                for column in non_zero_columns_unique:
+                    row_indices = [i for i, e in enumerate(non_zero_columns) if e == column]
+                    new_density_matrix[non_zero_rows[row_indices], column] = 0
+
+            new_density_matrix = sp.csr_matrix(new_density_matrix)
+        else:
+            new_density_matrix = sp.lil_matrix((int(self.d/2), int(self.d/2)), dtype=self.density_matrix.dtype)
+            start = 0 if outcome == 0 else dimension_block
+            surviving_columns_rows = [i+j for i in range(start, self.d, dimension_block * 2)
+                                    for j in range(dimension_block)]
+            non_zero_rows_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_rows)))
+            non_zero_columns_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_columns)))
+            if non_zero_columns_unique.size != 0:
+                for row in non_zero_rows_unique:
+                    new_row = int(row/2) + (row % 2)
+                    column_indices = [i for i, e in enumerate(non_zero_rows) if e == row]
+                    valid_columns = [c for c in non_zero_columns[column_indices] if c in surviving_columns_rows]
+                    valid_columns_new = [(int(c/2) + (c % 2)) for c in valid_columns]
+                    new_density_matrix[new_row, valid_columns_new] = self.density_matrix[row, valid_columns]
+
+        prob = trace(new_density_matrix)
+        new_density_matrix = new_density_matrix / trace(new_density_matrix)
+
+        return prob, new_density_matrix
+
+    def _measurement_by_diagonalising(self, qubit, measure=0, eigenval=None, eigenvec=None):
         """
         This private method calculates the probability of a certain measurement outcome and calculates the
         resulting density matrix after the measurement has taken place.
