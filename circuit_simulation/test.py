@@ -1,7 +1,7 @@
 from circuit_simulation.circuit_simulator import *
 from circuit_simulation.basic_operations import *
 from copy import copy
-
+from time import time
 
 def see_rho_structure(amount_qubits):
     def kronecker(*args):
@@ -147,12 +147,15 @@ if __name__ == "__main__":
 
     quantumCircuit = QuantumCircuit(8, 1)
     qc2 = QuantumCircuit(7, 1)
-    print(qc2)
+    start = time()
     print(quantumCircuit)
-    prob, dens = quantumCircuit._get_measurement_outcome_probability(1, 0)
-
+    prob, dens = quantumCircuit._get_measurement_outcome_probability(1, 0, keep_qubit=True)
+    print(time() - start)
     print(prob)
     print(dens)
+    print()
+    print(qc2.density_matrix)
+    print(dens.shape, quantumCircuit.d)
 
 
     # qubits = 3
