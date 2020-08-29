@@ -17,7 +17,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     qc.apply_2_qubit_gate(operation, 0, 7)
     qc.measure_first_N_qubits(1)
 
-    qc.draw_circuit(not color, print=False)
+    qc.draw_circuit(not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
@@ -55,7 +55,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit(no_color=not color, print=False)
+    qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
@@ -97,7 +97,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit(no_color=not color, print=False)
+    qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,

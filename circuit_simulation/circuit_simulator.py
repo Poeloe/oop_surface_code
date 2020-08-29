@@ -378,7 +378,7 @@ class QuantumCircuit:
             self._add_draw_operation("#", (0, 1), noise)
 
     @staticmethod
-    def _get_bell_state_by_type(bell_state_type):
+    def _get_bell_state_by_type(bell_state_type=1):
         """
             Returns a Bell state density matrix based on the type provided. types are:
                     1 : |00> + |11>
@@ -397,6 +397,7 @@ class QuantumCircuit:
             rho[1, 1], rho[1, 2], rho[2, 1], rho[2, 2] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
         else:
             raise ValueError("A non-valid Bell state type was requested. Known types are 1, 2, 3, and 4.")
+        return rho
 
     def add_top_qubit(self, qubit_state=ket_0, p_prep=0, user_operation=True):
         """
