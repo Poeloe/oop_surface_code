@@ -82,6 +82,10 @@ class QuantumCircuit:
             no_single_qubit_error : bool, optional, default=False
                 When single qubit gates are free of noise, but noise in general is present, this boolean
                 is set to True. It prevents the addition of noise when applying a single qubit gate
+            thread_safe_printing : bool, optional, deafult=False
+                If working with threas, this can be set to True. This prevents print statements from being
+                printed in real-time. Instead the lines will be saved and can at all time be printed all in once
+                when running the 'print' method. Print lines are always saved in the _print_lines array until printing
 
 
             Attributes
@@ -123,7 +127,8 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None, p_dec=0, time_step=1, measurement_duration=4, network_noise_type=0, no_single_qubit_error=False):
+                 pn=None, p_dec=0, time_step=1, measurement_duration=4, network_noise_type=0,
+                 no_single_qubit_error=False, thread_safe_printing=False):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -143,6 +148,7 @@ class QuantumCircuit:
         self._measured_qubits = []
         self.density_matrix = None
         self._print_lines = []
+        self._thread_safe_printing=thread_safe_printing
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
@@ -298,8 +304,8 @@ class QuantumCircuit:
             self.CNOT(qubit1, qubit2, noise=False, draw=False, user_operation=False)
             self._add_draw_operation("#", (qubit1, qubit2))
 
-    def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None,
-                              user_operation=True, network_noise_type=None):
+    def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
+                              user_operation=True):
         """
         qc.create_bell_pair(N, pn=0.1)
 
@@ -330,8 +336,14 @@ class QuantumCircuit:
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
             network_noise_type : int, optional, default=None
-                Typw of network noise that should be used. If not specified, the network noise type known for the
+                Type of network noise that should be used. If not specified, the network noise type known for the
                 QuantumCircuit object is used
+            bell_state_type : int [1-4], optional, default=1
+                Choose the Bell state type which should be created, types are:
+                    1 : |00> + |11>
+                    2 : |00> - |11>
+                    3 : |01> + |10>
+                    4 : |01> - |10>
 
             Example
             -------
@@ -353,9 +365,7 @@ class QuantumCircuit:
         for i in range(0, 2 * N, 2):
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
-            rho = sp.lil_matrix((4, 4))
-            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
-            density_matrix = rho
+            density_matrix = self._get_bell_state_by_type(bell_state_type)
 
             if noise and pn:
                 density_matrix = self._N_network(density_matrix, pn, network_noise_type)
@@ -371,6 +381,28 @@ class QuantumCircuit:
             else:
                 self._effective_measurements -= 2
             self._add_draw_operation("#", (0, 1), noise)
+
+    @staticmethod
+    def _get_bell_state_by_type(bell_state_type=1):
+        """
+            Returns a Bell state density matrix based on the type provided. types are:
+                    1 : |00> + |11>
+                    2 : |00> - |11>
+                    3 : |01> + |10>
+                    4 : |01> - |10>
+        """
+        rho = sp.lil_matrix((4, 4))
+        if bell_state_type == 1:
+            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
+        elif bell_state_type == 2:
+            rho[0, 0], rho[0, 3], rho[3, 0], rho[3, 3] = 1 / 2, -1 / 2, -1 / 2, 1 / 2
+        elif bell_state_type == 3:
+            rho[1, 1], rho[1, 2], rho[2, 1], rho[2, 2] = 1 / 2, -1 / 2, -1 / 2, 1 / 2
+        elif bell_state_type == 4:
+            rho[1, 1], rho[1, 2], rho[2, 1], rho[2, 2] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
+        else:
+            raise ValueError("A non-valid Bell state type was requested. Known types are 1, 2, 3, and 4.")
+        return rho
 
     def add_top_qubit(self, qubit_state=ket_0, p_prep=0, user_operation=True):
         """
@@ -854,7 +886,7 @@ class QuantumCircuit:
         else:
             error_density = sp.lil_matrix(4, 4)
             error_density[3,3] = 1
-            return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn * error_density)
+            return sp.csr_matrix((1-pn) * density_matrix + pn * error_density)
 
     @staticmethod
     def _N_preparation(state, p_prep):
@@ -1093,11 +1125,13 @@ class QuantumCircuit:
                 Whether the qubit is measured in the X-basis or in the computational basis (Z-basis)
             basis_transformation_noise : bool, optional, default=False
                 Whether the H-gate that is applied to transform the basis in which the qubit is measured should be
+<<<<<<< HEAD
                 noisy (True) or noiseless (False)
+=======
+>>>>>>> master
             user_operation : bool, optional, default=True
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
-
         """
         if user_operation:
             self._user_operation_order.append({"measure": [qubit, outcome, basis]})
@@ -1331,6 +1365,8 @@ class QuantumCircuit:
             print_line += "eigenvalue: {}\n\neigenvector:\n {}\n---\n".format(eigenvalue, eigenvectors[i].toarray())
 
         self._print_lines.append(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
+        if not self._thread_safe_printing:
+            self.print()
 
     def decompose_non_zero_eigenvectors(self):
         """
@@ -1543,7 +1579,6 @@ class QuantumCircuit:
             self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name)
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
-
         return superoperator
 
     def _get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
@@ -1864,6 +1899,9 @@ class QuantumCircuit:
         self._print_lines.append("\n\nSum of the probabilities is: {}\n".format(total))
         self._print_lines.append("\n---- End of Superoperator ----\n")
 
+        if not self._thread_safe_printing:
+            self.print()
+
     def _superoperator_to_csv(self, superoperator, proj_type, file_name=None):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
@@ -1919,6 +1957,8 @@ class QuantumCircuit:
             path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
             self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
         df.to_csv(path_to_file, sep=';', index=False)
+        if not self._thread_safe_printing:
+            self.print()
 
     def get_kraus_operator(self, print_to_console=True):
         """
@@ -1978,13 +2018,16 @@ class QuantumCircuit:
 
         self._print_lines.append(*print_lines)
 
+        if not self._thread_safe_printing:
+            self.print()
+
     """
         ----------------------------------------------------------------------------------------------------------
                                             Circuit drawing Methods
         ----------------------------------------------------------------------------------------------------------     
     """
 
-    def draw_circuit(self, no_color=False, print=True):
+    def draw_circuit(self, no_color=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
         legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
@@ -1995,7 +2038,7 @@ class QuantumCircuit:
         init[-1] += "\n\n"
         self._print_lines.append(legenda)
         self._print_lines.extend(init)
-        if print:
+        if not self._thread_safe_printing:
             self.print()
 
     def draw_circuit_latex(self, meas_error=False):

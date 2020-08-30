@@ -8,7 +8,8 @@ import time
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, p_dec=0.04, basis_transformation_noise=True, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, p_dec=0.04, basis_transformation_noise=True,
+                        network_noise_type=1, thread_safe_printing=True)
     qc.add_top_qubit(ket_p, p_prep=pm)
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
@@ -16,7 +17,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     qc.apply_2_qubit_gate(operation, 0, 7)
     qc.measure_first_N_qubits(1)
 
-    qc.draw_circuit(not color, print=False)
+    qc.draw_circuit(not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
@@ -27,7 +28,8 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
+                        thread_safe_printing=True)
 
     # Noisy ancilla Bell pair now between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -54,7 +56,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit(no_color=not color, print=False)
+    qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
@@ -65,7 +67,8 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
-    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1)
+    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
+                        thread_safe_printing=True)
 
     # Noisy ancilla Bell pair between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -96,7 +99,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
-    qc.draw_circuit(no_color=not color, print=False)
+    qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
