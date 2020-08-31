@@ -145,12 +145,15 @@ def show_gate():
 
 if __name__ == "__main__":
 
-    quantumCircuit = QuantumCircuit(8, 1)
-    qc2 = QuantumCircuit(7, 1)
-    start = time()
+    quantumCircuit = QuantumCircuit(20, 1)
+    qc2 = QuantumCircuit(20, 1)
     print(quantumCircuit)
-    prob, dens = quantumCircuit._get_measurement_outcome_probability(1, 0, keep_qubit=True)
+    start = time()
+    prob, dens = quantumCircuit._get_measurement_outcome_probability(0, 0, keep_qubit=False)
     print(time() - start)
+    start2 = time()
+    quantumCircuit.measure_first_N_qubits(1)
+    print(time() - start2)
     print(prob)
     print(dens)
     print()

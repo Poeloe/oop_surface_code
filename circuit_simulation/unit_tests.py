@@ -185,7 +185,7 @@ class TestMeasurement(unittest.TestCase):
         # Initialise system in |+0> state, CNOT on 2nd qubit and measure |+> on first qubit
         qc = QC(2, 1)
         qc.CNOT(0, 1)
-        qc.measure(1, measure=0)
+        qc.measure(1, outcome=0, keep_qubit=True)
 
         correct_result = 1/4 * np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])
         np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, correct_result)
@@ -193,7 +193,7 @@ class TestMeasurement(unittest.TestCase):
         # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
         qc2 = QC(2, 1)
         qc2.CNOT(0, 1)
-        qc2.measure(1, measure=1)
+        qc2.measure(1, outcome=1, keep_qubit=True)
 
         correct_result_2 = 1/4 * np.array([[1, -1, -1, 1], [-1, 1, 1, -1], [-1, 1, 1, -1], [1, -1, -1, 1]])
         np.testing.assert_array_almost_equal(qc2.density_matrix.toarray().real, correct_result_2)

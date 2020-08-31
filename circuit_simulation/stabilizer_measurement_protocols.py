@@ -5,9 +5,10 @@ sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
 from multiprocessing import Pool
 import time
+from tqdm import tqdm
 
 
-def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
+def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, p_dec=0.04, basis_transformation_noise=True,
                         network_noise_type=1, thread_safe_printing=True)
     qc.add_top_qubit(ket_p, p_prep=pm)
@@ -17,37 +18,54 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     qc.apply_2_qubit_gate(operation, 0, 7)
     qc.measure_first_N_qubits(1)
 
+    if pbar is not None:
+        pbar.update(50)
+
     qc.draw_circuit(not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
+    if pbar is not None:
+        pbar.update(50)
 
     return qc._print_lines
 
 
-def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
+def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True)
+                        thread_safe_printing=True, probabilistic=True, p_bell_success=0.8)
 
     # Noisy ancilla Bell pair now between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
     qc.double_selection(CZ_gate, new_qubit=True)
     qc.double_selection(CNOT_gate)
 
+    if pbar is not None:
+        pbar.update(20)
+
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
     qc.create_bell_pairs_top(1, new_qubit=True)
     qc.double_selection(CZ_gate, new_qubit=True)
     qc.double_selection(CNOT_gate)
 
+    if pbar is not None:
+        pbar.update(20)
+
     # Now entanglement between ancilla 0 and 3 is made
     qc.single_dot(CZ_gate, 2, 5)
     qc.single_dot(CZ_gate, 2, 5)
 
+    if pbar is not None:
+        pbar.update(20)
+
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
     qc.single_dot(CZ_gate, 3, 4)
     qc.single_dot(CZ_gate, 3, 4)
+
+    if pbar is not None:
+        pbar.update(20)
 
     qc.apply_2_qubit_gate(operation, 0, 4)
     qc.apply_2_qubit_gate(operation, 1, 6)
@@ -56,6 +74,9 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
+    if pbar is not None:
+        pbar.update(10)
+
     qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
@@ -63,10 +84,13 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
+    if pbar is not None:
+        pbar.update(10)
+
     return qc._print_lines
 
 
-def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
+def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
                         thread_safe_printing=True)
 
@@ -77,6 +101,9 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.double_dot(CZ_gate, 2, 3)
     qc.double_dot(CNOT_gate, 2, 3)
 
+    if pbar is not None:
+        pbar.update(20)
+
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
     qc.create_bell_pairs_top(1, new_qubit=True)
     qc.double_selection(CZ_gate, new_qubit=True)
@@ -84,13 +111,22 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.double_dot(CZ_gate, 2, 3)
     qc.double_dot(CNOT_gate, 2, 3)
 
+    if pbar is not None:
+        pbar.update(20)
+
     # Now entanglement between ancilla 0 and 3 is made
     qc.double_dot(CZ_gate, 2, 5)
     qc.double_dot(CZ_gate, 2, 5)
 
+    if pbar is not None:
+        pbar.update(20)
+
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
     qc.double_dot(CZ_gate, 3, 4)
     qc.double_dot(CZ_gate, 3, 4)
+
+    if pbar is not None:
+        pbar.update(20)
 
     qc.apply_2_qubit_gate(operation, 0, 4)
     qc.apply_2_qubit_gate(operation, 1, 6)
@@ -99,12 +135,18 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
+    if pbar is not None:
+        pbar.update(10)
+
     qc.draw_circuit(no_color=not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
+
+    if pbar is not None:
+        pbar.update(10)
 
     return qc._print_lines
 
@@ -178,7 +220,7 @@ def compose_parser():
     return parser
 
 
-def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode):
+def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode, pbar=None):
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
@@ -197,11 +239,11 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode):
     gate = CZ_gate if stab_type == "Z" else CNOT_gate
 
     if protocol == "monolithic":
-        return monolithic(gate, pg, pm, color, ltsv, sv, fn)
+        return monolithic(gate, pg, pm, color, ltsv, sv, fn, pbar)
     elif protocol == "expedient":
-        return expedient(gate, pg, pm, pn, color, ltsv, sv, fn)
+        return expedient(gate, pg, pm, pn, color, ltsv, sv, fn, pbar)
     elif protocol == "stringent":
-        return stringent(gate, pg, pm, pn, color, ltsv, sv, fn)
+        return stringent(gate, pg, pm, pn, color, ltsv, sv, fn, pbar)
     else:
         print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
         exit()
@@ -224,6 +266,8 @@ if __name__ == "__main__":
     threaded = args.pop('threaded')
     print_mode = args.pop('print_run_order')
 
+    pbar = tqdm(total=100)
+
     if threaded:
         workers = len(gate_errors) if len(gate_errors) < 11 else 10
         thread_pool = Pool(workers)
@@ -244,7 +288,7 @@ if __name__ == "__main__":
                                        apply_async(main,
                                                    (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode)))
                     else:
-                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode))
+                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode, pbar))
                     filename_count += 1
 
     if threaded:
