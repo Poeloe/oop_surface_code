@@ -72,7 +72,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.apply_2_qubit_gate(operation, 2, 8)
     qc.apply_2_qubit_gate(operation, 3, 10)
 
-    qc.measure_first_N_qubits(4)
+    qc.measure_first_N_qubits(4, probabilistic=False)
 
     if pbar is not None:
         pbar.update(10)
@@ -133,7 +133,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.apply_2_qubit_gate(operation, 2, 8)
     qc.apply_2_qubit_gate(operation, 3, 10)
 
-    qc.measure_first_N_qubits(4)
+    qc.measure_first_N_qubits(4, probabilistic=False)
 
     if pbar is not None:
         pbar.update(10)

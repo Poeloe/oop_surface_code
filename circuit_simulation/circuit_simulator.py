@@ -395,10 +395,9 @@ class QuantumCircuit:
             bell_creation_duration = self.bell_creation_duration
 
         for i in range(0, 2 * N, 2):
+            times = 1
             while probabilistic and random.random() < p_bell_success:
-                if noise and self.p_dec > 0:
-                    times = int(math.ceil(bell_creation_duration/self.time_step))
-                    self._N_decoherence([i, i+1], times=times)
+                times += 1
 
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
@@ -409,6 +408,10 @@ class QuantumCircuit:
 
             self.density_matrix = sp.csr_matrix(sp.kron(density_matrix, self.density_matrix)) \
                                   if self.density_matrix is not None else density_matrix
+
+            if noise and self.p_dec > 0:
+                times = int(math.ceil(bell_creation_duration / self.time_step))
+                self._N_decoherence([i, i + 1], times=times)
 
             # Drawing the Bell Pair
             if new_qubit:
@@ -836,6 +839,7 @@ class QuantumCircuit:
             self.apply_2_qubit_gate(operation, 0, 2, noise=noise, pg=pg, user_operation=user_operation)
             self.apply_2_qubit_gate(operation, 1, 3, noise=noise, pg=pg, user_operation=user_operation)
             if measure:
+                new_qubit = False
                 success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
             else:
                 success = True
@@ -849,6 +853,7 @@ class QuantumCircuit:
             self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
             self.CZ(0, 2, noise=noise, pg=pg, user_operation=user_operation)
             self.CZ(1, 3, noise=noise, pg=pg, user_operation=user_operation)
+            new_qubit = False
             success = self.measure_first_N_qubits(4, noise=noise, pm=pm, user_operation=user_operation)
 
     def single_dot(self, operation, qubit1, qubit2, measure=True, noise=None, pn=None, pm=None,
@@ -2108,7 +2113,7 @@ class QuantumCircuit:
     def draw_circuit(self, no_color=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
-        legenda = "--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
+        legenda = "\n--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
                   "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement,"\
                   " {}: noisy operation (gate/measurement)\n".format("~" if no_color else colored("~", 'red'))
         init = self._draw_init(no_color)
