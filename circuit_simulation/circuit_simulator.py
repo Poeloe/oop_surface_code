@@ -142,17 +142,19 @@ class QuantumCircuit:
         self._effective_measurements = 0
         self._measured_qubits = []
         self.density_matrix = None
+        self.density_matrices = None
+        self._qubit_density_matrix_lookup = {}
         self._print_lines = []
         self._thread_safe_printing=thread_safe_printing
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
         if init_type == 0:
-            self.density_matrix = self._init_density_matrix()
+            self.density_matrices = self._init_density_matrix()
         elif init_type == 1:
             self.density_matrix = self._init_density_matrix_first_qubit_ket_p()
         elif init_type == 2:
-            self.density_matrix = self._init_density_matrix_bell_pair_state()
+            self.density_matrices = self._init_density_matrix_bell_pair_state()
         elif init_type == 3:
             self.density_matrix = self._init_density_matrix_ket_p_and_CNOTS()
 
@@ -167,8 +169,12 @@ class QuantumCircuit:
     def _init_density_matrix(self):
         """ Realises init_type option 0. See class description for more info. """
 
-        state_vector = KP(*self._qubit_array)
-        return sp.csr_matrix(CT(state_vector, state_vector))
+        density_matrices = []
+        for i, qubit in enumerate(self._qubit_array):
+            density_matrix = CT(qubit, qubit)
+            density_matrices.append(density_matrix)
+            self._qubit_density_matrix_lookup[i] = (density_matrix, [i])
+        return density_matrices
 
     def _init_density_matrix_first_qubit_ket_p(self):
         """ Realises init_type option 1. See class description for more info. """
@@ -186,18 +192,18 @@ class QuantumCircuit:
     def _init_density_matrix_bell_pair_state(self, draw=True):
         """ Realises init_type option 2. See class description for more info. """
 
+        density_matrices = []
         bell_pair_rho = sp.lil_matrix((4, 4))
         bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
-        density_matrix = bell_pair_rho
-        if draw:
-            self._add_draw_operation("#", (0, 1))
 
-        for i in range(2, self.num_qubits, 2):
-            density_matrix = sp.kron(bell_pair_rho, density_matrix)
+        for i in range(0, self.num_qubits, 2):
+            density_matrix = sp.csr_matrix(bell_pair_rho)
+            qubits = [i, i+1]
             if draw:
                 self._add_draw_operation("#", (i, i + 1))
-
-        return sp.csr_matrix(density_matrix)
+            self._qubit_density_matrix_lookup.update({i: (density_matrix, qubits), i+1: (density_matrix, qubits)})
+            density_matrices.append(density_matrix)
+        return density_matrices
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
         """ Realises init_type option 3. See class description for more info. """
@@ -229,6 +235,55 @@ class QuantumCircuit:
                        'density_matrix': self.density_matrix}
 
         return init_params
+    """
+        ---------------------------------------------------------------------------------------------------------
+                                                Separated Density Matrices Methods
+        ---------------------------------------------------------------------------------------------------------
+    """
+    def _correct_lookup_for_addition(self, amount_qubits=1, position='top'):
+        if position.lower() == 'top':
+            position = 0
+        elif position.lower() == 'bottom':
+            position = -1
+        else:
+            raise ValueError("position argument can only be 'top' or 'bottom'.")
+
+        new_lookup_dict = {}
+        for qubit, (density_matrix, qubits) in sorted(self._qubit_density_matrix_lookup.items()):
+            new_lookup_dict[qubit+amount_qubits] = (density_matrix, [q + amount_qubits for q in qubits])
+        self._qubit_density_matrix_lookup = new_lookup_dict
+
+        qubit_indices = [i for i in range(amount_qubits)]
+        for qubit_num in range(amount_qubits):
+            self._qubit_density_matrix_lookup[qubit_num] = (self.density_matrices[position], qubit_indices)
+
+    def _correct_lookup_for_two_qubit_gate(self, cqubit, tqubit):
+        cqubit_density_matrix, c_qubits = self._qubit_density_matrix_lookup[cqubit]
+        tqubit_density_matrix, t_qubits = self._qubit_density_matrix_lookup[tqubit]
+        fused_density_matrix = KP(cqubit_density_matrix, tqubit_density_matrix)
+        fused_qubits = c_qubits + t_qubits
+
+        for qubit in fused_qubits:
+            self._qubit_density_matrix_lookup[qubit] = (fused_density_matrix, fused_qubits)
+
+
+    def _correct_lookup_for_measurement_top(self):
+        new_lookup_dict = {}
+        _, qubits_old = self._qubit_density_matrix_lookup[0]
+        del qubits_old[-1]
+        for qubit, (density_matrix, qubits) in sorted(self._qubit_density_matrix_lookup.items()):
+            if qubit == 0:
+                qubits_old = qubits
+                continue
+            if qubits_old is qubits:
+                qubits = qubits_old
+            else:
+                qubits[:] = [i - 1 for i in qubits]
+                qubits_old = qubits
+
+            new_lookup_dict[qubit - 1] = density_matrix, qubits
+
+        self._qubit_density_matrix_lookup = new_lookup_dict
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -365,14 +420,14 @@ class QuantumCircuit:
             if noise and pn:
                 density_matrix = self._N_network(density_matrix, pn, network_noise_type)
 
-            self.density_matrix = sp.csr_matrix(sp.kron(density_matrix, self.density_matrix)) \
-                                  if (self.density_matrix is not None) else density_matrix
+            self.density_matrices.insert(0, density_matrix)
+            self._correct_lookup_for_addition(amount_qubits=2)
 
             # Drawing the Bell Pair
             if new_qubit:
                 self._qubit_array.insert(0, ket_0)
                 self._qubit_array.insert(0, ket_0)
-                self._correct_for_n_top_qubit_additions(n=2)
+                self._correct_drawing_for_n_top_qubit_additions(n=2)
             else:
                 self._effective_measurements -= 2
             self._add_draw_operation("#", (0, 1), noise)
@@ -423,9 +478,10 @@ class QuantumCircuit:
         self._qubit_array.insert(0, qubit_state)
         self.num_qubits += 1
         self.d = 2 ** self.num_qubits
-        self._correct_for_n_top_qubit_additions()
+        self._correct_drawing_for_n_top_qubit_additions()
 
-        self.density_matrix = KP(CT(qubit_state), self.density_matrix)
+        self.density_matrices.insert(0, CT(qubit_state))
+        self._correct_lookup_for_addition()
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -467,11 +523,19 @@ class QuantumCircuit:
         if pg is None:
             pg = self.pg
 
-        one_qubit_gate = self._create_1_qubit_gate(gate.matrix if not conj else gate.dagger, tqubit)
-        self.density_matrix = sp.csr_matrix(one_qubit_gate.dot(CT(self.density_matrix, one_qubit_gate)))
+        tqubit_density_matrix, qubits = self._qubit_density_matrix_lookup[tqubit]
+        relative_tqubit_index = qubits.index(tqubit)
+        relative_num_qubits = len(qubits)
+
+        one_qubit_gate = self._create_1_qubit_gate(gate.matrix if not conj else gate.dagger,
+                                                   relative_tqubit_index,
+                                                   relative_num_qubits)
+        new_density_matrix = sp.csr_matrix(one_qubit_gate.dot(CT(tqubit_density_matrix, one_qubit_gate)))
+        tqubit_density_matrix.reshape(new_density_matrix.shape)
+        tqubit_density_matrix[:] = new_density_matrix
 
         if noise and not self.no_single_qubit_error:
-            self._N_single(pg, tqubit)
+            self._N_single(pg, relative_tqubit_index, tqubit_density_matrix, relative_num_qubits)
 
         if draw:
             self._add_draw_operation(gate, tqubit, noise)
@@ -664,11 +728,31 @@ class QuantumCircuit:
         if pg is None:
             pg = self.pg
 
-        two_qubit_gate = self._create_2_qubit_gate(gate, cqubit, tqubit)
-        self.density_matrix = sp.csr_matrix(two_qubit_gate.dot(CT(self.density_matrix, two_qubit_gate)))
+        cqubit_density_matrix, _ = self._qubit_density_matrix_lookup[cqubit]
+        tqubit_density_matrix, _ = self._qubit_density_matrix_lookup[tqubit]
+
+        # Check if cqubit and tqubit belong to the same density matrix. If not they should fuse
+        if not cqubit_density_matrix is tqubit_density_matrix:
+            self._correct_lookup_for_two_qubit_gate(cqubit, tqubit)
+
+        # Since density matrices are fused if not equal, it is only necessary to get the (new) density matrix from
+        # the lookup table by either one of the qubit indices
+        density_matrix, qubits = self._qubit_density_matrix_lookup[cqubit]
+        relative_cqubit = qubits.index(cqubit)
+        relative_tqubit = qubits.index(tqubit)
+        relative_num_qubits = len(qubits)
+
+        two_qubit_gate = self._create_2_qubit_gate(gate,
+                                                   relative_cqubit,
+                                                   relative_tqubit,
+                                                   num_qubits=relative_num_qubits)
+
+        new_density_matrix = sp.csr_matrix(two_qubit_gate.dot(CT(density_matrix, two_qubit_gate)))
+        density_matrix.resize(new_density_matrix.shape)
+        density_matrix[:] = sp.csr_matrix(two_qubit_gate.dot(CT(density_matrix, two_qubit_gate)))
 
         if noise:
-            self._N(pg, cqubit, tqubit)
+            self._N(pg, relative_cqubit, relative_tqubit, density_matrix, num_qubits=relative_num_qubits)
         if draw:
             self._add_draw_operation(gate, (cqubit, tqubit), noise)
 
@@ -822,7 +906,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------  
     """
 
-    def _N_single(self, pg, tqubit):
+    def _N_single(self, pg, tqubit, density_matrix, num_qubits):
         """
             Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -837,10 +921,12 @@ class QuantumCircuit:
             tqubit: int
                 Integer that indicates the target qubit. Note that the qubit counting starts at 0.
         """
-        self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
-                                            (pg / 3) * self._sum_pauli_error_single(tqubit))
+        density_matrix[:] = sp.csr_matrix((1-pg) * density_matrix +
+                                          (pg / 3) * self._sum_pauli_error_single(tqubit,
+                                                                                  density_matrix,
+                                                                                  num_qubits=num_qubits))
 
-    def _N(self, pg, cqubit, tqubit):
+    def _N(self, pg, cqubit, tqubit, density_matrix, num_qubits):
         """
             Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -857,8 +943,11 @@ class QuantumCircuit:
             tqubit: int
                 Integer that indicates the target qubit. Note that the qubit counting starts at 0.
         """
-        self.density_matrix = sp.csr_matrix((1 - pg) * self.density_matrix +
-                                            (pg / 15) * self._double_sum_pauli_error(cqubit, tqubit))
+        density_matrix[:] = sp.csr_matrix((1 - pg) * density_matrix +
+                                          (pg / 15) * self._double_sum_pauli_error(cqubit,
+                                                                                   tqubit,
+                                                                                   density_matrix,
+                                                                                   num_qubits=num_qubits))
 
     @staticmethod
     def _N_network(density_matrix, pn, network_noise_type):
@@ -895,7 +984,7 @@ class QuantumCircuit:
 
         return error_state
 
-    def _sum_pauli_error_single(self, tqubit):
+    def _sum_pauli_error_single(self, tqubit, density_matrix, num_qubits):
         """
             Private method that calculates the pauli gate sum part of the equation specified in _N_single
             method, namely
@@ -912,15 +1001,16 @@ class QuantumCircuit:
             summed_matrix : sparse matrix
                 Returns a sparse matrix which is the result of the equation mentioned above.
         """
+
         gates = [X_gate, Y_gate, Z_gate]
-        summed_matrix = sp.csr_matrix((self.d, self.d))
+        summed_matrix = sp.csr_matrix((2**num_qubits, 2**num_qubits))
 
         for gate in gates:
-            pauli_error = self._create_1_qubit_gate(gate, tqubit)
-            summed_matrix = summed_matrix + pauli_error.dot(CT(self.density_matrix, pauli_error))
+            pauli_error = self._create_1_qubit_gate(gate, tqubit, num_qubits)
+            summed_matrix = summed_matrix + pauli_error.dot(CT(density_matrix, pauli_error))
         return summed_matrix
 
-    def _double_sum_pauli_error(self, qubit1, qubit2):
+    def _double_sum_pauli_error(self, qubit1, qubit2, density_matrix, num_qubits):
         """
             Private method that calculates the double pauli matrices sum part of the equation specified in _N
             method, namely
@@ -945,21 +1035,21 @@ class QuantumCircuit:
         gates = [X_gate, Y_gate, Z_gate, I_gate]
         qubit2_matrices = []
 
-        result = sp.csr_matrix(self.density_matrix.shape)
+        result = sp.csr_matrix(density_matrix.shape)
         for i, gate_1 in enumerate(gates):
             # Create the full system 1-qubit gate for qubit1
-            A = self._create_1_qubit_gate(gate_1.matrix, qubit1)
+            A = self._create_1_qubit_gate(gate_1.matrix, qubit1, num_qubits=num_qubits)
             for j, gate_2 in enumerate(gates):
                 # Create full system 1-qubit gate for qubit2, only once for every gate
                 if i == 0:
-                    qubit2_matrices.append(self._create_1_qubit_gate(gate_2.matrix, qubit2))
+                    qubit2_matrices.append(self._create_1_qubit_gate(gate_2.matrix, qubit2, num_qubits=num_qubits))
 
                 # Skip the I*I case
                 if i == j == len(gates) - 1:
                     continue
 
                 B = qubit2_matrices[j]
-                result = result + (A * B).dot(CT(self.density_matrix, (A * B)))
+                result = result + (A * B).dot(CT(density_matrix, (A * B)))
 
         return sp.csr_matrix(result)
 
@@ -1025,16 +1115,19 @@ class QuantumCircuit:
                 # Do not let the method draw itself, since the qubit will not be removed from the circuit drawing
                 self.H(0, noise=basis_transformation_noise, draw=False, user_operation=False)
 
+            qubit_density_matrix, _ = self._qubit_density_matrix_lookup[N-qubit]
+
             measure_new = measure
             if uneven_parity and qubit == 0:
                 measure_new = abs(measure - 1)
 
-            self._measurement_first_qubit(measure_new, noise=noise, pm=pm)
+            self._measurement_first_qubit(qubit_density_matrix, measure_new, noise=noise, pm=pm)
+            self._correct_lookup_for_measurement_top()
             self._add_draw_operation("{}M_{}:{}"
                                      .format((colored("~", 'red') if noise else ""), basis, measure_new), qubit)
         self._effective_measurements += N
 
-    def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):
+    def _measurement_first_qubit(self, density_matrix, measure=0, noise=True, pm=0.):
         """
             Private method that is used to measure the first qubit (qubit 0) in the system and removing it
             afterwards. If a 0 is measured, the upper left quarter of the density matrix 'survives'
@@ -1056,20 +1149,22 @@ class QuantumCircuit:
             pm : float [0-1], optional, default=0.
                 The amount of measurement noise that is present (if noise is present).
         """
+        d = density_matrix.shape[0]
 
-        density_matrix_0 = self.density_matrix[:int(self.d / 2), :int(self.d / 2)]
-        density_matrix_1 = self.density_matrix[int(self.d / 2):, int(self.d / 2):]
+        density_matrix_0 = density_matrix[:int(d / 2), :int(d / 2)]
+        density_matrix_1 = density_matrix[int(d / 2):, int(d / 2):]
 
         if measure == 0 and noise:
-            density_matrix = (1 - pm) * density_matrix_0 + pm * density_matrix_1
+            temp_density_matrix = (1 - pm) * density_matrix_0 + pm * density_matrix_1
         elif noise:
-            density_matrix = (1 - pm) * density_matrix_1 + pm * density_matrix_0
+            temp_density_matrix = (1 - pm) * density_matrix_1 + pm * density_matrix_0
         elif measure == 0:
-            density_matrix = density_matrix_0
+            temp_density_matrix = density_matrix_0
         else:
-            density_matrix = density_matrix_1
+            temp_density_matrix = density_matrix_1
 
-        self.density_matrix = density_matrix / trace(density_matrix)
+        density_matrix.resize(temp_density_matrix.shape)
+        density_matrix[:] = temp_density_matrix / trace(temp_density_matrix)
 
         # Remove the measured qubit from the system characteristics
         self.num_qubits -= 1
@@ -2172,7 +2267,7 @@ class QuantumCircuit:
         item = [operation, qubits, noise]
         self._draw_order.append(item)
 
-    def _correct_for_n_top_qubit_additions(self, n=1):
+    def _correct_drawing_for_n_top_qubit_additions(self, n=1):
         """
             Corrects the self._draw_order list for addition of n top qubits.
 

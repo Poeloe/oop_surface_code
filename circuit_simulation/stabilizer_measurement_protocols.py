@@ -27,6 +27,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
+    start = time.time()
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
                         thread_safe_printing=True)
 
@@ -55,11 +56,13 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
+    print(time.time() - start)
+
     qc.draw_circuit(no_color=not color)
-    if save_latex_pdf:
-        qc.draw_circuit_latex()
-    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True)
+    # if save_latex_pdf:
+    #     qc.draw_circuit_latex()
+    # qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
+    #                      csv_file_name=csv_file_name, stabilizer_protocol=True)
 
     return qc._print_lines
 
