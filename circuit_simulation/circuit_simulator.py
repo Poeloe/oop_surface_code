@@ -1208,7 +1208,9 @@ class QuantumCircuit:
                 self._effective_measurements -= (1+qubit)
 
         self._effective_measurements += N
-        return False if measurement_outcomes.count(0) == 1 or measurement_outcomes.count(1) == 1 else True
+        measurement_outcomes = iter(measurement_outcomes)
+        parity_outcome = [True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)]
+        return all(parity_outcome)
 
     def _measurement_first_qubit(self, measure=0, noise=True, pm=0.):
         """
