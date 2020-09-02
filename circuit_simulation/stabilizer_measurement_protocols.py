@@ -35,7 +35,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=True, p_bell_success=0.8)
+                        thread_safe_printing=True, probabilistic=True, p_dec=0.004, p_bell_success=0.8)
 
     # Noisy ancilla Bell pair now between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)

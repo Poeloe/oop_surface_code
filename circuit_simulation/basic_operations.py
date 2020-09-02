@@ -53,10 +53,13 @@ def KP(*args):
             continue
         if type(state) == State:
             state = state.vector
+        if type(state) in [SingleQubitGate, TwoQubitGate]:
+            state = state.matrix
         if result is None:
             result = sp.csr_matrix(state)
             continue
         result = sp.csr_matrix(sp.kron(result, sp.csr_matrix(state)))
+        result.eliminate_zeros()
     return sp.csr_matrix(result)
 
 
@@ -68,7 +71,9 @@ def CT(state1, state2=None):
         state2 = state2.vector
 
     state2 = state1 if state2 is None else state2
-    return sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
+    result = sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
+    result.eliminate_zeros()
+    return result
 
 
 def trace(sparse_matrix):

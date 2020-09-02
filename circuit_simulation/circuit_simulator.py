@@ -20,6 +20,7 @@ import pandas as pd
 from fractions import Fraction as Fr
 import math
 import random
+from operator import itemgetter
 
 
 # Uncomment this if a segmentation error when diagonalising the density matrix for a circuit with a large amount of
@@ -396,8 +397,10 @@ class QuantumCircuit:
 
         for i in range(0, 2 * N, 2):
             times = 1
-            while probabilistic and random.random() < p_bell_success:
+            while probabilistic and random.random() > p_bell_success:
                 times += 1
+
+            # print("\nBell Pair creation took {} time{}".format(times, "s" if times > 1 else ""))
 
             self.num_qubits += 2
             self.d = 2 ** self.num_qubits
@@ -409,10 +412,6 @@ class QuantumCircuit:
             self.density_matrix = sp.csr_matrix(sp.kron(density_matrix, self.density_matrix)) \
                                   if self.density_matrix is not None else density_matrix
 
-            if noise and self.p_dec > 0:
-                times = int(math.ceil(bell_creation_duration / self.time_step))
-                self._N_decoherence([i, i + 1], times=times)
-
             # Drawing the Bell Pair
             if new_qubit:
                 self._qubit_array.insert(0, ket_0)
@@ -421,6 +420,10 @@ class QuantumCircuit:
             else:
                 self._effective_measurements -= 2
             self._add_draw_operation("#", (0, 1), noise)
+
+            if noise and self.p_dec > 0:
+                times = int(math.ceil(bell_creation_duration / self.time_step))
+                self._N_decoherence([i, i + 1], times=times)
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -834,7 +837,9 @@ class QuantumCircuit:
                          user_operation=True):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        times = 0
         while not success:
+            times += 1
             self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
             self.apply_2_qubit_gate(operation, 0, 2, noise=noise, pg=pg, user_operation=user_operation)
             self.apply_2_qubit_gate(operation, 1, 3, noise=noise, pg=pg, user_operation=user_operation)
@@ -843,11 +848,15 @@ class QuantumCircuit:
                 success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
             else:
                 success = True
+        if measure:
+            print("\nSingle selection took {} time{}".format(times, "s" if times > 1 else ""))
 
     def double_selection(self, operation, new_qubit=False, noise=None, pn=None, pm=None, pg=None, user_operation=True):
         """ Double selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        times = 0
         while not success:
+            times += 1
             self.single_selection(operation, new_qubit=new_qubit, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                                   user_operation=user_operation)
             self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
@@ -855,12 +864,15 @@ class QuantumCircuit:
             self.CZ(1, 3, noise=noise, pg=pg, user_operation=user_operation)
             new_qubit = False
             success = self.measure_first_N_qubits(4, noise=noise, pm=pm, user_operation=user_operation)
+        print("\nDouble selection took {} time{}".format(times, "s" if times > 1 else ""))
 
     def single_dot(self, operation, qubit1, qubit2, measure=True, noise=None, pn=None, pm=None,
                    pg=None, user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        times = 0
         while not success:
+            times += 1
             self.create_bell_pairs_top(1, noise=noise, pn=pn, user_operation=user_operation)
             self.single_selection(X_gate, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
             self.single_selection(Z_gate, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
@@ -870,16 +882,21 @@ class QuantumCircuit:
                 success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
             else:
                 success = True
+        if measure:
+            print("\nSingle dot took {} time{}".format(times, "s" if times > 1 else ""))
 
     def double_dot(self, operation, qubit1, qubit2, noise=None, pn=None, pm=None, pg=None,
                    user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        times = 0
         while not success:
+            times += 1
             self.single_dot(operation, qubit1, qubit2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                             user_operation=user_operation)
             self.single_selection(Z_gate, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
             success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
+        print("\nDouble dot took {} time{}".format(times, "s" if times > 1 else ""))
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -974,12 +991,61 @@ class QuantumCircuit:
         included_qubits = included_qubits.difference([(self.num_qubits - 1) - (2*i) for i in range(4)])
 
         drawn = False
+        gates = [X_gate, Y_gate, Z_gate]
+        total_gates = []
+        for gate in gates:
+            total_gates.append(self._create_fused_single_qubit_gates(gate, included_qubits))
+
         for _ in range(times):
-            for tqubit in included_qubits:
-                self._N_single(p_dec, tqubit)
-                if not drawn:
+            summed_matrix = sp.csr_matrix((self.d, self.d))
+            for total_gate in total_gates:
+                summed_matrix = summed_matrix + total_gate.dot(CT(self.density_matrix, total_gate))
+
+            self.density_matrix = (1-p_dec) * self.density_matrix + (p_dec/3) * summed_matrix
+            if not drawn:
+                for tqubit in included_qubits:
                     self._add_draw_operation("{}xD".format(times), tqubit, noise=True)
             drawn = True
+
+    def _create_fused_single_qubit_gates(self, gate, qubits):
+        qubits = sorted(qubits)
+        identity_qubits = list(set(qubits) ^ set([i for i in range(self.num_qubits)]))
+        grouped_gates = [list(map(itemgetter(1), g)) for k, g in it.groupby(enumerate(qubits), lambda x: x[0]-x[1])]
+        grouped_identity = [list(map(itemgetter(1), g))
+                            for k, g in it.groupby(enumerate(identity_qubits), lambda x: x[0]-x[1])]
+        start, first, second = ("g", grouped_gates, grouped_identity) if 0 in grouped_gates[0] \
+            else ("i", grouped_identity, grouped_gates)
+        all_grouped_sorted = list(it.chain.from_iterable(it.zip_longest(first, second)))
+
+        # def create_grouped_gate(gate, amount_qubits):
+        #     if gate == "I":
+        #         return sp.eye(2**amount_qubits, 2**amount_qubits)
+        #     elif gate == "X":
+        #         pass
+        #     elif gate == "Z":
+        #         total_gate = sp.lil_matrix(2**amount_qubits, 2**amount_qubits)
+        #         diagonals = None
+        #         non_zero_elements = [1, -1]
+        #         for i in range(amount_qubits):
+        #             if diagonals is None:
+        #                 diagonals = non_zero_elements
+        #             else:
+        #                 diagonals = np.append(diagonals, (-1*diagonals))
+        #         total_gate.setdiag(diagonals)
+        #         return total_gate
+
+        total_gate = None
+        for i, group in enumerate(all_grouped_sorted):
+            if group is None:
+                continue
+            current_gate = I_gate if start == "i" and i % 2 == 0 else gate
+            gates = [current_gate for _ in group]
+            if total_gate is None:
+                total_gate = KP(*gates)
+            else:
+                total_gate = KP(total_gate, *gates)
+
+        return total_gate
 
     def _sum_pauli_error_single(self, tqubit):
         """
@@ -1062,7 +1128,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------   
     """
 
-    def measure_first_N_qubits(self, N, measure=0, noise=None, pm=None, basis="X",
+    def measure_first_N_qubits(self, N, measure=0, noise=None, pm=None, p_dec=None, basis="X",
                                basis_transformation_noise=None, probabilistic=None, user_operation=True):
         """
             Method measures the first N qubits, given by the user, all in the 0 or 1 state.
@@ -1103,6 +1169,8 @@ class QuantumCircuit:
             noise = self.noise
         if pm is None:
             pm = self.pm
+        if p_dec is None:
+            p_dec = self.p_dec
         if basis_transformation_noise is None:
             basis_transformation_noise = self.basis_transformation_noise
         if probabilistic is None:
@@ -1133,11 +1201,11 @@ class QuantumCircuit:
             self.d = 2 ** self.num_qubits
             self._add_draw_operation("{}M_{}:{}"
                                      .format((colored("~", 'red') if noise else ""), basis, outcome), qubit)
-            if noise and self.p_dec != 0:
-                self._effective_measurements += 1
+            if noise and p_dec != 0:
+                self._effective_measurements += (1+qubit)
                 times = int(math.ceil(self.measurement_duration/self.time_step))
-                self._N_decoherence([0], times=times)
-                self._effective_measurements += -1
+                self._N_decoherence([], times=times)
+                self._effective_measurements -= (1+qubit)
 
         self._effective_measurements += N
         return False if measurement_outcomes.count(0) == 1 or measurement_outcomes.count(1) == 1 else True
@@ -2275,22 +2343,23 @@ class QuantumCircuit:
                 MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
                 MEASUREMENTS AND QUBIT ADDITIONS.
         """
-        if self._effective_measurements != 0:
-            if type(qubits) is tuple:
-                cqubit = qubits[0] + self._effective_measurements
-                tqubit = qubits[1] + self._effective_measurements
 
-                if self._measured_qubits != [] and cqubit >= min(self._measured_qubits):
-                    cqubit += len(self._measured_qubits)
-                if self._measured_qubits != [] and tqubit >= min(self._measured_qubits):
-                    tqubit += len(self._measured_qubits)
+        if type(qubits) is tuple:
 
-                qubits = (cqubit, tqubit)
-            else:
-                qubits += int(self._effective_measurements)
+            cqubit = qubits[0] + self._effective_measurements
+            tqubit = qubits[1] + self._effective_measurements
 
-                if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
-                    qubits += len(self._measured_qubits)
+            if self._measured_qubits != [] and cqubit >= min(self._measured_qubits):
+                cqubit += len(self._measured_qubits)
+            if self._measured_qubits != [] and tqubit >= min(self._measured_qubits):
+                tqubit += len(self._measured_qubits)
+
+            qubits = (cqubit, tqubit)
+        else:
+            qubits += int(self._effective_measurements)
+
+            if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
+                qubits += len(self._measured_qubits)
         item = [operation, qubits, noise]
         self._draw_order.append(item)
 
