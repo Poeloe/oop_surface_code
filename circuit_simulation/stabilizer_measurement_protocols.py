@@ -10,7 +10,7 @@ import time
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name):
     qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True, network_noise_type=1,
                         thread_safe_printing=True)
-    qc.add_top_qubit(ket_p, p_prep=pm)
+    qc.add_top_qubit(ket_p)
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
     qc.apply_2_qubit_gate(operation, 0, 5)
@@ -56,18 +56,25 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
-    print(time.time() - start)
+    print("Circuit simualtion took {} seconds".format(time.time() - start))
 
+    start_draw = time.time()
     qc.draw_circuit(no_color=not color)
-    # if save_latex_pdf:
-    #     qc.draw_circuit_latex()
-    # qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
-    #                      csv_file_name=csv_file_name, stabilizer_protocol=True)
+    print("Drawing the circuit took {} seconds".format(time.time() - start_draw))
+    start_superoperator = time.time()
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
+                         csv_file_name=csv_file_name, stabilizer_protocol=True)
+    print("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
+
+    print("Total time is {}".format(time.time() - start))
 
     return qc._print_lines
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name):
+    start = time.time()
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
                         thread_safe_printing=True)
 
@@ -100,11 +107,19 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 
     qc.measure_first_N_qubits(4)
 
+    print("Circuit simualtion took {} seconds".format(time.time() - start))
+
+    start_draw = time.time()
     qc.draw_circuit(no_color=not color)
+    print("Drawing the circuit took {} seconds".format(time.time() - start_draw))
+
     if save_latex_pdf:
         qc.draw_circuit_latex()
+
+    start_superoperator = time.time()
     qc.get_superoperator([0, 2, 4, 6], operation.representation, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
+    print("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
 
     return qc._print_lines
 
