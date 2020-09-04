@@ -36,7 +36,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=True, p_dec=0.0004, p_bell_success=0.8)
+                        thread_safe_printing=True, probabilistic=False, p_dec=0.004, p_bell_success=0.8)
 
     # Noisy ancilla Bell pair now between 0 and 1
     qc.create_bell_pairs_top(1, new_qubit=True)
@@ -78,20 +78,20 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(10)
 
-    print("Circuit simulation took {} seconds".format(time.time() - start))
+    qc._print_lines.append("Circuit simulation took {} seconds".format(time.time() - start))
 
-    # start_draw = time.time()
-    # qc.draw_circuit(no_color=not color)
-    # print("Drawing the circuit took {} seconds".format(time.time() - start_draw))
+    start_draw = time.time()
+    qc.draw_circuit(no_color=not color)
+    qc._print_lines.append("Drawing the circuit took {} seconds".format(time.time() - start_draw))
     start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
-    print("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
+    qc._print_lines.append("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
 
-    print("Total time is {}".format(time.time() - start))
+    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
 
     if pbar is not None:
         pbar.update(10)
@@ -148,11 +148,11 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(10)
 
-    print("Circuit simualtion took {} seconds".format(time.time() - start))
+    qc._print_lines.append("Circuit simualtion took {} seconds".format(time.time() - start))
 
     start_draw = time.time()
     qc.draw_circuit(no_color=not color)
-    print("Drawing the circuit took {} seconds".format(time.time() - start_draw))
+    qc._print_lines.append("Drawing the circuit took {} seconds".format(time.time() - start_draw))
 
     if save_latex_pdf:
         qc.draw_circuit_latex()
@@ -162,7 +162,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
 
-    print("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
+    qc._print_lines.append("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
 
     if pbar is not None:
         pbar.update(10)

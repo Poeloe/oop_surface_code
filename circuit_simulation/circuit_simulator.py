@@ -172,6 +172,7 @@ class QuantumCircuit:
         self._qubit_density_matrix_lookup = {}
         self._print_lines = []
         self._thread_safe_printing=thread_safe_printing
+        self._fused = False
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
@@ -366,6 +367,17 @@ class QuantumCircuit:
             new_lookup_dict[qubit - 1] = density_matrix, qubits
 
         self._qubit_density_matrix_lookup = new_lookup_dict
+
+    def _correct_lookup_for_circuit_fusion(self, lookup_other):
+        num_qubits_other = len(lookup_other)
+        new_lookup = lookup_other
+        prev_qubits = None
+        for qubit, (density_matrix, qubits) in sorted(self._qubit_density_matrix_lookup.items()):
+            if prev_qubits is not qubits:
+                qubits[:] = [i + num_qubits_other for i in qubits]
+                prev_qubits = qubits
+            new_lookup[qubit + num_qubits_other] = (density_matrix, qubits)
+        self._qubit_density_matrix_lookup = new_lookup
 
     def _set_density_matrix(self, qubit, new_density_matrix):
         """
@@ -705,6 +717,8 @@ class QuantumCircuit:
         if type(gate) == SingleQubitGate:
             gate = gate.matrix
 
+        if num_qubits == 1:
+            return sp.csr_matrix(gate)
         if np.array_equal(gate, I_gate.matrix):
             return sp.eye(2 ** num_qubits, 2 ** num_qubits)
 
@@ -1168,14 +1182,14 @@ class QuantumCircuit:
         included_qubits = included_qubits.difference([(self.num_qubits - 1) - (2*i) for i in range(4)])
 
         drawn = False
-
         for _ in range(times):
-            for qubit in included_qubits:
-                density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
+            for inc_qubit in included_qubits:
+                density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(inc_qubit)
                 new_density_matrix = self._N_single(p_dec, rel_qubit, density_matrix, num_qubits=rel_num_qubits)
-                self._set_density_matrix(qubit, new_density_matrix)
+                self._set_density_matrix(inc_qubit, new_density_matrix)
                 if not drawn:
-                    self._add_draw_operation("{}xD".format(times), qubit, noise=True)
+                    self._add_draw_operation("{}xD".format(times), inc_qubit, noise=True)
+            drawn = True
 
     def _N_decoherence_fused(self, excluded_qubits, gate=None, times=None, p_dec=None):
         if gate and times is None:
@@ -1190,32 +1204,54 @@ class QuantumCircuit:
         included_qubits = set([i for i in range(self.num_qubits)]).difference(excluded_qubits)
         included_qubits = included_qubits.difference([(self.num_qubits - 1) - (2*i) for i in range(4)])
 
-        drawn = False
-        gates = [X_gate, Y_gate, Z_gate]
-        total_gates = []
-        for gate in gates:
-            total_gates.append(self._create_fused_single_qubit_gates(gate, included_qubits))
+        skip_qubits = []
+        loop_qubits = []
+        for inc_qubit in included_qubits:
+            if inc_qubit not in skip_qubits:
+                _, qubits = self._qubit_density_matrix_lookup[inc_qubit]
+                loop_qubits.append(inc_qubit)
+                skip_qubits.extend(qubits)
 
-        for _ in range(times):
-            summed_matrix = sp.csr_matrix((self.d, self.d))
-            for total_gate in total_gates:
-                summed_matrix = summed_matrix + total_gate.dot(CT(self.density_matrix, total_gate))
+        for qubit in loop_qubits:
+            density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
+            if rel_num_qubits == 1:
+                for _ in range(times):
+                    new_density_matrix = self._N_single(p_dec, rel_qubit, density_matrix, num_qubits=rel_num_qubits)
+                    self._set_density_matrix(qubit, new_density_matrix)
+                    density_matrix = new_density_matrix
+            else:
+                gates = [X_gate, Y_gate, Z_gate]
+                total_gates = []
+                for gate in gates:
+                    total_gates.append(self._create_fused_single_qubit_gates(gate, included_qubits, qubits))
 
-            self.density_matrix = (1-p_dec) * self.density_matrix + (p_dec/3) * summed_matrix
-            if not drawn:
-                for tqubit in included_qubits:
-                    self._add_draw_operation("{}xD".format(times), tqubit, noise=True)
-            drawn = True
+                for _ in range(times):
+                    summed_matrix = sp.csr_matrix((2 ** rel_num_qubits, 2 ** rel_num_qubits))
+                    for total_gate in total_gates:
+                        summed_matrix = summed_matrix + total_gate.dot(CT(density_matrix, total_gate))
 
-    def _create_fused_single_qubit_gates(self, gate, qubits):
-        qubits = sorted(qubits)
-        identity_qubits = list(set(qubits) ^ set([i for i in range(self.num_qubits)]))
-        grouped_gates = [list(map(itemgetter(1), g)) for k, g in it.groupby(enumerate(qubits), lambda x: x[0]-x[1])]
-        grouped_identity = [list(map(itemgetter(1), g))
-                            for k, g in it.groupby(enumerate(identity_qubits), lambda x: x[0]-x[1])]
-        start, first, second = ("g", grouped_gates, grouped_identity) if 0 in grouped_gates[0] \
-            else ("i", grouped_identity, grouped_gates)
-        all_grouped_sorted = list(it.chain.from_iterable(it.zip_longest(first, second)))
+                    new_density_matrix = (1 - p_dec) * density_matrix + (p_dec/3) * summed_matrix
+                    self._set_density_matrix(qubit, new_density_matrix)
+                    density_matrix = new_density_matrix
+
+        for qubit in included_qubits:
+            self._add_draw_operation("{}xD".format(times), qubit, noise=True)
+
+    def _create_fused_single_qubit_gates(self, gate, included_qubits, dm_qubits):
+        gate_qubits = [qubit for qubit in included_qubits if qubit in dm_qubits]
+        identity_qubits = [qubit for qubit in dm_qubits if qubit not in gate_qubits]
+        grouped_gates = [list(map(itemgetter(1), g)) for k, g in it.groupby(enumerate(gate_qubits),
+                                                                            lambda x: x[0]-x[1])]
+
+        if identity_qubits != []:
+            grouped_identity = [list(map(itemgetter(1), g))
+                                for k, g in it.groupby(enumerate(identity_qubits), lambda x: x[0]-x[1])]
+            start, first, second = ("g", grouped_gates, grouped_identity) if gate_qubits[0] < identity_qubits[0] \
+                else ("i", grouped_identity, grouped_gates)
+            all_grouped_sorted = list(it.chain.from_iterable(it.zip_longest(first, second)))
+        else:
+            start = "-"
+            all_grouped_sorted = grouped_gates
 
         # def create_grouped_gate(gate, amount_qubits):
         #     if gate == "I":
@@ -1238,7 +1274,7 @@ class QuantumCircuit:
         for i, group in enumerate(all_grouped_sorted):
             if group is None:
                 continue
-            current_gate = I_gate if start == "i" and i % 2 == 0 else gate
+            current_gate = I_gate if (start == "i" and i % 2 == 0) or (start == "g" and i % 2 == 1) else gate
             gates = [current_gate for _ in group]
             if total_gate is None:
                 total_gate = KP(*gates)
@@ -2625,16 +2661,42 @@ class QuantumCircuit:
             else:
                 self._draw_order[i] = [operation, qubits + n, noise]
 
+    def _correct_drawing_for_circuit_fusion(self, other_draw_order, num_qubits_other):
+        new_draw_order = other_draw_order
+        for draw_item in self._draw_order:
+            operation = draw_item[0]
+            if type(draw_item[1]) == tuple:
+                qubits = [i + num_qubits_other for i in draw_item[1]]
+            else:
+                qubits = draw_item[1] + num_qubits_other
+            noise = draw_item[2]
+            new_draw_item = [operation, qubits, noise]
+            new_draw_order.append(new_draw_item)
+        self._draw_order = new_draw_order
+
     def save_density_matrix(self, filename=None):
         if filename is None:
             filename = self._absolute_file_path_from_circuit(measure_error=False, kind='dm')
 
-        sp.save_npz(filename, self.density_matrix)
+        sp.save_npz(filename, self.total_density_matrix())
 
         self._print_lines.append("\nFile successfully saved at: {}".format(filename))
 
+    def fuse_circuits(self, other):
+        if type(other) != QuantumCircuit:
+            raise ValueError("Other should be of type QuantumCircuit, not {}".format(type(other)))
+
+        self._fused = True
+        self.num_qubits = self.num_qubits + other.num_qubits
+        self.d = 2 ** self.num_qubits
+        self._correct_lookup_for_circuit_fusion(other._qubit_density_matrix_lookup)
+        self._correct_drawing_for_circuit_fusion(other._draw_order, other.num_qubits)
+        self._measured_qubits = other._measured_qubits + [i + other.num_qubits for i in self._measured_qubits]
+        self._print_lines = other._print_lines + self._print_lines
+        self._qubit_array = other._qubit_array + self._qubit_array
+
     def __repr__(self):
-        density_matrix = self.density_matrix.toarray() if self.num_qubits < 4 else self.density_matrix
+        density_matrix = self.total_density_matrix().toarray() if self.num_qubits < 4 else self.total_density_matrix()
         return "\nCircuit density matrix:\n\n{}\n\n".format(density_matrix)
 
     def __copy__(self):
