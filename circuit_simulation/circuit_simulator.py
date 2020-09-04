@@ -162,6 +162,7 @@ class QuantumCircuit:
         self.measurement_duration = measurement_duration
         self.probabilistic = probabilistic
         self.no_single_qubit_error = no_single_qubit_error
+        self.total_duration = 0
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
@@ -2666,7 +2667,7 @@ class QuantumCircuit:
         for draw_item in self._draw_order:
             operation = draw_item[0]
             if type(draw_item[1]) == tuple:
-                qubits = [i + num_qubits_other for i in draw_item[1]]
+                qubits = tuple([i + num_qubits_other for i in draw_item[1]])
             else:
                 qubits = draw_item[1] + num_qubits_other
             noise = draw_item[2]
@@ -2686,18 +2687,27 @@ class QuantumCircuit:
         if type(other) != QuantumCircuit:
             raise ValueError("Other should be of type QuantumCircuit, not {}".format(type(other)))
 
+        if self.noise and self.p_dec > 0:
+            duration_difference = self.total_duration - other.total_duration
+            if duration_difference < 0:
+                times = int(math.ceil(abs(duration_difference)/self.time_step))
+                self._N_decoherence([], times)
+            elif duration_difference > 0:
+                times = int(math.ceil(abs(duration_difference)/other.time_step))
+                other._N_decoherence([], times)
+
         self._fused = True
         self.num_qubits = self.num_qubits + other.num_qubits
         self.d = 2 ** self.num_qubits
         self._correct_lookup_for_circuit_fusion(other._qubit_density_matrix_lookup)
-        self._correct_drawing_for_circuit_fusion(other._draw_order, other.num_qubits)
-        self._measured_qubits = other._measured_qubits + [i + other.num_qubits for i in self._measured_qubits]
+        self._correct_drawing_for_circuit_fusion(other._draw_order, len(other._qubit_array))
+        self._effective_measurements = other._effective_measurements + self._effective_measurements
+        self._measured_qubits = other._measured_qubits + self._measured_qubits
         self._print_lines = other._print_lines + self._print_lines
         self._qubit_array = other._qubit_array + self._qubit_array
 
     def __repr__(self):
-        density_matrix = self.total_density_matrix().toarray() if self.num_qubits < 4 else self.total_density_matrix()
-        return "\nCircuit density matrix:\n\n{}\n\n".format(density_matrix)
+        return "\nQuantumCircuit object containing {} qubits\n".format(self.num_qubits)
 
     def __copy__(self):
         new_circuit = QuantumCircuit(self.num_qubits)
