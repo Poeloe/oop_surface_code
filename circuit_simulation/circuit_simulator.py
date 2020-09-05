@@ -1585,8 +1585,8 @@ class QuantumCircuit:
 
         return prob, temp_density_matrix
 
-    def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, probabilistic=None,
-                basis_transformation_noise=None, user_operation=False):
+    def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, p_dec=None,
+                probabilistic=None, basis_transformation_noise=None, user_operation=False):
         """
             Measurement that can be applied to any qubit.
 
@@ -1612,6 +1612,8 @@ class QuantumCircuit:
             noise = self.noise
         if pm is None:
             pm = self.pm
+        if p_dec is None:
+            p_dec = self.p_dec
         if probabilistic is None:
             probabilistic = self.probabilistic
         if basis_transformation_noise is None:
@@ -1677,9 +1679,16 @@ class QuantumCircuit:
                 density_matrix_measured = CT(ket_0) if outcome == 0 else CT(ket_1)
                 self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
 
+            # Please not that the decoherence is implemented after the H gate. When the H gate should be taken into
+            # account for decoherence small implementation alteration is necessary.
+            if noise and p_dec > 0:
+                self._effective_measurements += (1+qubit)
+                times = int(math.ceil(self.measurement_duration/self.time_step))
+                self._N_decoherence([], times=times)
+                self._effective_measurements -= (1+qubit)
+
             measurement_outcomes.append(outcome_new)
             self._add_draw_operation("M_{}:{}".format(basis, outcome_new), qubit, noise)
-
 
         measurement_outcomes = iter(measurement_outcomes)
         parity_outcome = [True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)]
