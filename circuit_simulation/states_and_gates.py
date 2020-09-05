@@ -207,14 +207,14 @@ CNOT_gate = TwoQubitGate("CNOT",
                                    [0, 0, 0, 1],
                                    [0, 0, 1, 0]]),
                          "X",
-                         4)
+                         1)
 CZ_gate = TwoQubitGate("CPhase",
                        np.array([[1, 0, 0, 0],
                                  [0, 1, 0, 0],
                                  [0, 0, 1, 0],
                                  [0, 0, 0, -1]]),
                        "Z",
-                       4)
+                       1)
 NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                  np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
                                            [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],

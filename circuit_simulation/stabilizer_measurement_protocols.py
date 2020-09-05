@@ -104,7 +104,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, p_dec=0)
+                        thread_safe_printing=True, probabilistic=True, p_dec=0.004)
 
     qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16, 14, 12], waiting_qubits=[11, 8])
 
@@ -163,6 +163,8 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.apply_2_qubit_gate(operation, 5, 14)
     qc.measure(5, probabilistic=False)
 
+    qc.end_current_sub_circuit()
+    qc._print_lines.append("Total duration is: {}".format(qc.total_duration))
     end_circuit = time.time()
 
     if pbar is not None:

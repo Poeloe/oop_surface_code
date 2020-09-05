@@ -146,7 +146,7 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None, p_dec=0, p_bell_success=1, time_step=1, measurement_duration=4, bell_creation_duration=4,
+                 pn=None, p_dec=0, p_bell_success=1, time_step=1, measurement_duration=1, bell_creation_duration=1,
                  probabilistic=False, network_noise_type=0, no_single_qubit_error=False, thread_safe_printing=False):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
@@ -162,6 +162,7 @@ class QuantumCircuit:
         self.measurement_duration = measurement_duration
         self.probabilistic = probabilistic
         self.no_single_qubit_error = no_single_qubit_error
+        self.density_matrices = None
         self.total_duration = 0
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
@@ -169,7 +170,7 @@ class QuantumCircuit:
         self._user_operation_order = []
         self._effective_measurements = 0
         self._measured_qubits = []
-        self.density_matrices = None
+        self._uninitialised_qubits = []
         self._qubit_density_matrix_lookup = {}
         self._print_lines = []
         self._thread_safe_printing=thread_safe_printing
@@ -229,6 +230,7 @@ class QuantumCircuit:
         for i in range(0, self.num_qubits-amount_qubits):
             state = self._qubit_array[i]
             self._qubit_density_matrix_lookup[i] = (CT(state), [i])
+            self._uninitialised_qubits.append(i)
 
         for i in range(self.num_qubits-amount_qubits, self.num_qubits, 2):
             density_matrix = sp.csr_matrix(bell_pair_rho)
@@ -444,9 +446,15 @@ class QuantumCircuit:
             waiting_qubits = qubits
         sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits)
         self._sub_circuits[name] = sub_circuit
+
+        if self._current_sub_circuit is not None:
+            self.total_duration += self._current_sub_circuit.total_duration
+
         self._current_sub_circuit = sub_circuit
 
     def end_current_sub_circuit(self):
+        if self._current_sub_circuit is not None:
+            self.total_duration += self._current_sub_circuit.total_duration
         self._current_sub_circuit = None
 
     def apply_decoherence_to_fastest_sub_circuit(self, name_sub_circuit_1, name_sub_circuit_2):
@@ -456,10 +464,10 @@ class QuantumCircuit:
         sub_circuit_2 = self._sub_circuits[name_sub_circuit_2]
 
         if (diff := sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
-            times = int(math.ceil(diff/self.time_step))
+            times = int(math.ceil(abs(diff)/self.time_step))
             self._N_decoherence([], involved_qubits=sub_circuit_1.waiting_qubits, times=times)
         elif (diff := sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
-            times = int(math.ceil(diff/self.time_step))
+            times = int(math.ceil(abs(diff)/self.time_step))
             self._N_decoherence([], involved_qubits=sub_circuit_2.waiting_qubits, times=times)
 
     def _increase_duration(self, amount):
@@ -468,6 +476,16 @@ class QuantumCircuit:
         else:
             current_sub_circuit = self._current_sub_circuit
             current_sub_circuit.increase_duration(amount)
+
+    def _update_uninitialised_qubit_register(self, qubits, update_type):
+        if update_type.lower() not in ["remove", "add"]:
+            raise ValueError("Type can only be 'remove' or 'add'.")
+
+        if update_type.lower() == 'remove':
+            self._uninitialised_qubits = list(set(self._uninitialised_qubits) ^ set(qubits))
+        if update_type.lower() == 'add':
+            self._uninitialised_qubits.extend(qubits)
+            self._uninitialised_qubits = list(set(self._uninitialised_qubits))
     """
         ---------------------------------------------------------------------------------------------------------
                                                 Setter and getter Methods
@@ -629,6 +647,8 @@ class QuantumCircuit:
             self.density_matrices.insert(0, density_matrix)
             self._correct_lookup_for_addition(amount_qubits=2)
 
+            self._update_uninitialised_qubit_register([i, i+1], update_type='remove')
+
             # Drawing the Bell Pair
             if new_qubit:
                 self._qubit_array.insert(0, ket_0)
@@ -677,6 +697,8 @@ class QuantumCircuit:
 
         self._qubit_density_matrix_lookup.update({qubit1: (new_density_matrix, [qubit2, qubit1]),
                                                   qubit2: (new_density_matrix, [qubit2, qubit1])})
+
+        self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
 
         self._add_draw_operation("#", (qubit1, qubit2), noise)
 
@@ -1296,6 +1318,7 @@ class QuantumCircuit:
             else:
                 involved_qubits = [i for i in range(self.num_qubits)]
 
+        excluded_qubits.extend(self._uninitialised_qubits)
         # apply decoherence to the qubits not involved in the operation. REMOVING OF ANCILLA QUBITS THAT ARE USED
         # TO CALCULATE THE SUPEROPERATOR IS HARDCODED NOW FOR THE CASE OF A GHZ WITH 4 NODES
         included_qubits = set(involved_qubits).difference(excluded_qubits)
@@ -1572,6 +1595,7 @@ class QuantumCircuit:
 
             self._set_density_matrix(0, new_density_matrix)
             self._correct_lookup_for_measurement_top()
+            self._update_uninitialised_qubit_register([qubit], update_type="add")
             measurement_outcomes.append(outcome)
             # Remove the measured qubit from the system characteristics and add the operation to the draw_list
             self.num_qubits -= 1
@@ -1728,13 +1752,14 @@ class QuantumCircuit:
                 self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
 
             measurement_outcomes.append(outcome_new)
+            self._update_uninitialised_qubit_register([qubit], update_type="add")
             self._add_draw_operation("M_{}:{}".format(basis, outcome_new), qubit, noise)
 
             # Please not that the decoherence is implemented after the H gate. When the H gate should be taken into
             # account for decoherence small implementation alteration is necessary.
             if noise and p_dec > 0:
                 times = int(math.ceil(self.measurement_duration/self.time_step))
-                self._N_decoherence(measure_qubits[:i+1], times=times)
+                self._N_decoherence([], times=times)
                 self._increase_duration(self.measurement_duration)
 
         measurement_outcomes = iter(measurement_outcomes)
