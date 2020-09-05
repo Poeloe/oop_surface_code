@@ -9,14 +9,14 @@ from tqdm import tqdm
 
 
 def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name, pbar):
-    qc = QuantumCircuit(8, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True,
+    qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True,
                         thread_safe_printing=True)
-    qc.add_top_qubit(ket_p)
+    qc.set_qubit_states({0: ket_p})
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
     qc.apply_2_qubit_gate(operation, 0, 5)
     qc.apply_2_qubit_gate(operation, 0, 7)
-    qc.measure_first_N_qubits(1)
+    qc.measure([0])
 
     if pbar is not None:
         pbar.update(50)
@@ -25,7 +25,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
+    qc.get_superoperator([1, 3, 5, 7], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
     if pbar is not None:
         pbar.update(50)
@@ -35,137 +35,143 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
-    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
+    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
                         thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.8)
 
-    # Noisy ancilla Bell pair now between 0 and 1
-    qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(CZ_gate, new_qubit=True)
-    qc.double_selection(CNOT_gate)
+    qc.create_bell_pair(11, 8)
+    qc.double_selection(CZ_gate, 10, 7)
+    qc.double_selection(CNOT_gate, 10, 7)
 
     if pbar is not None:
         pbar.update(20)
 
-    # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
-    qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(CZ_gate, new_qubit=True)
-    qc.double_selection(CNOT_gate)
+    qc.create_bell_pair(5, 2)
+    qc.double_selection(CZ_gate, 4, 1)
+    qc.double_selection(CNOT_gate, 4, 1)
 
     if pbar is not None:
         pbar.update(20)
 
-    # Now entanglement between ancilla 0 and 3 is made
-    qc.single_dot(CZ_gate, 2, 5)
-    qc.single_dot(CZ_gate, 2, 5)
+    qc.single_dot(CZ_gate, 10, 4)
+    qc.single_dot(CZ_gate, 10, 4)
 
     if pbar is not None:
         pbar.update(20)
 
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
-    qc.single_dot(CZ_gate, 3, 4)
-    qc.single_dot(CZ_gate, 3, 4)
+    qc.single_dot(CZ_gate, 7, 1)
+    qc.single_dot(CZ_gate, 7, 1)
 
     if pbar is not None:
         pbar.update(20)
 
-    qc.apply_2_qubit_gate(operation, 0, 4)
-    qc.apply_2_qubit_gate(operation, 1, 6)
-    qc.apply_2_qubit_gate(operation, 2, 8)
-    qc.apply_2_qubit_gate(operation, 3, 10)
+    qc.apply_2_qubit_gate(operation, 11, 18)
+    qc.apply_2_qubit_gate(operation, 8, 16)
+    qc.apply_2_qubit_gate(operation, 5, 14)
+    qc.apply_2_qubit_gate(operation, 2, 12)
 
-    qc.measure_first_N_qubits(4, probabilistic=False)
+    qc.measure([8, 11, 2, 5], probabilistic=False)
+
+    end_circuit = time.time()
 
     if pbar is not None:
         pbar.update(10)
 
-    qc._print_lines.append("Circuit simulation took {} seconds".format(time.time() - start))
-
     start_draw = time.time()
     qc.draw_circuit(no_color=not color)
-    qc._print_lines.append("Drawing the circuit took {} seconds".format(time.time() - start_draw))
+    end_draw = time.time()
+
     start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
+    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
-    qc._print_lines.append("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
-
-    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+    end_superoperator = time.time()
 
     if pbar is not None:
         pbar.update(10)
+
+    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
+    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                    start_superoperator))
+    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
 
     return qc._print_lines
 
 
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
-    qc = QuantumCircuit(8, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
+    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
                         thread_safe_printing=True)
 
-    # Noisy ancilla Bell pair between 0 and 1
-    qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(CZ_gate, new_qubit=True)
-    qc.double_selection(CNOT_gate)
-    qc.double_dot(CZ_gate, 2, 3)
-    qc.double_dot(CNOT_gate, 2, 3)
+    qc.create_bell_pair(11, 8)
+    qc.double_selection(CZ_gate, 10, 7)
+    qc.double_selection(CNOT_gate, 10, 7)
+    qc.double_dot(CZ_gate, 10, 7)
+    qc.double_dot(CNOT_gate, 10, 7)
 
     if pbar is not None:
         pbar.update(20)
 
     # New noisy ancilla Bell pair is now between 0 and 1, old ancilla Bell pair now between 2 and 3
-    qc.create_bell_pairs_top(1, new_qubit=True)
-    qc.double_selection(CZ_gate, new_qubit=True)
-    qc.double_selection(CNOT_gate)
-    qc.double_dot(CZ_gate, 2, 3)
-    qc.double_dot(CNOT_gate, 2, 3)
+    qc.create_bell_pair(5, 2)
+    qc.double_selection(CZ_gate, 4, 1)
+    qc.double_selection(CNOT_gate, 4, 1)
+    qc.double_dot(CZ_gate, 4, 1)
+    qc.double_dot(CNOT_gate, 4, 1)
 
     if pbar is not None:
         pbar.update(20)
 
     # Now entanglement between ancilla 0 and 3 is made
-    qc.double_dot(CZ_gate, 2, 5)
-    qc.double_dot(CZ_gate, 2, 5)
+    qc.double_dot(CZ_gate, 10, 4)
+    qc.double_dot(CZ_gate, 10, 4)
 
     if pbar is not None:
         pbar.update(20)
 
     # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
-    qc.double_dot(CZ_gate, 3, 4)
-    qc.double_dot(CZ_gate, 3, 4)
+    qc.double_dot(CZ_gate, 7, 1)
+    qc.double_dot(CZ_gate, 7, 1)
 
     if pbar is not None:
         pbar.update(20)
 
-    qc.apply_2_qubit_gate(operation, 0, 4)
-    qc.apply_2_qubit_gate(operation, 1, 6)
-    qc.apply_2_qubit_gate(operation, 2, 8)
-    qc.apply_2_qubit_gate(operation, 3, 10)
+    qc.apply_2_qubit_gate(operation, 11, 18)
+    qc.apply_2_qubit_gate(operation, 8, 16)
+    qc.apply_2_qubit_gate(operation, 5, 14)
+    qc.apply_2_qubit_gate(operation, 2, 12)
 
-    qc.measure_first_N_qubits(4, probabilistic=False)
+    qc.measure([8, 11, 2, 5], probabilistic=False)
+
+    end_circuit = time.time()
 
     if pbar is not None:
         pbar.update(10)
 
-    qc._print_lines.append("Circuit simualtion took {} seconds".format(time.time() - start))
-
     start_draw = time.time()
     qc.draw_circuit(no_color=not color)
-    qc._print_lines.append("Drawing the circuit took {} seconds".format(time.time() - start_draw))
+    end_draw = time.time()
 
     if save_latex_pdf:
         qc.draw_circuit_latex()
 
     stab_rep = "Z" if operation == CZ_gate else "X"
     start_superoperator = time.time()
-    qc.get_superoperator([0, 2, 4, 6], stab_rep, no_color=(not color), to_csv=save_csv,
+    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
                          csv_file_name=csv_file_name, stabilizer_protocol=True)
-
-    qc._print_lines.append("Calculating the superoperator took {} seconds".format(time.time() - start_superoperator))
+    end_superoperator = time.time()
 
     if pbar is not None:
         pbar.update(10)
+
+    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
+    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                  start_superoperator))
+    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
 
     return qc._print_lines
 

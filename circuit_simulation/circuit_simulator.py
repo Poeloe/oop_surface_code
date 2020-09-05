@@ -217,14 +217,18 @@ class QuantumCircuit:
 
         return density_matrices
 
-    def _init_density_matrix_bell_pair_state(self, draw=True):
+    def _init_density_matrix_bell_pair_state(self, amount_qubits=8, draw=True):
         """ Realises init_type option 2. See class description for more info. """
 
         density_matrices = []
         bell_pair_rho = sp.lil_matrix((4, 4))
         bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
 
-        for i in range(0, self.num_qubits, 2):
+        for i in range(0, self.num_qubits-amount_qubits):
+            state = self._qubit_array[i]
+            self._qubit_density_matrix_lookup[i] = (CT(state), [i])
+
+        for i in range(self.num_qubits-amount_qubits, self.num_qubits, 2):
             density_matrix = sp.csr_matrix(bell_pair_rho)
             qubits = [i, i+1]
             if draw:
@@ -369,6 +373,12 @@ class QuantumCircuit:
 
         self._qubit_density_matrix_lookup = new_lookup_dict
 
+    def _correct_lookup_for_measurement_any(self, qubit, qubits, density_matrix_measured, new_density_matrix):
+        self._qubit_density_matrix_lookup[qubit] = (density_matrix_measured, [qubit])
+        qubits.remove(qubit)
+        for q in qubits:
+            self._qubit_density_matrix_lookup[q] = (new_density_matrix, qubits)
+
     def _correct_lookup_for_circuit_fusion(self, lookup_other):
         num_qubits_other = len(lookup_other)
         new_lookup = lookup_other
@@ -399,6 +409,16 @@ class QuantumCircuit:
         _, qubits, _, _ = self._get_qubit_relative_objects(qubit)
         for qubit in qubits:
             self._qubit_density_matrix_lookup[qubit] = (new_density_matrix, qubits)
+
+    def get_combined_density_matrix(self, qubits):
+        density_matrices = []
+        skip_qubits = []
+        for qubit in qubits:
+            if qubit not in skip_qubits:
+                density_matrix, involved_qubits, _, _ = self._get_qubit_relative_objects(qubit)
+                density_matrices.append(density_matrix)
+                skip_qubits.extend(involved_qubits)
+        return KP(*density_matrices)
 
     def total_density_matrix(self):
         """
@@ -444,8 +464,12 @@ class QuantumCircuit:
             self._user_operation_order.append({"set_qubit_states": [qubit_dict]})
 
         for tqubit, state in qubit_dict.items():
+            _, _, _, rel_num_qubits = self._get_qubit_relative_objects(tqubit)
+            if rel_num_qubits > 1 or tqubit >= self.num_qubits:
+                raise ValueError("Qubit is not suitable to set state for.")
+
             self._qubit_array[tqubit] = state
-        self._init_density_matrix()
+            self._qubit_density_matrix_lookup[tqubit] = (CT(state), [tqubit])
 
     def get_begin_states(self):
         """ Returns the initial state vector of the qubits """
@@ -579,8 +603,49 @@ class QuantumCircuit:
             self._add_draw_operation("#", (0, 1), noise)
 
             if noise and self.p_dec > 0:
-                times = int(math.ceil(bell_creation_duration / self.time_step))
-                self._N_decoherence([i, i + 1], times=times)
+                times_total = times * int(math.ceil(bell_creation_duration / self.time_step))
+                self._N_decoherence([i, i + 1], times=times_total)
+
+    def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1, probabilistic=None,
+                         p_bell_success=None, bell_creation_duration=None, user_operation=True):
+        if user_operation:
+            self._user_operation_order.append({"create_bell_pair": [qubit1, qubit2, noise, pn]})
+        if noise is None:
+            noise = self.noise
+        if pn is None:
+            pn = self.pn
+        if network_noise_type is None:
+            network_noise_type = self.network_noise_type
+        if probabilistic is None:
+            probabilistic = self.probabilistic
+        if p_bell_success is None:
+            p_bell_success = self.p_bell_success
+        if bell_creation_duration is None:
+            bell_creation_duration = self.bell_creation_duration
+
+        times = 1
+        while probabilistic and random.random() > p_bell_success:
+            times += 1
+
+        _, _, _, num_qubits_1 = self._get_qubit_relative_objects(qubit1)
+        _, _, _, num_qubits_2 = self._get_qubit_relative_objects(qubit2)
+
+        if num_qubits_1 > 1 or num_qubits_2 > 1:
+            raise ValueError("Qubits are not suitable to create a Bell pair this way.")
+
+        new_density_matrix = self._get_bell_state_by_type(bell_state_type)
+
+        if noise:
+            new_density_matrix = self._N_network(new_density_matrix, pn, network_noise_type)
+
+        self._qubit_density_matrix_lookup.update({qubit1: (new_density_matrix, [qubit2, qubit1]),
+                                                  qubit2: (new_density_matrix, [qubit2, qubit1])})
+
+        self._add_draw_operation("#", (qubit1, qubit2), noise)
+
+        if noise and self.p_dec > 0:
+            times_total = times * int(math.ceil(bell_creation_duration / self.time_step))
+            self._N_decoherence([qubit1, qubit2], times=times_total)
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -1024,56 +1089,63 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------  
     """
 
-    def single_selection(self, operation, new_qubit=False, measure=True, noise=None, pn=None, pm=None, pg=None,
-                         user_operation=True):
+    def single_selection(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
+                         pg=None, user_operation=True):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         while not success:
-            self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, 0, 2, noise=noise, pg=pg, user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, 1, 3, noise=noise, pg=pg, user_operation=user_operation)
+            self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
+            self.apply_2_qubit_gate(operation, bell_qubit_1, bell_qubit_1 + 1, noise=noise, pg=pg,
+                                    user_operation=user_operation)
+            self.apply_2_qubit_gate(operation, bell_qubit_2, bell_qubit_2 + 1, noise=noise, pg=pg,
+                                    user_operation=user_operation)
             if measure:
-                new_qubit = False
-                success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
+                success = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm, user_operation=user_operation)
             else:
                 success = True
 
-    def double_selection(self, operation, new_qubit=False, noise=None, pn=None, pm=None, pg=None, user_operation=True):
+    def double_selection(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
+                         user_operation=True):
         """ Double selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         while not success:
-            self.single_selection(operation, new_qubit=new_qubit, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
+            self.single_selection(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                                   user_operation=user_operation)
-            self.create_bell_pairs_top(1, new_qubit=new_qubit, noise=noise, pn=pn, user_operation=user_operation)
-            self.CZ(0, 2, noise=noise, pg=pg, user_operation=user_operation)
-            self.CZ(1, 3, noise=noise, pg=pg, user_operation=user_operation)
-            new_qubit = False
-            success = self.measure_first_N_qubits(4, noise=noise, pm=pm, user_operation=user_operation)
+            self.create_bell_pair(bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, user_operation=user_operation)
+            self.CZ(bell_qubit_1 - 1, bell_qubit_1, noise=noise, pg=pg, user_operation=user_operation)
+            self.CZ(bell_qubit_2 - 1, bell_qubit_2, noise=noise, pg=pg, user_operation=user_operation)
+            success = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
+                                   user_operation=user_operation)
 
-    def single_dot(self, operation, qubit1, qubit2, measure=True, noise=None, pn=None, pm=None,
+    def single_dot(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                    pg=None, user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         while not success:
-            self.create_bell_pairs_top(1, noise=noise, pn=pn, user_operation=user_operation)
-            self.single_selection(X_gate, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
-            self.single_selection(Z_gate, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, 0, qubit1, noise=noise, pg=pg, user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, 1, qubit2, noise=noise, pg=pg, user_operation=user_operation)
+            self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
+            self.single_selection(X_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
+                                  user_operation=user_operation)
+            self.single_selection(Z_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
+                                  user_operation=user_operation)
+            self.apply_2_qubit_gate(operation, bell_qubit_1, bell_qubit_1 + 1, noise=noise, pg=pg,
+                                    user_operation=user_operation)
+            self.apply_2_qubit_gate(operation, bell_qubit_2, bell_qubit_2 + 1, noise=noise, pg=pg,
+                                    user_operation=user_operation)
             if measure:
-                success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
+                success = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm, user_operation=user_operation)
             else:
                 success = True
 
-    def double_dot(self, operation, qubit1, qubit2, noise=None, pn=None, pm=None, pg=None,
+    def double_dot(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                    user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         while not success:
-            self.single_dot(operation, qubit1, qubit2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
+            self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                             user_operation=user_operation)
-            self.single_selection(Z_gate, noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
-            success = self.measure_first_N_qubits(2, noise=noise, pm=pm, user_operation=user_operation)
+            self.single_selection(Z_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
+                                  user_operation=user_operation)
+            success = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm, user_operation=user_operation)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -1375,7 +1447,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------   
     """
 
-    def measure_first_N_qubits(self, N, measure=0, uneven_parity=False, noise=None, pm=None, p_dec=None, basis="X",
+    def measure_first_N_qubits(self, N, qubit=None, measure=0, uneven_parity=False, noise=None, pm=None, p_dec=None, basis="X",
                                basis_transformation_noise=None, probabilistic=None, user_operation=True):
         """
             Method measures the first N qubits, given by the user, all in the 0 or 1 state.
@@ -1422,6 +1494,8 @@ class QuantumCircuit:
             basis_transformation_noise = self.basis_transformation_noise
         if probabilistic is None:
             probabilistic = self.probabilistic
+        if qubit is None:
+            qubit = 0
 
         measurement_outcomes = []
 
@@ -1430,11 +1504,7 @@ class QuantumCircuit:
                 # Do not let the method draw itself, since the qubit will not be removed from the circuit drawing
                 self.H(0, noise=basis_transformation_noise, draw=False, user_operation=False)
 
-            qubit_density_matrix, _ = self._qubit_density_matrix_lookup[0]
-
-            measure_new = measure
-            if uneven_parity and qubit == 0:
-                measure_new = abs(measure - 1)
+            qubit_density_matrix, _ = self._qubit_density_matrix_lookup[qubit]
 
             if probabilistic:
                 prob_0, density_matrix_0 = self._measurement_first_qubit(qubit_density_matrix, measure=0, noise=noise,
@@ -1446,8 +1516,12 @@ class QuantumCircuit:
                 outcome = get_value_by_prob([0, 1], [prob_0, prob_1])
                 new_density_matrix = density_matrices[outcome]
             else:
-                outcome = measure_new
-                new_density_matrix = self._measurement_first_qubit(qubit_density_matrix, outcome, noise=noise, pm=pm)[1]
+                outcome = measure
+                if uneven_parity and qubit == 0:
+                    outcome = abs(measure - 1)
+
+                new_density_matrix = self._measurement_first_qubit(qubit_density_matrix, outcome, noise=noise,
+                                                                   pm=pm)[1]
 
             self._set_density_matrix(0, new_density_matrix)
             self._correct_lookup_for_measurement_top()
@@ -1511,8 +1585,8 @@ class QuantumCircuit:
 
         return prob, temp_density_matrix
 
-    def measure(self, qubit, outcome=None, basis="X", noise=None, pm=None, basis_transformation_noise=None,
-                keep_qubit=False, user_operation=False):
+    def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, probabilistic=None,
+                basis_transformation_noise=None, user_operation=False):
         """
             Measurement that can be applied to any qubit.
 
@@ -1533,42 +1607,83 @@ class QuantumCircuit:
                 method.
         """
         if user_operation:
-            self._user_operation_order.append({"measure": [qubit, outcome, basis]})
+            self._user_operation_order.append({"measure": [measure_qubits, outcome, basis]})
         if noise is None:
             noise = self.noise
         if pm is None:
             pm = self.pm
+        if probabilistic is None:
+            probabilistic = self.probabilistic
         if basis_transformation_noise is None:
             basis_transformation_noise = self.basis_transformation_noise
-        if basis == "X":
-            self.H(qubit, noise=basis_transformation_noise, user_operation=False)
 
-        density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
+        if type(measure_qubits) == int:
+            measure_qubits = [measure_qubits]
 
-        # If no specific measurement outcome is given it is chosen by the hand of the probability
-        if outcome is None or noise:
-            prob1, density_matrix1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix, outcome=0,
-                                                                               keep_qubit=keep_qubit)
-            prob2, density_matrix2 = self._get_measurement_outcome_probability(rel_qubit, density_matrix, outcome=1,
-                                                                               keep_qubit=keep_qubit)
+        measurement_outcomes = []
 
-            density_matrices = [density_matrix1, density_matrix2]
-            if outcome is None:
-                outcome = get_value_by_prob([0, 1], [prob1, prob2])
+        for i, qubit in enumerate(measure_qubits):
+            if basis == "X":
+                self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
 
-            new_density_matrix = density_matrices[outcome]
+            density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
 
-            if noise:
-                new_density_matrix = (1 - pm) * new_density_matrix + pm * density_matrices[outcome ^ 1]
+            # If no specific measurement outcome is given it is chosen by the hand of the probability
+            if probabilistic:
+                if rel_qubit == 0:
+                    prob1, density_matrix1 = self._measurement_first_qubit(density_matrix, measure=0, noise=False,
+                                                                           pm=pm)
+                    prob2, density_matrix2 = self._measurement_first_qubit(density_matrix, measure=1, noise=False,
+                                                                           pm=pm)
+                else:
+                    prob1, density_matrix1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
+                                                                                       outcome=0,
+                                                                                       keep_qubit=False)
+                    prob2, density_matrix2 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
+                                                                                       outcome=1,
+                                                                                       keep_qubit=False)
 
-            self._set_density_matrix(qubit, new_density_matrix)
-            # CORRECTION FOR QUBIT MEASUREMENT SHOULD STILL BE MADE HERE (ALERT: MEASURED QUBIT IS NOT NECESSARILY THE
-            # TOP QUBIT)
+                density_matrices = [density_matrix1, density_matrix2]
+                outcome_new = get_value_by_prob([0, 1], [prob1, prob2])
 
-        self._add_draw_operation("M", qubit)
+                new_density_matrix = density_matrices[outcome_new]
 
-        if basis == "X":
-            self.H(qubit, noise=basis_transformation_noise, user_operation=False)
+                if noise:
+                    new_density_matrix = (1 - pm) * new_density_matrix + pm * density_matrices[outcome_new ^ 1]
+
+            else:
+                outcome_new = outcome
+                if uneven_parity and i == 0:
+                    outcome_new = outcome ^ 1
+
+                if rel_qubit == 0:
+                    _, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
+                                                                          noise=noise, pm=pm)
+                else:
+                    _, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
+                                                                                      outcome=outcome_new,
+                                                                                      keep_qubit=False)
+                    if noise:
+                        _, wrong_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
+                                                                                            outcome=outcome_new ^ 1,
+                                                                                            keep_qubit=False)
+                        new_density_matrix = (1 - pm) * new_density_matrix + pm * wrong_density_matrix
+
+            if basis == "X":
+                density_matrix_measured = CT(ket_p) if outcome == 0 else CT(ket_m)
+                self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
+                self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
+            else:
+                density_matrix_measured = CT(ket_0) if outcome == 0 else CT(ket_1)
+                self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
+
+            measurement_outcomes.append(outcome_new)
+            self._add_draw_operation("M_{}:{}".format(basis, outcome_new), qubit, noise)
+
+
+        measurement_outcomes = iter(measurement_outcomes)
+        parity_outcome = [True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)]
+        return all(parity_outcome)
 
     @staticmethod
     def _get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qubit=True):
@@ -1967,8 +2082,9 @@ class QuantumCircuit:
         superoperator = []
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
-        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits)
-        total_density_matrix = self.total_density_matrix()
+        total_density_matrix = self.get_combined_density_matrix(qubits)
+        num_qubits = int(math.log(total_density_matrix.shape[0])/math.log(2))
+        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits, num_qubits=num_qubits)
 
         for combination in all_gate_combinations:
             total_error_gate = None
@@ -2085,15 +2201,15 @@ class QuantumCircuit:
             measure_error : bool
                 True if the noiseless density matrix should contain a measurement error.
         """
-        qc = QuantumCircuit(8, 2)
-        qc.add_top_qubit(ket_p)
+        qc = QuantumCircuit(9, 2)
+        qc.set_qubit_states({0: ket_p})
         gate = Z_gate if proj_type == "Z" else X_gate
         for i in range(1, qc.num_qubits, 2):
             qc.apply_2_qubit_gate(gate, 0, i)
 
-        qc.measure_first_N_qubits(1, measure=0 if not measure_error else 1)
+        qc.measure([0], outcome=0 if not measure_error else 1)
 
-        return qc.total_density_matrix()
+        return qc.get_combined_density_matrix([1])
 
     def _file_name_from_circuit(self, measure_error=False, general_name="circuit", extension=""):
         """
@@ -2163,7 +2279,7 @@ class QuantumCircuit:
 
         return file_path
 
-    def _all_single_qubit_gate_possibilities(self, qubits):
+    def _all_single_qubit_gate_possibilities(self, qubits, num_qubits):
         """
             Method returns a list containing all the possible combinations of Pauli matrix gates
             that can be applied to the specified qubits.
@@ -2191,9 +2307,11 @@ class QuantumCircuit:
         gate_combinations = []
 
         for qubit in qubits:
+            _, _, rel_qubit, _ = self._get_qubit_relative_objects(qubit)
             gates = []
             for operation in operations:
-                gates.append({operation.representation: self._create_1_qubit_gate(operation.matrix, qubit)})
+                gates.append({operation.representation: self._create_1_qubit_gate(operation.matrix, rel_qubit,
+                                                                                  num_qubits=num_qubits)})
             gate_combinations.append(gates)
 
         return list(product(*gate_combinations))
