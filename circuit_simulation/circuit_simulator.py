@@ -177,6 +177,7 @@ class QuantumCircuit:
         self._fused = False
         self._sub_circuits = {}
         self._current_sub_circuit = None
+        self.nodes = None
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
@@ -457,6 +458,19 @@ class QuantumCircuit:
             self.total_duration += self._current_sub_circuit.total_duration
         self._current_sub_circuit = None
 
+    def define_nodes(self, node_dict):
+        if self.nodes is None:
+            self.nodes = {}
+        self.nodes.update(node_dict)
+
+    def get_node_qubits(self, qubit):
+        if self.nodes is None:
+            return None
+        for node_qubits in self.nodes.values():
+            if qubit in node_qubits:
+                return node_qubits
+        return None
+
     def apply_decoherence_to_fastest_sub_circuit(self, name_sub_circuit_1, name_sub_circuit_2):
         if self.p_dec == 0:
             return
@@ -663,8 +677,8 @@ class QuantumCircuit:
                 self._N_decoherence([i, i + 1], times=times_total)
                 self._increase_duration(bell_creation_duration)
 
-    def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1, probabilistic=None,
-                         p_bell_success=None, bell_creation_duration=None, user_operation=True):
+    def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
+                         probabilistic=None, p_bell_success=None, bell_creation_duration=None, user_operation=True):
         if user_operation:
             self._user_operation_order.append({"create_bell_pair": [qubit1, qubit2, noise, pn]})
         if noise is None:
@@ -1041,7 +1055,8 @@ class QuantumCircuit:
         self._set_density_matrix(cqubit, new_density_matrix)
 
         if noise and self.p_dec != 0:
-            self._N_decoherence([tqubit, cqubit], gate=gate)
+            involved_qubits = self.get_node_qubits(cqubit)
+            self._N_decoherence([tqubit, cqubit], involved_qubits=involved_qubits, gate=gate)
             self._increase_duration(gate.duration)
 
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
@@ -1758,8 +1773,9 @@ class QuantumCircuit:
             # Please not that the decoherence is implemented after the H gate. When the H gate should be taken into
             # account for decoherence small implementation alteration is necessary.
             if noise and p_dec > 0:
+                involved_qubits = self.get_node_qubits(qubit)
                 times = int(math.ceil(self.measurement_duration/self.time_step))
-                self._N_decoherence([], times=times)
+                self._N_decoherence([], involved_qubits=involved_qubits, times=times)
                 self._increase_duration(self.measurement_duration)
 
         measurement_outcomes = iter(measurement_outcomes)

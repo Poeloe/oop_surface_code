@@ -38,6 +38,8 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
                         thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.8)
 
+    qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
+
     qc.create_bell_pair(11, 8)
     qc.double_selection(CZ_gate, 10, 7)
     qc.double_selection(CNOT_gate, 10, 7)
@@ -104,9 +106,11 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=True, p_dec=0.004)
+                        thread_safe_printing=True, probabilistic=True, p_dec=0.004, p_bell_success=0.1)
 
-    qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16, 14, 12], waiting_qubits=[11, 8])
+    qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
+
+    qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[11, 8, 18, 16])
 
     qc.create_bell_pair(11, 8)
     qc.double_selection(CZ_gate, 10, 7)
@@ -117,7 +121,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 18, 16, 14, 12], waiting_qubits=[5, 2])
+    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[5, 2, 14, 12])
 
     qc.create_bell_pair(5, 2)
     qc.double_selection(CZ_gate, 4, 1)
@@ -130,14 +134,14 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("AC", [11, 8, 5, 2, 10, 9, 4, 3, 18, 16, 14, 12], waiting_qubits=[11, 5])
+    qc.start_sub_circuit("AC", [11, 8, 5, 2, 10, 9, 4, 3, 18, 14], waiting_qubits=[11, 5, 18, 14])
     qc.double_dot(CZ_gate, 10, 4)
     qc.double_dot(CZ_gate, 10, 4)
 
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("BD", [11, 8, 5, 2, 7, 6, 1, 0, 18, 16, 14, 12], waiting_qubits=[8, 2])
+    qc.start_sub_circuit("BD", [11, 8, 5, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
     qc.double_dot(CZ_gate, 7, 1)
     qc.double_dot(CZ_gate, 7, 1)
 
@@ -170,9 +174,9 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(10)
 
-    start_draw = time.time()
-    qc.draw_circuit(no_color=not color)
-    end_draw = time.time()
+    # start_draw = time.time()
+    # qc.draw_circuit(no_color=not color)
+    # end_draw = time.time()
 
     if save_latex_pdf:
         qc.draw_circuit_latex()
@@ -187,7 +191,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
         pbar.update(10)
 
     qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
+    # qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
     qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
                                                                                   start_superoperator))
     qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
