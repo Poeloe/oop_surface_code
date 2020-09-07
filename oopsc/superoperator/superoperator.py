@@ -264,6 +264,16 @@ class SuperoperatorElement:
     def __str__(self):
         return self.__repr__()
 
+    def __eq__(self, other):
+        if type(other) != SuperoperatorElement:
+            return False
+        self_error_sorted = sorted(self.error_array)
+        other_error_sorted = sorted(other.error_array)
+        return self.p == other.p and self.lie == other.lie and self_error_sorted == other_error_sorted
+
+    def __hash__(self):
+        return hash(str(self.p) + str(self.lie) + str(self.error_array))
+
     def __ge__(self, other):
         return self.p >= other.p
 

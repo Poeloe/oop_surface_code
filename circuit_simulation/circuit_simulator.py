@@ -2445,30 +2445,26 @@ class QuantumCircuit:
             eventually end up making one entry, namely [I,I,I,X], in the returned new superoperator. The according
             probability will be equal to the sum of the probabilities of the 4 configurations.
         """
-        checked = []
         sorted_superoperator = []
-        count = None
-        new_value = None
-        old_value = None
+        supop_el_dict = {}
 
-        # Check for same configurations up to permutations by comparing the sorted error_arrays of each
-        # SuperOperatorElement and the lie attribute.
-        for supop_el_a, supop_el_b in permutations(superoperator, 2):
-            if supop_el_b.id in checked or supop_el_a.id in checked: continue
-            if supop_el_a != old_value:
-                if old_value is not None:
-                    if old_value.error_array.count("I") == old_value.error_array.count(proj_type):
-                        new_value = new_value/2
-                    sorted_superoperator.append(SuperoperatorElement(new_value, old_value.lie, old_value.error_array))
-                count = 1
-                new_value = supop_el_a.p
-            if supop_el_a.error_array_lie_equals(supop_el_b):
-                count += 1
-                new_value += supop_el_b.p
-                checked.append(supop_el_b.id)
-            old_value = supop_el_a
+        # Create dict with SuperoperatorElements equal in lie and error_array as items
+        for supop_el in superoperator:
+            key = str(supop_el.lie) + str(sorted(supop_el.error_array))
+            if key not in supop_el_dict.keys():
+                supop_el_dict[key] = [supop_el]
+            else:
+                supop_el_dict[key].append(supop_el)
 
-        sorted_superoperator.append(SuperoperatorElement(new_value, old_value.lie, old_value.error_array))
+        # For each grouped SuperoperatorElements in the created dict, sum the probability (take degenerate into account)
+        for equal_supop_el in supop_el_dict.values():
+            lie = equal_supop_el[0].lie
+            error_array = sorted(equal_supop_el[0].error_array)
+            p = sum([el.p for el in equal_supop_el])
+            # say 'Z' is the proj_type, then IIZZ with ZZII and ZIIZ with IZZI are degenerate. Sum is halved
+            if error_array.count("I") == error_array.count(proj_type):
+                p = sum([el.p for el in equal_supop_el])/2
+            sorted_superoperator.append(SuperoperatorElement(p, lie, error_array))
 
         return sorted_superoperator
 
@@ -2499,6 +2495,7 @@ class QuantumCircuit:
             therefore only this configuration is kept in the returned superoperator. Effectively, this means that the
             [Z,Z,Z,X] is removed from the superoperator together with the according probability.
         """
+
         for supop_el_a, supop_el_b in combinations(superoperator, 2):
             if supop_el_a.probability_lie_equals(supop_el_b):
                 if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") \
