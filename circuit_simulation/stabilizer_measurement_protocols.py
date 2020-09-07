@@ -36,10 +36,11 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.8)
+                        thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.002)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
+    qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[11, 8, 18, 16])
     qc.create_bell_pair(11, 8)
     qc.double_selection(CZ_gate, 10, 7)
     qc.double_selection(CNOT_gate, 10, 7)
@@ -47,32 +48,48 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(20)
 
+    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[5, 2, 14, 12])
     qc.create_bell_pair(5, 2)
     qc.double_selection(CZ_gate, 4, 1)
     qc.double_selection(CNOT_gate, 4, 1)
 
+    qc.apply_decoherence_to_fastest_sub_circuit("AB", "CD")
+
     if pbar is not None:
         pbar.update(20)
 
+    qc.start_sub_circuit("AC", [11, 8, 5, 2, 10, 9, 4, 3, 18, 14], waiting_qubits=[11, 5, 18, 14])
     qc.single_dot(CZ_gate, 10, 4)
     qc.single_dot(CZ_gate, 10, 4)
 
     if pbar is not None:
         pbar.update(20)
 
-    # And finally the entanglement between ancilla 1 and 2 is made, now all ancilla's are entangled
+    qc.start_sub_circuit("BD", [11, 8, 5, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
     qc.single_dot(CZ_gate, 7, 1)
     qc.single_dot(CZ_gate, 7, 1)
 
     if pbar is not None:
         pbar.update(20)
 
-    qc.apply_2_qubit_gate(operation, 11, 18)
+    # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
+    qc.start_sub_circuit("B", [8, 16])
     qc.apply_2_qubit_gate(operation, 8, 16)
-    qc.apply_2_qubit_gate(operation, 5, 14)
-    qc.apply_2_qubit_gate(operation, 2, 12)
+    qc.measure(8)
 
-    qc.measure([8, 11, 2, 5], probabilistic=False)
+    qc.start_sub_circuit("A", [11, 18])
+    qc.apply_2_qubit_gate(operation, 11, 18)
+    qc.measure(11)
+
+    qc.start_sub_circuit("D", [2, 12])
+    qc.apply_2_qubit_gate(operation, 2, 12)
+    qc.measure(2)
+
+    qc.start_sub_circuit("C", [5, 14])
+    qc.apply_2_qubit_gate(operation, 5, 14)
+    qc.measure(5)
+
+    qc.end_current_sub_circuit()
 
     end_circuit = time.time()
 
@@ -106,7 +123,7 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
 def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=True, p_dec=0.004, p_bell_success=0.1)
+                        thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.1)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
@@ -168,7 +185,7 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     qc.measure(5, probabilistic=False)
 
     qc.end_current_sub_circuit()
-    qc._print_lines.append("Total duration is: {}".format(qc.total_duration))
+
     end_circuit = time.time()
 
     if pbar is not None:
