@@ -36,7 +36,7 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
 def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.002)
+                        thread_safe_printing=True, probabilistic=False, p_dec=0.0004, p_bell_success=0.002)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 

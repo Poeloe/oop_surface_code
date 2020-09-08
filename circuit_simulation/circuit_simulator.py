@@ -13,7 +13,7 @@ from scipy.linalg import eig, eigh
 import hashlib
 import re
 from oopsc.superoperator.superoperator import SuperoperatorElement
-from termcolor import colored
+from termcolor import colored, COLORS
 from itertools import combinations, permutations, product
 from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
 import pandas as pd
@@ -470,6 +470,13 @@ class QuantumCircuit:
             if qubit in node_qubits:
                 return node_qubits
         return None
+
+    def get_node_name_from_qubit(self, qubit):
+        if self.nodes is None:
+            return
+        for key, values in self.nodes.items():
+            if qubit in values:
+                return key
 
     def apply_decoherence_to_fastest_sub_circuit(self, name_sub_circuit_1, name_sub_circuit_2):
         if self.p_dec == 0:
@@ -1334,10 +1341,8 @@ class QuantumCircuit:
                 involved_qubits = [i for i in range(self.num_qubits)]
 
         excluded_qubits.extend(self._uninitialised_qubits)
-        # apply decoherence to the qubits not involved in the operation. REMOVING OF ANCILLA QUBITS THAT ARE USED
-        # TO CALCULATE THE SUPEROPERATOR IS HARDCODED NOW FOR THE CASE OF A GHZ WITH 4 NODES
-        included_qubits = set(involved_qubits).difference(excluded_qubits)
-        included_qubits = included_qubits.difference([(self.num_qubits - 1) - (2*i) for i in range(4)])
+        # apply decoherence to the qubits not involved in the operation.
+        included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits)))
 
         drawn = False
         for _ in range(times):
@@ -2660,7 +2665,7 @@ class QuantumCircuit:
         ----------------------------------------------------------------------------------------------------------     
     """
 
-    def draw_circuit(self, no_color=False):
+    def draw_circuit(self, no_color=False, color_nodes=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
         legenda = "\n--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
@@ -2669,6 +2674,8 @@ class QuantumCircuit:
         init = self._draw_init(no_color)
         self._draw_gates(init, no_color)
         init[-1] += "\n\n"
+        if not no_color and color_nodes:
+            self._color_qubit_lines(init)
         self._print_lines.append(legenda)
         self._print_lines.extend(init)
         if not self._thread_safe_printing:
@@ -2682,9 +2689,11 @@ class QuantumCircuit:
         """ Returns an array containing the visual representation of the initial state of the qubits. """
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         init_state_repr = []
-        for state in self._qubit_array:
-            init_state_repr.append("\n\n{} ---".format(ansi_escape.sub("", state.representation) if no_color else
-                                                       state.representation))
+        for qubit, state in enumerate(self._qubit_array):
+            node_name = self.get_node_name_from_qubit(qubit)
+            init_state_repr.append("\n\n{}{} ---".format(node_name + ":" if node_name is not None else "",
+                                                         ansi_escape.sub("", state.representation) if no_color else
+                                                         state.representation))
 
         for a, b in it.combinations(enumerate(init_state_repr), 2):
             # Since colored ansi code is shown as color and not text it should be stripped for length comparison
@@ -2742,6 +2751,23 @@ class QuantumCircuit:
                     init[a[0]] += diff * "-"
                 elif (diff := len(a_stripped) - len(b_stripped)) > 0:
                     init[b[0]] += diff * "-"
+
+    def _color_qubit_lines(self, init):
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        colors = sorted(list(COLORS.keys()))
+        colors.remove('white'), colors.remove('grey')
+        node_color_dict = {}
+        for i, key in enumerate(self.nodes.keys()):
+            if i == len(colors) - 1:
+                self._print_lines.append("Warning! To many nodes for the amount of different colors. Colors are reused")
+            color_number = i % (len(colors) - 1)
+            node_color_dict[key] = colors[color_number]
+
+        for i, _ in enumerate(init):
+            node_name = self.get_node_name_from_qubit(i)
+            if node_name is None: continue
+            espaced_lines = ansi_escape.sub("", init[i])
+            init[i] = colored(espaced_lines, node_color_dict[node_name])
 
     def _create_qasm_file(self, meas_error):
         """
