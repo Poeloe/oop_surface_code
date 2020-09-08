@@ -69,7 +69,11 @@ class QuantumCircuit:
                 The overall amount of gate noise that will be applied when 'noise' is set to True.
             pm : float [0-1], optional, default=0.01
                 The overall amount of measurement error that will be applied when 'noise' set to
-                True.
+                True. In case pm_1 is specified, this value holds as the measurement error when a 0-state is
+                supposed to be measured.
+            pm_1 : float [0-1], optional, default=None
+                The amount of measurement error when a 1-state is supposed to be measured. This can be used in case
+                there is a difference in measurement error between an 0-state and an 1-state.
             pn : float [0-1], optional, default=None
                 The overall amount of network noise that will be applied when 'noise is set to True.
             p_dec : float [0-1], optional, default=0
@@ -146,13 +150,15 @@ class QuantumCircuit:
     """
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
-                 pn=None, p_dec=0, p_bell_success=1, time_step=1, measurement_duration=1, bell_creation_duration=1,
-                 probabilistic=False, network_noise_type=0, no_single_qubit_error=False, thread_safe_printing=False):
+                 pm_1=None, pn=None, p_dec=0, p_bell_success=1, time_step=1, measurement_duration=1,
+                 bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
+                 thread_safe_printing=False):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
         self.pg = pg
         self.pm = pm
+        self.pm_1 = pm_1
         self.pn = pn
         self.p_dec = p_dec
         self.p_bell_success = p_bell_success
@@ -225,8 +231,10 @@ class QuantumCircuit:
         """ Realises init_type option 2. See class description for more info. """
 
         density_matrices = []
-        bell_pair_rho = sp.lil_matrix((4, 4))
-        bell_pair_rho[0, 0], bell_pair_rho[3, 0], bell_pair_rho[0, 3], bell_pair_rho[3, 3] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
+        bell_pair_rho = sp.csr_matrix([[1/2, 0, 0, 1/2],
+                                       [0, 0, 0, 0],
+                                       [0, 0, 0, 0],
+                                       [1/2, 0, 0, 1/2]])
 
         for i in range(0, self.num_qubits-amount_qubits):
             state = self._qubit_array[i]
@@ -234,7 +242,7 @@ class QuantumCircuit:
             self._uninitialised_qubits.append(i)
 
         for i in range(self.num_qubits-amount_qubits, self.num_qubits, 2):
-            density_matrix = sp.csr_matrix(bell_pair_rho)
+            density_matrix = copy.copy(bell_pair_rho)
             qubits = [i, i+1]
             if draw:
                 self._add_draw_operation("#", (i, i + 1))
@@ -448,9 +456,6 @@ class QuantumCircuit:
         sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits)
         self._sub_circuits[name] = sub_circuit
 
-        if self._current_sub_circuit is not None:
-            self.total_duration += self._current_sub_circuit.total_duration
-
         self._current_sub_circuit = sub_circuit
 
     def end_current_sub_circuit(self):
@@ -480,6 +485,8 @@ class QuantumCircuit:
 
     def apply_decoherence_to_fastest_sub_circuit(self, name_sub_circuit_1, name_sub_circuit_2):
         if self.p_dec == 0:
+            sub_circuit_1 = self._sub_circuits[name_sub_circuit_1]
+            self.total_duration += sub_circuit_1.total_duration
             return
         sub_circuit_1 = self._sub_circuits[name_sub_circuit_1]
         sub_circuit_2 = self._sub_circuits[name_sub_circuit_2]
@@ -487,9 +494,13 @@ class QuantumCircuit:
         if (diff := sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
             times = int(math.ceil(abs(diff)/self.time_step))
             self._N_decoherence([], involved_qubits=sub_circuit_1.waiting_qubits, times=times)
+            self.total_duration += sub_circuit_2.total_duration
         elif (diff := sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
             times = int(math.ceil(abs(diff)/self.time_step))
             self._N_decoherence([], involved_qubits=sub_circuit_2.waiting_qubits, times=times)
+            self.total_duration += sub_circuit_1.total_duration
+        else:
+            self.total_duration += sub_circuit_1.total_duration
 
     def _increase_duration(self, amount):
         if self._current_sub_circuit is None:
@@ -550,7 +561,7 @@ class QuantumCircuit:
         """ Returns the initial state vector of the qubits """
         return KP(*self._qubit_array)
 
-    def create_bell_pairs(self, qubits, user_operation=True):
+    def create_bell_pairs_circuit(self, qubits, user_operation=True):
         """
         qc.create_bell_pair(qubits)
 
@@ -573,7 +584,7 @@ class QuantumCircuit:
             between qubit 2 and 3 and between qubit 4 and 5.
         """
         if user_operation:
-            self._user_operation_order.append({"create_bell_pairs": [qubits]})
+            self._user_operation_order.append({"create_bell_pairs_circuit": [qubits]})
 
         for qubit1, qubit2 in qubits:
             self.H(qubit1, noise=False, draw=False, user_operation=False)
@@ -723,10 +734,10 @@ class QuantumCircuit:
 
         self._add_draw_operation("#", (qubit1, qubit2), noise)
 
+        times_total = int(math.floor(times * bell_creation_duration / self.time_step))
+        self._increase_duration(times * bell_creation_duration)
         if noise and self.p_dec > 0:
-            times_total = times * int(math.ceil(bell_creation_duration / self.time_step))
             self._N_decoherence([qubit1, qubit2], times=times_total)
-            self._increase_duration(bell_creation_duration)
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -748,7 +759,7 @@ class QuantumCircuit:
             rho[1, 1], rho[1, 2], rho[2, 1], rho[2, 2] = 1 / 2, 1 / 2, 1 / 2, 1 / 2
         else:
             raise ValueError("A non-valid Bell state type was requested. Known types are 1, 2, 3, and 4.")
-        return rho
+        return sp.csr_matrix(rho)
 
     def add_top_qubit(self, qubit_state=ket_0, p_prep=0, user_operation=True):
         """
@@ -824,7 +835,7 @@ class QuantumCircuit:
         one_qubit_gate = self._create_1_qubit_gate(gate.matrix if not conj else gate.dagger,
                                                    relative_tqubit_index,
                                                    relative_num_qubits)
-        new_density_matrix = sp.csr_matrix(one_qubit_gate.dot(CT(tqubit_density_matrix, one_qubit_gate)))
+        new_density_matrix = one_qubit_gate.dot(CT(tqubit_density_matrix, one_qubit_gate))
 
         if noise and not self.no_single_qubit_error:
             new_density_matrix = self._N_single(pg, relative_tqubit_index, new_density_matrix, relative_num_qubits)
@@ -863,16 +874,18 @@ class QuantumCircuit:
         if num_qubits is None:
             num_qubits = self.num_qubits
         if type(gate) == SingleQubitGate:
-            gate = gate.matrix
+            gate = gate.sp_matrix
 
         if num_qubits == 1:
-            return sp.csr_matrix(gate)
+            if not sp.issparse(gate):
+                gate = sp.csr_matrix(gate)
+            return gate
         if np.array_equal(gate, I_gate.matrix):
             return sp.eye(2 ** num_qubits, 2 ** num_qubits)
 
         first_id, second_id = self._create_identity_operations(tqubit, num_qubits=num_qubits)
 
-        return sp.csr_matrix(KP(first_id, gate, second_id))
+        return KP(first_id, gate, second_id)
 
     def _create_identity_operations(self, tqubit, num_qubits=None):
         """
@@ -1052,7 +1065,7 @@ class QuantumCircuit:
                                                    rel_tqubit,
                                                    num_qubits=rel_num_qubits)
 
-        new_density_matrix = sp.csr_matrix(two_qubit_gate.dot(CT(density_matrix, two_qubit_gate)))
+        new_density_matrix = two_qubit_gate.dot(CT(density_matrix, two_qubit_gate))
 
         if noise:
             new_density_matrix = self._N(pg, rel_cqubit, rel_tqubit, new_density_matrix, num_qubits=rel_num_qubits)
@@ -1061,10 +1074,10 @@ class QuantumCircuit:
 
         self._set_density_matrix(cqubit, new_density_matrix)
 
+        self._increase_duration(gate.duration)
         if noise and self.p_dec != 0:
             involved_qubits = self.get_node_qubits(cqubit)
             self._N_decoherence([tqubit, cqubit], involved_qubits=involved_qubits, gate=gate)
-            self._increase_duration(gate.duration)
 
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         """
@@ -1125,8 +1138,8 @@ class QuantumCircuit:
 
             return control_gate
 
-        one_state_matrix = gate.matrix if type(gate) == SingleQubitGate else gate.upper_left_matrix
-        zero_state_matrix = I_gate.matrix if type(gate) == SingleQubitGate else gate.lower_right_matrix
+        one_state_matrix = gate.sp_matrix if type(gate) == SingleQubitGate else gate.upper_left_matrix
+        zero_state_matrix = I_gate.sp_matrix if type(gate) == SingleQubitGate else gate.lower_right_matrix
 
         first_part = create_component_2_qubit_gate(CT(ket_0), zero_state_matrix)
         second_part = create_component_2_qubit_gate(CT(ket_1), one_state_matrix)
@@ -1135,9 +1148,9 @@ class QuantumCircuit:
             third_part = create_component_2_qubit_gate(CT(ket_0, ket_1), gate.upper_right_matrix)
             fourth_part = create_component_2_qubit_gate(CT(ket_1, ket_0), gate.lower_left_matrix)
 
-            return sp.csr_matrix(first_part + second_part + third_part + fourth_part)
+            return first_part + second_part + third_part + fourth_part
 
-        return sp.csr_matrix(first_part + second_part)
+        return first_part + second_part
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
@@ -1256,7 +1269,7 @@ class QuantumCircuit:
             num_qubits : int
                 Number of qubits of which the density matrix is composed.
         """
-        new_density_matrix = sp.csr_matrix((1-pg) * density_matrix +
+        new_density_matrix = ((1-pg) * density_matrix +
                                            (pg / 3) * self._sum_pauli_error_single(tqubit,
                                                                                    density_matrix,
                                                                                    num_qubits=num_qubits))
@@ -1283,7 +1296,7 @@ class QuantumCircuit:
             num_qubits : int
                 Number of qubits of which the density matrix is composed.
         """
-        new_density_matrix = sp.csr_matrix((1 - pg) * density_matrix +
+        new_density_matrix = ((1 - pg) * density_matrix +
                                            (pg / 15) * self._double_sum_pauli_error(cqubit,
                                                                                     tqubit,
                                                                                     density_matrix,
@@ -1301,11 +1314,11 @@ class QuantumCircuit:
                 Amount of network noise present in the system.
         """
         if network_noise_type == 1:
-            return sp.csr_matrix((1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4))
+            return (1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4, format='csr')
         else:
             error_density = sp.lil_matrix(4, 4)
             error_density[3, 3] = 1
-            return sp.csr_matrix((1-pn) * density_matrix + pn * error_density)
+            return (1-pn) * density_matrix + pn * error_density
 
     @staticmethod
     def _N_preparation(state, p_prep):
@@ -1677,8 +1690,8 @@ class QuantumCircuit:
 
         return prob, temp_density_matrix
 
-    def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, p_dec=None,
-                probabilistic=None, basis_transformation_noise=None, user_operation=False):
+    def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, pm_1=None,
+                p_dec=None, probabilistic=None, basis_transformation_noise=None, user_operation=False):
         """
             Measurement that can be applied to any qubit.
 
@@ -1704,6 +1717,8 @@ class QuantumCircuit:
             noise = self.noise
         if pm is None:
             pm = self.pm
+        if pm_1 is None:
+            pm_1 =self.pm_1
         if p_dec is None:
             p_dec = self.p_dec
         if probabilistic is None:
@@ -1742,6 +1757,9 @@ class QuantumCircuit:
 
                 new_density_matrix = density_matrices[outcome_new]
 
+                if pm_1 is not None and outcome == 1:
+                    pm = pm_1
+
                 if noise:
                     new_density_matrix = (1 - pm) * new_density_matrix + pm * density_matrices[outcome_new ^ 1]
 
@@ -1777,11 +1795,11 @@ class QuantumCircuit:
 
             # Please not that the decoherence is implemented after the H gate. When the H gate should be taken into
             # account for decoherence small implementation alteration is necessary.
+            self._increase_duration(self.measurement_duration)
             if noise and p_dec > 0:
                 involved_qubits = self.get_node_qubits(qubit)
                 times = int(math.ceil(self.measurement_duration/self.time_step))
                 self._N_decoherence([], involved_qubits=involved_qubits, times=times)
-                self._increase_duration(self.measurement_duration)
 
         measurement_outcomes = iter(measurement_outcomes)
         parity_outcome = [True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)]

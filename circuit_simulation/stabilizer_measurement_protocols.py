@@ -8,8 +8,8 @@ import time
 from tqdm import tqdm
 
 
-def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name, pbar):
-    qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, basis_transformation_noise=True,
+def monolithic(operation, pg, pm, pm_1, color, save_latex_pdf, save_csv, csv_file_name, pbar):
+    qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, pm_1=pm_1, basis_transformation_noise=True,
                         thread_safe_printing=True)
     qc.set_qubit_states({0: ket_p})
     qc.apply_2_qubit_gate(operation, 0, 1)
@@ -33,10 +33,11 @@ def monolithic(operation, pg, pm, color, save_latex_pdf, save_csv, csv_file_name
     return qc._print_lines
 
 
-def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
+def expedient(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
-    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=False, p_dec=0.0004, p_bell_success=0.002)
+    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=False, p_dec=0,
+                        p_bell_success=0.0001, measurement_duration=4e-6, bell_creation_duration=6e-6, time_step=0.1)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
@@ -58,16 +59,18 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("AC", [11, 8, 5, 2, 10, 9, 4, 3, 18, 14], waiting_qubits=[11, 5, 18, 14])
+    qc.start_sub_circuit("AC", [11, 5, 10, 9, 4, 3, 18, 14], waiting_qubits=[11, 5, 18, 14])
     qc.single_dot(CZ_gate, 10, 4)
     qc.single_dot(CZ_gate, 10, 4)
 
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("BD", [11, 8, 5, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
+    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
     qc.single_dot(CZ_gate, 7, 1)
     qc.single_dot(CZ_gate, 7, 1)
+
+    qc.apply_decoherence_to_fastest_sub_circuit("AC", "BD")
 
     if pbar is not None:
         pbar.update(20)
@@ -96,9 +99,9 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(10)
 
-    start_draw = time.time()
-    qc.draw_circuit(no_color=not color)
-    end_draw = time.time()
+    # start_draw = time.time()
+    # qc.draw_circuit(no_color=not color, color_nodes=True)
+    # end_draw = time.time()
 
     start_superoperator = time.time()
     if save_latex_pdf:
@@ -111,8 +114,9 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(10)
 
+    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
     qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
+    # qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
     qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
                                                                                     start_superoperator))
     qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
@@ -120,10 +124,11 @@ def expedient(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     return qc._print_lines
 
 
-def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
+def stringent(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
-    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, network_noise_type=1,
-                        thread_safe_printing=True, probabilistic=False, p_dec=0, p_bell_success=0.1)
+    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=False, p_dec=0.0004,
+                        p_bell_success=0.1)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
@@ -151,14 +156,14 @@ def stringent(operation, pg, pm, pn, color, save_latex_pdf, save_csv, csv_file_n
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("AC", [11, 8, 5, 2, 10, 9, 4, 3, 18, 14], waiting_qubits=[11, 5, 18, 14])
+    qc.start_sub_circuit("AC", [11, 5, 10, 9, 4, 3, 18, 14], waiting_qubits=[11, 5, 18, 14])
     qc.double_dot(CZ_gate, 10, 4)
     qc.double_dot(CZ_gate, 10, 4)
 
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("BD", [11, 8, 5, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
+    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
     qc.double_dot(CZ_gate, 7, 1)
     qc.double_dot(CZ_gate, 7, 1)
 
@@ -243,6 +248,12 @@ def compose_parser():
                         type=float,
                         nargs="*",
                         default=[0.006])
+    parser.add_argument('--pm_1',
+                        help='The measurement error rate in case an 1-state is supposed to be measured',
+                        required=False,
+                        type=float,
+                        nargs="*",
+                        default=None)
     parser.add_argument('-pn',
                         '--network_error_probability',
                         help='Specifies the amount of network error present in the system',
@@ -285,7 +296,7 @@ def compose_parser():
     return parser
 
 
-def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode, pbar=None):
+def main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn, print_mode, pbar=None):
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
@@ -304,11 +315,11 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode, pbar=
     gate = CZ_gate if stab_type == "Z" else CNOT_gate
 
     if protocol == "monolithic":
-        return monolithic(gate, pg, pm, color, ltsv, sv, fn, pbar)
+        return monolithic(gate, pg, pm, pm_1, color, ltsv, sv, fn, pbar)
     elif protocol == "expedient":
-        return expedient(gate, pg, pm, pn, color, ltsv, sv, fn, pbar)
+        return expedient(gate, pg, pm, pm_1, pn, color, ltsv, sv, fn, pbar)
     elif protocol == "stringent":
-        return stringent(gate, pg, pm, pn, color, ltsv, sv, fn, pbar)
+        return stringent(gate, pg, pm, pm_1, pn, color, ltsv, sv, fn, pbar)
     else:
         print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
         exit()
@@ -322,6 +333,7 @@ if __name__ == "__main__":
     stab_type = args.pop('stabilizer_type').upper()
     color = args.pop('color')
     meas_errors = args.pop('measurement_error_probability')
+    meas_1_errors = args.pop('pm_1')
     meas_eq_gate = args.pop('pm_equals_pg')
     network_errors = args.pop('network_error_probability')
     gate_errors = args.pop('gate_error_probability')
@@ -330,6 +342,11 @@ if __name__ == "__main__":
     filenames = args.pop('csv_filename')
     threaded = args.pop('threaded')
     print_mode = args.pop('print_run_order')
+
+    if meas_1_errors is not None and len(meas_1_errors) != len(meas_errors):
+        raise ValueError("Amount of values for --pm_1 should equal the amount of values for -pm.")
+    elif meas_1_errors is None:
+        meas_1_errors = len(meas_errors) * [None]
 
     if not threaded:
         pbar = tqdm(total=100)
@@ -346,15 +363,17 @@ if __name__ == "__main__":
         for pg in gate_errors:
             if meas_eq_gate:
                 meas_errors = [pg]
-            for pm in meas_errors:
+            for k, pm in enumerate(meas_errors):
+                pm_1 = meas_1_errors[k]
                 for pn in network_errors:
                     fn = None if (filenames is None or len(filenames) <= filename_count) else filenames[filename_count]
                     if threaded:
                         results.append(thread_pool.
                                        apply_async(main,
-                                                   (protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode)))
+                                                   (protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn,
+                                                    print_mode)))
                     else:
-                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pn, fn, print_mode, pbar))
+                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn, print_mode, pbar))
                         pbar.reset()
                     filename_count += 1
 
