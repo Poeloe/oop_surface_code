@@ -1772,10 +1772,10 @@ class QuantumCircuit:
                     outcome_new = outcome ^ 1
 
                 if rel_qubit == 0:
-                    _, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
+                    prob, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
                                                                           noise=noise, pm=pm)
                 else:
-                    _, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
+                    prob, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                       outcome=outcome_new,
                                                                                       keep_qubit=False)
                     if noise:
@@ -1784,10 +1784,13 @@ class QuantumCircuit:
                                                                                             keep_qubit=False)
                         new_density_matrix = (1 - pm) * new_density_matrix + pm * wrong_density_matrix
 
+                if prob == 0:
+                    raise ValueError("Measuring a state with 0 probability cannot be dealt with. Please write"
+                                     "a valid circuit.")
+
             if basis == "X":
                 density_matrix_measured = CT(ket_p) if outcome == 0 else CT(ket_m)
                 self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
-                self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
             else:
                 density_matrix_measured = CT(ket_0) if outcome == 0 else CT(ket_1)
                 self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)

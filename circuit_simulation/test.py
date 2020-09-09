@@ -3,6 +3,7 @@ from circuit_simulation.basic_operations import *
 from copy import copy
 from time import time
 
+
 def see_rho_structure(amount_qubits):
     def kronecker(*args):
         vector = None

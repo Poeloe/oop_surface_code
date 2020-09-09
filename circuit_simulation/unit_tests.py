@@ -49,7 +49,7 @@ class TestQuantumCircuitInit(unittest.TestCase):
         qc = QC(4, 0)
         self.assertEqual(qc.num_qubits, 4)
         self.assertEqual(qc.d, 2**4)
-        self.assertEqual(qc.density_matrix.shape, (2**4, 2**4))
+        self.assertEqual(qc.total_density_matrix().shape, (2**4, 2**4))
 
     def test_first_qubit_ket_p_init(self):
         qc = QC(2, 1)
@@ -57,19 +57,26 @@ class TestQuantumCircuitInit(unittest.TestCase):
 
         self.assertEqual(qc.num_qubits, 2)
         self.assertEqual(qc.d, 2 ** 2)
-        self.assertEqual(qc.density_matrix.shape, (2 ** 2, 2 ** 2))
+        self.assertEqual(qc.total_density_matrix().shape, (2 ** 2, 2 ** 2))
         self.assertEqual(qc._qubit_array[0], ket_p)
-        np.testing.assert_array_equal(qc.density_matrix.toarray(), density_matrix)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray(), density_matrix)
 
     def test_bell_pair_init(self):
-        qc = QC(2, 2)
+        qc = QC(8, 2)
         density_matrix = np.array([[1/2, 0, 0, 1/2], [0, 0, 0, 0], [0, 0, 0, 0], [1/2, 0, 0, 1/2]])
 
-        self.assertEqual(qc.num_qubits, 2)
-        self.assertEqual(qc.d, 2 ** 2)
-        self.assertEqual(qc.density_matrix.shape, (2 ** 2, 2 ** 2))
-        np.testing.assert_array_equal(qc.density_matrix.toarray(), density_matrix)
+        matrix_01, _, _, _ = qc._get_qubit_relative_objects(0)
+        matrix_23, _, _, _ = qc._get_qubit_relative_objects(2)
+        matrix_45, _, _, _ = qc._get_qubit_relative_objects(4)
+        matrix_67, _, _, _ = qc._get_qubit_relative_objects(6)
 
+        self.assertEqual(qc.num_qubits, 8)
+        self.assertEqual(qc.d, 2 ** 8)
+        self.assertEqual(qc.total_density_matrix().shape, (2 ** 8, 2 ** 8))
+        np.testing.assert_array_equal(matrix_01.toarray(), density_matrix)
+        np.testing.assert_array_equal(matrix_23.toarray(), density_matrix)
+        np.testing.assert_array_equal(matrix_45.toarray(), density_matrix)
+        np.testing.assert_array_equal(matrix_67.toarray(), density_matrix)
 
 class TestQuantumCircuitGates(unittest.TestCase):
 
@@ -77,8 +84,8 @@ class TestQuantumCircuitGates(unittest.TestCase):
         qc = QC(2, 0)
         X_gate_test = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [1, 0, 0, 0], [0, 1, 0, 0]])
 
-        gatee_result = qc._create_1_qubit_gate(X_gate, 0)
-        np.testing.assert_array_equal(gatee_result.toarray(), X_gate_test)
+        gate_result = qc._create_1_qubit_gate(X_gate, 0)
+        np.testing.assert_array_equal(gate_result.toarray(), X_gate_test)
 
     def test_one_qubit_gate_Z(self):
         qc = QC(2, 0)
@@ -149,7 +156,7 @@ class TestErrorImplementation(unittest.TestCase):
         qc.X(0)
 
         expected_density_matrix = np.array([[2/3*0.01, 0], [0, (1-0.01)+0.01/3]])
-        np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, expected_density_matrix)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, expected_density_matrix)
 
     def test_two_qubit_gate_error(self):
         qc = QC(2, 0, noise=True, pg=0.01)
@@ -159,7 +166,7 @@ class TestErrorImplementation(unittest.TestCase):
                                             [0, 0.04/15, 0, 0],
                                             [0, 0, 0.04/15, 0],
                                             [0, 0, 0, 0.04/15]])
-        np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, expected_density_matrix)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, expected_density_matrix)
 
 
 class TestMeasurement(unittest.TestCase):
@@ -171,7 +178,7 @@ class TestMeasurement(unittest.TestCase):
         qc.measure_first_N_qubits(1, measure=0)
 
         correct_result = np.array([[0.5, 0.5], [0.5, 0.5]])
-        np.testing.assert_array_equal(qc.density_matrix.toarray(), correct_result)
+        np.testing.assert_array_equal(qc.total_density_matrix().toarray(), correct_result)
 
         # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
         qc2 = QC(2, 1)
@@ -179,24 +186,54 @@ class TestMeasurement(unittest.TestCase):
         qc2.measure_first_N_qubits(1, measure=1)
 
         correct_result_2 = np.array([[0.5, -0.5], [-0.5, 0.5]])
-        np.testing.assert_array_equal(qc2.density_matrix.toarray(), correct_result_2)
+        np.testing.assert_array_equal(qc2.total_density_matrix().toarray(), correct_result_2)
 
-    def test_measure_qubit(self):
+    def test_measure_first_qubit_plus_x_basis(self):
+        qc = QC(2, 1)
+        qc.measure(0, outcome=0)
+
+        correct_result = 1/2 * np.array([[1, 0, 1, 0], [0, 0, 0, 0], [1, 0, 1, 0], [0, 0, 0, 0]])
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+
+    def test_measure_first_qubit_minus_x_basis(self):
+        qc = QC(2, 1)
+        with self.assertRaises(ValueError) as error:
+            qc.measure(0, outcome=1)
+        self.assertTrue(error.exception)
+
+    def test_measure_first_qubit_bell_state_plus(self):
         # Initialise system in |+0> state, CNOT on 2nd qubit and measure |+> on first qubit
         qc = QC(2, 1)
         qc.CNOT(0, 1)
-        qc.measure(1, outcome=0, keep_qubit=True)
+        qc.measure(0, outcome=0)
 
         correct_result = 1/4 * np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])
-        np.testing.assert_array_almost_equal(qc.density_matrix.toarray().real, correct_result)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
 
+    def test_measure_first_qubit_bell_state_minus(self):
         # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
-        qc2 = QC(2, 1)
-        qc2.CNOT(0, 1)
-        qc2.measure(1, outcome=1, keep_qubit=True)
+        qc = QC(2, 1)
+        qc.CNOT(0, 1)
+        qc.measure(0, outcome=1)
 
-        correct_result_2 = 1/4 * np.array([[1, -1, -1, 1], [-1, 1, 1, -1], [-1, 1, 1, -1], [1, -1, -1, 1]])
-        np.testing.assert_array_almost_equal(qc2.density_matrix.toarray().real, correct_result_2)
+        correct_result = 1/4 * np.array([[1, -1, -1, 1], [-1, 1, 1, -1], [-1, 1, 1, -1], [1, -1, -1, 1]])
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+
+    def test_measure_first_qubit_bell_state_zero(self):
+        qc = QC(2, 1)
+        qc.CNOT(0, 1)
+        qc.measure(0, outcome=0, basis="Z")
+
+        correct_result = np.array([[1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+
+    def test_measure_first_qubit_bell_state_one(self):
+        qc = QC(2, 1)
+        qc.CNOT(0, 1)
+        qc.measure(0, outcome=1, basis="Z")
+
+        correct_result = np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1]])
+        np.testing.assert_equal(qc.total_density_matrix().toarray().real, correct_result)
 
 
 if __name__ == '__main__':
