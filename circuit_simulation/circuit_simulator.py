@@ -736,7 +736,7 @@ class QuantumCircuit:
 
         times_total = int(math.floor(times * bell_creation_duration / self.time_step))
         self._increase_duration(times * bell_creation_duration)
-        if noise and self.p_dec > 0:
+        if noise and self.p_dec > 0 and times_total > 0:
             self._N_decoherence([qubit1, qubit2], times=times_total)
 
     @staticmethod
@@ -1250,7 +1250,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------  
     """
 
-    def _N_single(self, pg, tqubit, density_matrix, num_qubits):
+    def _N_single(self, pg, tqubit, density_matrix, num_qubits, times=1):
         """
             Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -1269,11 +1269,17 @@ class QuantumCircuit:
             num_qubits : int
                 Number of qubits of which the density matrix is composed.
         """
-        new_density_matrix = ((1-pg) * density_matrix +
-                                           (pg / 3) * self._sum_pauli_error_single(tqubit,
-                                                                                   density_matrix,
-                                                                                   num_qubits=num_qubits))
-        return new_density_matrix
+        x_full = self._create_1_qubit_gate(X_gate, tqubit, num_qubits=num_qubits)
+        z_full = self._create_1_qubit_gate(Z_gate, tqubit, num_qubits=num_qubits)
+        y_full = self._create_1_qubit_gate(Y_gate, tqubit, num_qubits=num_qubits)
+        gates = [x_full, z_full, y_full]
+
+        for _ in range(times):
+            summed_matrix = sp.csr_matrix(density_matrix.shape)
+            for gate in gates:
+                summed_matrix += gate * CT(density_matrix, gate)
+            density_matrix = (1-pg) * density_matrix + (pg/3) * summed_matrix
+        return density_matrix
 
     def _N(self, pg, cqubit, tqubit, density_matrix, num_qubits):
         """
@@ -1357,15 +1363,12 @@ class QuantumCircuit:
         # apply decoherence to the qubits not involved in the operation.
         included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits)))
 
-        drawn = False
-        for _ in range(times):
-            for inc_qubit in included_qubits:
-                density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(inc_qubit)
-                new_density_matrix = self._N_single(p_dec, rel_qubit, density_matrix, num_qubits=rel_num_qubits)
-                self._set_density_matrix(inc_qubit, new_density_matrix)
-                if not drawn:
-                    self._add_draw_operation("{}xD".format(times), inc_qubit, noise=True)
-            drawn = True
+        for inc_qubit in included_qubits:
+            density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(inc_qubit)
+            density_matrix = self._N_single(p_dec, rel_qubit, density_matrix, num_qubits=rel_num_qubits,
+                                            times=times)
+            self._set_density_matrix(inc_qubit, density_matrix)
+            self._add_draw_operation("{}xD".format(times), inc_qubit, noise=True)
 
     def _N_decoherence_fused(self, excluded_qubits, gate=None, times=None, p_dec=None):
         if gate and times is None:

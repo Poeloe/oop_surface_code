@@ -37,7 +37,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=False, p_dec=0,
-                        p_bell_success=0.0001, measurement_duration=4e-6, bell_creation_duration=6e-6, time_step=0.1)
+                        p_bell_success=0.0001, measurement_duration=4e-6, bell_creation_duration=6e-6, time_step=0.001)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
