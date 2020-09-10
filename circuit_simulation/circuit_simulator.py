@@ -152,7 +152,7 @@ class QuantumCircuit:
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
                  pm_1=None, pn=None, p_dec=0, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
-                 thread_safe_printing=False):
+                 thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -184,6 +184,8 @@ class QuantumCircuit:
         self._sub_circuits = {}
         self._current_sub_circuit = None
         self.nodes = None
+        self._single_qubit_gate_lookup = single_qubit_gate_lookup if single_qubit_gate_lookup is not None else {}
+        self._two_qubit_gate_lookup = two_qubit_gate_lookup if two_qubit_gate_lookup is not None else {}
 
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
@@ -832,9 +834,9 @@ class QuantumCircuit:
 
         tqubit_density_matrix, _, relative_tqubit_index, relative_num_qubits = self._get_qubit_relative_objects(tqubit)
 
-        one_qubit_gate = self._create_1_qubit_gate(gate.matrix if not conj else gate.dagger,
+        one_qubit_gate = self._create_1_qubit_gate(gate,
                                                    relative_tqubit_index,
-                                                   relative_num_qubits)
+                                                   relative_num_qubits, conj=conj)
         new_density_matrix = one_qubit_gate.dot(CT(tqubit_density_matrix, one_qubit_gate))
 
         if noise and not self.no_single_qubit_error:
@@ -849,7 +851,7 @@ class QuantumCircuit:
         if draw:
             self._add_draw_operation(gate, tqubit, noise)
 
-    def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None):
+    def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None, conj=False):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
             apply_1_qubit_gate method.
@@ -871,10 +873,16 @@ class QuantumCircuit:
                 Returns a matrix with dimensions equal to the dimensions of the density matrix of
                 the system.
         """
+        gate_name = None
         if num_qubits is None:
             num_qubits = self.num_qubits
         if type(gate) == SingleQubitGate:
+            if num_qubits > 1 and (gate.name, tqubit, num_qubits) in self._single_qubit_gate_lookup.keys():
+                return self._single_qubit_gate_lookup[(gate.name, tqubit, num_qubits)]
+            gate_name = gate.name
             gate = gate.sp_matrix
+            if conj:
+                gate = gate.conj().T
 
         if num_qubits == 1:
             if not sp.issparse(gate):
@@ -885,7 +893,12 @@ class QuantumCircuit:
 
         first_id, second_id = self._create_identity_operations(tqubit, num_qubits=num_qubits)
 
-        return KP(first_id, gate, second_id)
+        full_gate = KP(first_id, gate, second_id)
+
+        if num_qubits > 1 and gate_name is not None:
+            self._single_qubit_gate_lookup[(gate_name, tqubit, num_qubits)] = full_gate
+
+        return full_gate
 
     def _create_identity_operations(self, tqubit, num_qubits=None):
         """
@@ -1122,6 +1135,9 @@ class QuantumCircuit:
             num_qubits = self.num_qubits
         if cqubit == tqubit:
             raise ValueError("Control qubit cannot be the same as the target qubit!")
+        if type(gate) == TwoQubitGate:
+            if num_qubits > 3 and (gate.name, cqubit, tqubit, num_qubits) in self._two_qubit_gate_lookup.keys():
+                return self._two_qubit_gate_lookup[(gate.name, cqubit, tqubit, num_qubits)]
 
         def create_component_2_qubit_gate(control_qubit_matrix, target_qubit_matrix):
             # Initialise the only identity case with on the place of the control qubit the identity replaced
@@ -1144,13 +1160,18 @@ class QuantumCircuit:
         first_part = create_component_2_qubit_gate(CT(ket_0), zero_state_matrix)
         second_part = create_component_2_qubit_gate(CT(ket_1), one_state_matrix)
 
+        full_gate = first_part + second_part
+
         if type(gate) == TwoQubitGate and not gate.is_cntrl_gate:
             third_part = create_component_2_qubit_gate(CT(ket_0, ket_1), gate.upper_right_matrix)
             fourth_part = create_component_2_qubit_gate(CT(ket_1, ket_0), gate.lower_left_matrix)
 
-            return first_part + second_part + third_part + fourth_part
+            full_gate = first_part + second_part + third_part + fourth_part
 
-        return first_part + second_part
+        if num_qubits > 3 and type(gate) == TwoQubitGate:
+            self._two_qubit_gate_lookup[(gate.name, cqubit, tqubit, num_qubits)] = full_gate
+
+        return full_gate
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
@@ -1277,7 +1298,8 @@ class QuantumCircuit:
         for _ in range(times):
             summed_matrix = sp.csr_matrix(density_matrix.shape)
             for gate in gates:
-                summed_matrix += gate * CT(density_matrix, gate)
+                # No CT used (so no 'A * CT(rho, A)' for speed-up), since X, Y and Z gates are symmetric
+                summed_matrix += gate * (density_matrix * gate)
             density_matrix = (1-pg) * density_matrix + (pg/3) * summed_matrix
         return density_matrix
 
@@ -1525,11 +1547,11 @@ class QuantumCircuit:
         result = sp.csr_matrix(density_matrix.shape)
         for i, gate_1 in enumerate(gates):
             # Create the full system 1-qubit gate for qubit1
-            A = self._create_1_qubit_gate(gate_1.matrix, qubit1, num_qubits=num_qubits)
+            A = self._create_1_qubit_gate(gate_1, qubit1, num_qubits=num_qubits)
             for j, gate_2 in enumerate(gates):
                 # Create full system 1-qubit gate for qubit2, only once for every gate
                 if i == 0:
-                    qubit2_matrices.append(self._create_1_qubit_gate(gate_2.matrix, qubit2, num_qubits=num_qubits))
+                    qubit2_matrices.append(self._create_1_qubit_gate(gate_2, qubit2, num_qubits=num_qubits))
 
                 # Skip the I*I case
                 if i == j == len(gates) - 1:
@@ -2436,7 +2458,7 @@ class QuantumCircuit:
             _, _, rel_qubit, _ = self._get_qubit_relative_objects(qubit)
             gates = []
             for operation in operations:
-                gates.append({operation.representation: self._create_1_qubit_gate(operation.matrix, rel_qubit,
+                gates.append({operation.representation: self._create_1_qubit_gate(operation, rel_qubit,
                                                                                   num_qubits=num_qubits)})
             gate_combinations.append(gates)
 

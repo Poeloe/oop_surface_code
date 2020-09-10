@@ -6,11 +6,15 @@ from circuit_simulation.circuit_simulator import *
 from multiprocessing import Pool
 import time
 from tqdm import tqdm
+import pickle
+from pprint import pprint
 
 
-def monolithic(operation, pg, pm, pm_1, color, save_latex_pdf, save_csv, csv_file_name, pbar):
+def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
+               save_latex_pdf, save_csv, csv_file_name, pbar):
     qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, pm_1=pm_1, basis_transformation_noise=True,
-                        thread_safe_printing=True)
+                        thread_safe_printing=True, bell_creation_duration=bell_dur, measurement_duration=meas_dur,
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
     qc.set_qubit_states({0: ket_p})
     qc.apply_2_qubit_gate(operation, 0, 1)
     qc.apply_2_qubit_gate(operation, 0, 3)
@@ -33,11 +37,13 @@ def monolithic(operation, pg, pm, pm_1, color, save_latex_pdf, save_csv, csv_fil
     return qc._print_lines
 
 
-def expedient(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
+def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
+              save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=False, p_dec=0,
-                        p_bell_success=0.0001, measurement_duration=4e-6, bell_creation_duration=6e-6, time_step=0.001)
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, p_dec=p_dec,
+                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
@@ -124,11 +130,13 @@ def expedient(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_
     return qc._print_lines
 
 
-def stringent(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_file_name, pbar):
+def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
+              save_latex_pdf, save_csv, csv_file_name, pbar):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=False, p_dec=0.0004,
-                        p_bell_success=0.1)
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, p_dec=p_dec,
+                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
 
     qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
 
@@ -212,6 +220,7 @@ def stringent(operation, pg, pm, pm_1, pn, color, save_latex_pdf, save_csv, csv_
     if pbar is not None:
         pbar.update(10)
 
+    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
     qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
     # qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
     qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
@@ -232,6 +241,11 @@ def compose_parser():
                         '--stabilizer_type',
                         help='Specifies what the kind of stabilizer should be. - options: {Z/X}',
                         default='Z')
+    parser.add_argument('-p_dec',
+                        '--decoherence_probability',
+                        help='Specifies the decoherence probability for the protocol.',
+                        type=float,
+                        default=0.)
     parser.add_argument('-pg',
                         '--gate_error_probability',
                         help='Specifies the amount of gate error present in the system',
@@ -248,7 +262,8 @@ def compose_parser():
                         type=float,
                         nargs="*",
                         default=[0.006])
-    parser.add_argument('--pm_1',
+    parser.add_argument('-pm_1',
+                        '--measurement_error_probability_one_state',
                         help='The measurement error rate in case an 1-state is supposed to be measured',
                         required=False,
                         type=float,
@@ -260,6 +275,31 @@ def compose_parser():
                         type=float,
                         nargs="*",
                         default=[0.0])
+    parser.add_argument('-p_bell',
+                        '--bell_pair_creation_success',
+                        help='Specifies the success probability of the creation of a Bell pair (if probabilistic).',
+                        type=float,
+                        default=1.0)
+    parser.add_argument('-prb',
+                        '--probabilistic',
+                        help='Specifies if the processes in the protocol are probabilistic.',
+                        required=False,
+                        action='store_true')
+    parser.add_argument('-m_dur',
+                        '--measurement_duration',
+                        help='Specifies the duration of a measurement operation.',
+                        type=float,
+                        default=0.)
+    parser.add_argument('-b_dur',
+                        '--bell_pair_creation_duration',
+                        help='Specifies the duration of a measurement operation.',
+                        type=float,
+                        default=0.)
+    parser.add_argument('-ts',
+                        '--time_step',
+                        help='Specifies the duration of a measurement operation.',
+                        type=float,
+                        default=1)
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',
@@ -286,21 +326,63 @@ def compose_parser():
                         help="Use when the program should run in multi-threaded mode. Optional",
                         required=False,
                         action="store_true")
-    parser.add_argument("-pr",
-                        "--print_run_order",
+    parser.add_argument("--print_run_order",
                         help="When added, the program will only print out the run order for the typed command. This can"
                              "be useful for debugging or filenaming purposes",
                         required=False,
                         action="store_true")
+    parser.add_argument("-lkt_1q",
+                        "--lookup_table_single_qubit_gates",
+                        help="Name of a .pkl single-qubit gate lookup file.",
+                        required=False,
+                        type=str,
+                        default=None)
+    parser.add_argument("-lkt_2q",
+                        "--lookup_table_two_qubit_gates",
+                        help="Name of a .pkl two-qubit gate lookup file.",
+                        required=False,
+                        type=str,
+                        default=None)
 
     return parser
 
 
-def main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn, print_mode, pbar=None):
+def main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q,
+         lkt_2q, prb, fn, print_mode, pbar=None):
     if stab_type not in ["X", "Z"]:
         print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
         exit()
 
+    _print_circuit_parameters(protocol=protocol, stab_type=stab_type, probabilistic=prb, pg=pg, pm=pm, pm_1=pm_1,
+                              p_dec=p_dec, p_bell=p_bell, bell_dur=bell_dur, meas_dur=meas_dur, time_step=time_step,
+                              color=color, latex_save=ltsv, save_superoperator=sv, superoperator_filename=fn,
+                              lookup_table_single_qubit_gates=bool(lkt_1q), lookup_table_two_qubit_gates=bool(lkt_2q))
+
+    if print_mode:
+        return []
+
+    gate = CZ_gate if stab_type == "Z" else CNOT_gate
+
+    if protocol == "monolithic":
+        return monolithic(gate, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, ltsv, sv, fn, pbar)
+    elif protocol == "expedient":
+        return expedient(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+                         lkt_2q, ltsv, sv, fn, pbar)
+    elif protocol == "stringent":
+        return stringent(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+                         lkt_2q, ltsv, sv, fn, pbar)
+    else:
+        print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
+        exit()
+
+
+def _print_circuit_parameters(**kwargs):
+    protocol = kwargs.get('protocol')
+    sv = kwargs.get('sv')
+    fn = kwargs.get('fn')
+    pg = kwargs.get('pg')
+    pm = kwargs.get('pm')
+    stab_type= kwargs.get('stab_type')
     protocol = protocol.lower()
     fn_text = ""
     if sv and fn is not None:
@@ -309,20 +391,9 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn, print_mode,
           .format(protocol, pg, pm, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
                   "plaquette" if stab_type == "Z" else "star", fn_text))
 
-    if print_mode:
-        return []
-
-    gate = CZ_gate if stab_type == "Z" else CNOT_gate
-
-    if protocol == "monolithic":
-        return monolithic(gate, pg, pm, pm_1, color, ltsv, sv, fn, pbar)
-    elif protocol == "expedient":
-        return expedient(gate, pg, pm, pm_1, pn, color, ltsv, sv, fn, pbar)
-    elif protocol == "stringent":
-        return stringent(gate, pg, pm, pm_1, pn, color, ltsv, sv, fn, pbar)
-    else:
-        print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
-        exit()
+    print("All circuit parameters:\n-----------------------\n")
+    pprint(kwargs)
+    print()
 
 
 if __name__ == "__main__":
@@ -332,21 +403,37 @@ if __name__ == "__main__":
     protocols = args.pop('protocol')
     stab_type = args.pop('stabilizer_type').upper()
     color = args.pop('color')
+    p_dec = args.pop('decoherence_probability')
+    time_step = args.pop('time_step')
     meas_errors = args.pop('measurement_error_probability')
-    meas_1_errors = args.pop('pm_1')
+    meas_1_errors = args.pop('measurement_error_probability_one_state')
     meas_eq_gate = args.pop('pm_equals_pg')
+    meas_dur = args.pop('measurement_duration')
     network_errors = args.pop('network_error_probability')
+    p_bell = args.pop('bell_pair_creation_success')
+    bell_dur = args.pop('bell_pair_creation_duration')
     gate_errors = args.pop('gate_error_probability')
     ltsv = args.pop('save_latex_pdf')
     sv = args.pop('save_csv')
     filenames = args.pop('csv_filename')
     threaded = args.pop('threaded')
     print_mode = args.pop('print_run_order')
+    prb = args.pop('probabilistic')
+    lkt_1q = args.pop('lookup_table_single_qubit_gates')
+    lkt_2q = args.pop('lookup_table_two_qubit_gates')
 
     if meas_1_errors is not None and len(meas_1_errors) != len(meas_errors):
         raise ValueError("Amount of values for --pm_1 should equal the amount of values for -pm.")
     elif meas_1_errors is None:
         meas_1_errors = len(meas_errors) * [None]
+
+    if lkt_1q is not None:
+        with open(lkt_1q, 'rb') as obj:
+            lkt_1q = pickle.load(obj)
+
+    if lkt_2q is not None:
+        with open(lkt_2q, "rb") as obj2:
+            lkt_2q = pickle.load(obj2)
 
     if not threaded:
         pbar = tqdm(total=100)
@@ -370,10 +457,12 @@ if __name__ == "__main__":
                     if threaded:
                         results.append(thread_pool.
                                        apply_async(main,
-                                                   (protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn,
+                                                   (protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec,
+                                                    p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn,
                                                     print_mode)))
                     else:
-                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, fn, print_mode, pbar))
+                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur,
+                                    meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, pbar))
                         pbar.reset()
                     filename_count += 1
 
