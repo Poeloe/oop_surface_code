@@ -214,7 +214,7 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     stab_rep = "Z" if operation == CZ_gate else "X"
     start_superoperator = time.time()
     qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=False)
     end_superoperator = time.time()
 
     if pbar is not None:
@@ -231,15 +231,27 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
 
 
 def compose_parser():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog='Stabilizer measurement protocol simulations')
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    parser.add_argument('-it',
+                        '--iterations',
+                        help='Specifies the number of iterations that should be done (use only in combination with '
+                             '--prb)',
+                        type=int,
+                        default=1)
     parser.add_argument('-p',
                         '--protocol',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         nargs="*",
+                        choices=['monolithic', 'expedient', 'stringent'],
+                        type=str.lower,
                         default='monolithic')
     parser.add_argument('-s',
                         '--stabilizer_type',
-                        help='Specifies what the kind of stabilizer should be. - options: {Z/X}',
+                        help='Specifies what the kind of stabilizer should be.',
+                        choices=['Z', 'X'],
+                        type=str.upper,
                         default='Z')
     parser.add_argument('-p_dec',
                         '--decoherence_probability',
@@ -252,16 +264,16 @@ def compose_parser():
                         type=float,
                         nargs="*",
                         default=[0.006])
-    parser.add_argument('--pm_equals_pg',
-                        help='Specify if measurement error equals the gate error. "-pm" will then be disregarded',
-                        required=False,
-                        action='store_true')
-    parser.add_argument('-pm',
-                        '--measurement_error_probability',
-                        help='Specifies the amount of measurement error present in the system',
-                        type=float,
-                        nargs="*",
-                        default=[0.006])
+    group.add_argument('--pm_equals_pg',
+                       help='Specify if measurement error equals the gate error. "-pm" will then be disregarded',
+                       required=False,
+                       action='store_true')
+    group.add_argument('-pm',
+                       '--measurement_error_probability',
+                       help='Specifies the amount of measurement error present in the system',
+                       type=float,
+                       nargs="*",
+                       default=[0.006])
     parser.add_argument('-pm_1',
                         '--measurement_error_probability_one_state',
                         help='The measurement error rate in case an 1-state is supposed to be measured',
@@ -328,7 +340,7 @@ def compose_parser():
                         action="store_true")
     parser.add_argument("--print_run_order",
                         help="When added, the program will only print out the run order for the typed command. This can"
-                             "be useful for debugging or filenaming purposes",
+                             "be useful for debugging or file naming purposes",
                         required=False,
                         action="store_true")
     parser.add_argument("-lkt_1q",
@@ -347,16 +359,16 @@ def compose_parser():
     return parser
 
 
-def main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q,
+def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q,
          lkt_2q, prb, fn, print_mode, pbar=None):
-    if stab_type not in ["X", "Z"]:
-        print("ERROR: the specified stabilizer type was not recognised. Please choose between: X or Z")
-        exit()
 
-    _print_circuit_parameters(protocol=protocol, stab_type=stab_type, probabilistic=prb, pg=pg, pm=pm, pm_1=pm_1,
+    if i == 0:
+        _print_circuit_parameters(protocol=protocol, stab_type=stab_type, probabilistic=prb, pg=pg, pm=pm, pm_1=pm_1,
                               p_dec=p_dec, p_bell=p_bell, bell_dur=bell_dur, meas_dur=meas_dur, time_step=time_step,
                               color=color, latex_save=ltsv, save_superoperator=sv, superoperator_filename=fn,
-                              lookup_table_single_qubit_gates=bool(lkt_1q), lookup_table_two_qubit_gates=bool(lkt_2q))
+                              lookup_table_single_qubit_gates=bool(lkt_1q),
+                              lookup_table_two_qubit_gates=bool(lkt_2q), it=it)
+
 
     if print_mode:
         return []
@@ -371,37 +383,38 @@ def main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, 
     elif protocol == "stringent":
         return stringent(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar)
-    else:
-        print("ERROR: the specified protocol was not recognised. Choose between: monolithic, expedient or stringent.")
-        exit()
 
 
 def _print_circuit_parameters(**kwargs):
+    it = kwargs.get('it')
     protocol = kwargs.get('protocol')
     sv = kwargs.get('sv')
-    fn = kwargs.get('fn')
+    fn = kwargs.get('superoperator_filename')
     pg = kwargs.get('pg')
     pm = kwargs.get('pm')
+    pn = kwargs.get('pn')
     stab_type= kwargs.get('stab_type')
+
     protocol = protocol.lower()
     fn_text = ""
     if sv and fn is not None:
         fn_text = "A CSV file will be saved with the name: {}".format(fn)
-    print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer. {}\n"
+    print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer {} time{}. {}\n"
           .format(protocol, pg, pm, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
-                  "plaquette" if stab_type == "Z" else "star", fn_text))
+                  "plaquette" if stab_type == "Z" else "star", it, "s" if it>1 else "", fn_text))
 
     print("All circuit parameters:\n-----------------------\n")
     pprint(kwargs)
-    print()
+    print('\n-----------------------\n')
 
 
 if __name__ == "__main__":
     parser = compose_parser()
 
     args = vars(parser.parse_args())
+    it = args.pop('iterations')
     protocols = args.pop('protocol')
-    stab_type = args.pop('stabilizer_type').upper()
+    stab_type = args.pop('stabilizer_type')
     color = args.pop('color')
     p_dec = args.pop('decoherence_probability')
     time_step = args.pop('time_step')
@@ -435,39 +448,42 @@ if __name__ == "__main__":
         with open(lkt_2q, "rb") as obj2:
             lkt_2q = pickle.load(obj2)
 
-    if not threaded:
-        pbar = tqdm(total=100)
+    pbar = tqdm(total=100)
 
     if threaded:
-        workers = len(gate_errors) if len(gate_errors) < 11 else 10
+        workers = 10
         thread_pool = Pool(workers)
         results = []
 
-    filename_count = 0
-
-    start = time.time()
-    for protocol in protocols:
-        for pg in gate_errors:
-            if meas_eq_gate:
-                meas_errors = [pg]
-            for k, pm in enumerate(meas_errors):
-                pm_1 = meas_1_errors[k]
-                for pn in network_errors:
-                    fn = None if (filenames is None or len(filenames) <= filename_count) else filenames[filename_count]
-                    if threaded:
-                        results.append(thread_pool.
-                                       apply_async(main,
-                                                   (protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec,
-                                                    p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn,
-                                                    print_mode)))
-                    else:
-                        print(*main(protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur,
-                                    meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, pbar))
-                        pbar.reset()
-                    filename_count += 1
+    for i in range(it):
+        filename_count = 0
+        for protocol in protocols:
+            for pg in gate_errors:
+                if meas_eq_gate:
+                    meas_errors = [pg]
+                for k, pm in enumerate(meas_errors):
+                    pm_1 = meas_1_errors[k]
+                    for pn in network_errors:
+                        fn = None if (filenames is None or len(filenames) <= filename_count) else \
+                            filenames[filename_count]
+                        if threaded:
+                            results.append(thread_pool.
+                                           apply_async(main,
+                                                       (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
+                                                        p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
+                                                        prb, fn, print_mode)))
+                        else:
+                            print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell,
+                                        bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, pbar))
+                            pbar.reset()
+                        filename_count += 1
 
     if threaded:
-        [print(*res.get()) for res in results]
+        print_results = []
+        for res in results:
+            print_results.extend(res.get())
+            pbar.update(100*(1/it))
+        print(*print_results)
         thread_pool.close()
 
 

@@ -21,7 +21,7 @@ from fractions import Fraction as Fr
 import math
 import random
 from operator import itemgetter
-
+from filelock import FileLock
 
 # Uncomment this if a segmentation error when diagonalising the density matrix for a circuit with a large amount of
 # qubits occurs:
@@ -2604,43 +2604,60 @@ class QuantumCircuit:
                 User specified file name that should be used to save the csv file with. The file will always be stored
                 in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
         """
-        probs = []
-        lies = []
-        p_error_arrays = []
-        s_error_arrays = []
-        for supop_el in sorted(superoperator):
-            probs.append(supop_el.p)
-            lies.append(supop_el.lie)
-            error_array = "".join(supop_el.error_array)
-            p_error_arrays.append(error_array)
-            # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
-            # error_array
-            s_error_arrays.append(error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'})))
-
-        stab_type = 'p' if proj_type == "Z" else 's'
-        opp_stab = 's' if proj_type == "Z" else 'p'
-
-        df_values = pd.DataFrame({(stab_type + '_prob'): probs,
-                           (stab_type + '_lie'): lies,
-                           (stab_type + '_error'): p_error_arrays,
-                           (opp_stab + '_prob'): probs,
-                           (opp_stab + '_lie'): lies,
-                           (opp_stab + '_error'): s_error_arrays})
-        df_parameters = pd.DataFrame({"pg": [self.pg],
-                                      "pm": [self.pm]})
-
-        if self.pn and self.pn != 0.0:
-            df_parameters.append({"pn": [self.pn]})
-
-        df = pd.concat([df_values, df_parameters], axis=1)
-
         path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
         if file_name is None:
             self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
         else:
             path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
             self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
-        df.to_csv(path_to_file, sep=';', index=False)
+
+        error_index = ["".join(combi) for combi in (it.combinations_with_replacement('IXYZ', 4))]
+        error_index.extend(error_index)
+        lie_index = [False if i/(len(error_index)/2) < 1 else True for i, _ in enumerate(error_index)]
+
+        index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
+
+        with FileLock('path_to_file.lock'):
+            if os.path.exists(path_to_file):
+                data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
+            else:
+                columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to']
+                data = pd.DataFrame(0., index=index, columns=columns)
+                data.iat[0, 2] = self.pg
+                data.iat[0, 3] = self.pm
+                data.iat[0, 4] = self.pn
+                data.iat[0, 5] = self.p_dec
+                data.iat[0, 6] = self.time_step
+                data.iat[0, 7] = self.p_bell_success
+                data.iat[0, 8] = self.bell_creation_duration
+                data.iat[0, 9] = self.measurement_duration
+
+            stab_type = 'p' if proj_type == "Z" else 's'
+            opp_stab = 's' if proj_type == "Z" else 'p'
+
+            for supop_el in superoperator:
+                error_array = "".join(sorted(supop_el.error_array))
+                if (key := (error_array, supop_el.lie), stab_type) in data.index:
+                    current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
+                    new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
+                    data.at[(error_array, supop_el.lie), stab_type] = new_value_stab
+                else:
+                    data.loc[key] = supop_el.p
+
+                # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
+                # error_array
+                error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))
+                if (key_opp := (error_array, supop_el.lie), stab_type) in data.index:
+                    current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
+                    new_value_opp_stab = (current_value_stab + supop_el.p)/2 if current_value_opp_stab != 0. else supop_el.p
+                    data.at[(error_array, supop_el.lie), opp_stab] = new_value_opp_stab
+                else:
+                    data.loc[key_opp] = supop_el.p
+
+            data.iat[0, 10] = data.iat[0, 10] + 1.0
+            data = data[(data.T != 0).any()]
+
+            data.to_csv(path_to_file, sep=';')
         if not self._thread_safe_printing:
             self.print()
 
