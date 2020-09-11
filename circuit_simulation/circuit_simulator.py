@@ -2637,22 +2637,22 @@ class QuantumCircuit:
 
             for supop_el in superoperator:
                 error_array = "".join(sorted(supop_el.error_array))
-                if (key := (error_array, supop_el.lie), stab_type) in data.index:
+                if (current_index := (error_array, supop_el.lie)) in data.index:
                     current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
                     new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
-                    data.at[(error_array, supop_el.lie), stab_type] = new_value_stab
+                    data.at[current_index, stab_type] = new_value_stab
                 else:
-                    data.loc[key] = supop_el.p
+                    data.loc[current_index, stab_type] = supop_el.p
 
                 # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
                 # error_array
                 error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))
-                if (key_opp := (error_array, supop_el.lie), stab_type) in data.index:
+                if (current_index_opp := (error_array, supop_el.lie)) in data.index:
                     current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
                     new_value_opp_stab = (current_value_stab + supop_el.p)/2 if current_value_opp_stab != 0. else supop_el.p
-                    data.at[(error_array, supop_el.lie), opp_stab] = new_value_opp_stab
+                    data.at[current_index_opp, opp_stab] = new_value_opp_stab
                 else:
-                    data.loc[key_opp] = supop_el.p
+                    data.loc[current_index_opp, opp_stab] = supop_el.p
 
             data.iat[0, 10] = data.iat[0, 10] + 1.0
             data = data[(data.T != 0).any()]
