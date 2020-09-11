@@ -1,5 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
+import scipy.sparse as sp
 import circuit_simulation.circuit_simulator as cs
 
 
@@ -17,7 +18,7 @@ class Gate(ABC):
         Matrix that represents the gate operation.
     representation : str
         Representation is used in the drawing of the circuits
-    duration : int
+    duration : float
         Duration of the gate in time unit
 
     """
@@ -25,6 +26,7 @@ class Gate(ABC):
     def __init__(self, name, matrix, representation, duration=0):
         self._name = name
         self._matrix = matrix
+        self._sp_matrix = sp.csr_matrix(matrix)
         self._representation = representation
         self._duration = duration
 
@@ -35,6 +37,10 @@ class Gate(ABC):
     @property
     def matrix(self):
         return self._matrix
+
+    @property
+    def sp_matrix(self):
+        return self._sp_matrix
 
     @property
     def representation(self):
@@ -51,6 +57,7 @@ class Gate(ABC):
     @duration.setter
     def duration(self, duration):
         self._duration = duration
+
 
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
@@ -75,6 +82,7 @@ class SingleQubitGate(Gate):
 
 
 class TwoQubitGate(Gate):
+
     """
         TwoQubitGate class inherits from the abstract Gate class
 
@@ -94,13 +102,13 @@ class TwoQubitGate(Gate):
             True if only upper left matrix and lower right matrix are non-zero
     """
 
-    def __init__(self, name, matrix, representation, duration=0, control_repr="o"):
+    def __init__(self, name, matrix, representation, duration=0., control_repr="o"):
         super().__init__(name, matrix, representation, duration)
         self._control_repr = control_repr
-        self._upper_left_matrix = matrix[2:, 2:]
-        self._lower_right_matrix = matrix[:2, :2]
-        self._upper_right_matrix = matrix[:2, 2:]
-        self._lower_left_matrix = matrix[2:, :2]
+        self._upper_left_matrix = self.sp_matrix[2:, 2:]
+        self._lower_right_matrix = self.sp_matrix[:2, :2]
+        self._upper_right_matrix = self.sp_matrix[:2, 2:]
+        self._lower_left_matrix = self.sp_matrix[2:, :2]
         self._cntrl_gate = True if np.array_equal(self._upper_right_matrix, np.zeros((2, 2))) and \
                                    np.array_equal(self._lower_left_matrix, np.zeros((2, 2))) else False
 
@@ -157,6 +165,7 @@ class State(object):
         self._name = name
         self._vector = vector
         self._representation = representation
+        self._sp_vector = sp.csr_matrix(vector)
 
     @property
     def name(self):
@@ -169,6 +178,10 @@ class State(object):
     @property
     def representation(self):
         return self._representation
+
+    @property
+    def sp_vector(self):
+        return self._sp_vector
 
     def __repr__(self):
         return self.representation
@@ -204,13 +217,15 @@ CNOT_gate = TwoQubitGate("CNOT",
                                    [0, 1, 0, 0],
                                    [0, 0, 0, 1],
                                    [0, 0, 1, 0]]),
-                         "X")
+                         "X",
+                         25.1e-3)
 CZ_gate = TwoQubitGate("CPhase",
                        np.array([[1, 0, 0, 0],
                                  [0, 1, 0, 0],
                                  [0, 0, 1, 0],
                                  [0, 0, 0, -1]]),
-                       "Z")
+                       "Z",
+                       25.1e-3)
 NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                  np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
                                            [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],

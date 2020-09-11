@@ -52,23 +52,35 @@ def KP(*args):
         if state is None:
             continue
         if type(state) == State:
-            state = state.vector
+            state = state.sp_vector
+        if type(state) in [SingleQubitGate, TwoQubitGate]:
+            state = state.sp_matrix
+        if not sp.issparse(state):
+            state = sp.csr_matrix(state)
         if result is None:
-            result = sp.csr_matrix(state)
+            result = state
             continue
-        result = sp.csr_matrix(sp.kron(result, sp.csr_matrix(state)))
-    return sp.csr_matrix(result)
+        result = sp.kron(result, state, format='csr')
+    return result
 
 
 def CT(state1, state2=None):
     """ returns the dot prodcut of the two passed states, where the second state will be the conjugate transpose """
     if type(state1) == State:
-        state1 = state1.vector
-    if type(state2) == State:
-        state2 = state2.vector
+        state1 = state1.sp_vector
+    elif not sp.issparse(state1):
+        state1 = sp.csr_matrix(state1)
 
-    state2 = state1 if state2 is None else state2
-    return sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
+    if state2 is not None:
+        if type(state2) == State:
+            state2 = state2.sp_vector
+        elif not sp.issparse(state2):
+            state2 = sp.csr_matrix(state2)
+    else:
+        state2 = state1
+
+    result = state1.dot(state2.conj().T)
+    return result
 
 
 def trace(sparse_matrix):
