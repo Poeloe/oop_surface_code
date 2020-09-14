@@ -369,12 +369,7 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p
          lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, pbar=None):
 
     if i == 0:
-        _print_circuit_parameters(protocol=protocol, stab_type=stab_type, probabilistic=prb, pg=pg, pm=pm, pm_1=pm_1,
-                              p_dec=p_dec, p_bell=p_bell, bell_dur=bell_dur, meas_dur=meas_dur, time_step=time_step,
-                              color=color, latex_save=ltsv, save_superoperator=sv, superoperator_filename=fn,
-                              lookup_table_single_qubit_gates=bool(lkt_1q),
-                              lookup_table_two_qubit_gates=bool(lkt_2q), it=it)
-
+        _print_circuit_parameters(**locals())
 
     if print_mode:
         return []
@@ -401,6 +396,11 @@ def _print_circuit_parameters(**kwargs):
     pm = kwargs.get('pm')
     pn = kwargs.get('pn')
     stab_type= kwargs.get('stab_type')
+    lkt_1q = bool(kwargs.get('lkt_1q'))
+    lkt_2q = bool(kwargs.get('lkt_2q'))
+    kwargs.pop('pbar')
+    kwargs.pop('i')
+    kwargs.update(lkt_1q=lkt_1q, lkt_2q=lkt_2q)
 
     protocol = protocol.lower()
     fn_text = ""
@@ -408,7 +408,7 @@ def _print_circuit_parameters(**kwargs):
         fn_text = "A CSV file will be saved with the name: {}".format(fn)
     print("\nRunning the {} protocol, with pg={}, pm={}{}, for a {} stabilizer {} time{}. {}\n"
           .format(protocol, pg, pm, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
-                  "plaquette" if stab_type == "Z" else "star", it, "s" if it>1 else "", fn_text))
+                  "plaquette" if stab_type == "Z" else "star", it, "s" if it > 1 else "", fn_text))
 
     print("All circuit parameters:\n-----------------------\n")
     pprint(kwargs)
@@ -460,7 +460,7 @@ if __name__ == "__main__":
     pbar = tqdm(total=100)
 
     if threaded:
-        workers = it if it > 1 else 10
+        workers = it if 1 < it < 11 else 10
         thread_pool = Pool(workers)
         results = []
 
