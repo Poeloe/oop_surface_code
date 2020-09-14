@@ -11,7 +11,7 @@ from pprint import pprint
 
 
 def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
-               save_latex_pdf, save_csv, csv_file_name, pbar):
+               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, pm_1=pm_1, basis_transformation_noise=True,
                         thread_safe_printing=True, bell_creation_duration=bell_dur, measurement_duration=meas_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
@@ -25,12 +25,13 @@ def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lk
     if pbar is not None:
         pbar.update(50)
 
-    qc.draw_circuit(not color)
+    if draw:
+        qc.draw_circuit(not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([1, 3, 5, 7], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
     if pbar is not None:
         pbar.update(50)
 
@@ -38,7 +39,7 @@ def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lk
 
 
 def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
-              save_latex_pdf, save_csv, csv_file_name, pbar):
+              save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, p_dec=p_dec,
@@ -105,16 +106,15 @@ def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     if pbar is not None:
         pbar.update(10)
 
-    # start_draw = time.time()
-    # qc.draw_circuit(no_color=not color, color_nodes=True)
-    # end_draw = time.time()
+    if draw:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
 
     start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
     end_superoperator = time.time()
 
     if pbar is not None:
@@ -122,7 +122,6 @@ def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
 
     qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
     qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    # qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
     qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
                                                                                     start_superoperator))
     qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
@@ -131,7 +130,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
 
 
 def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
-              save_latex_pdf, save_csv, csv_file_name, pbar):
+              save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, p_dec=p_dec,
@@ -204,9 +203,8 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     if pbar is not None:
         pbar.update(10)
 
-    # start_draw = time.time()
-    # qc.draw_circuit(no_color=not color)
-    # end_draw = time.time()
+    if draw:
+        qc.draw_circuit(no_color=not color)
 
     if save_latex_pdf:
         qc.draw_circuit_latex()
@@ -214,7 +212,7 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     stab_rep = "Z" if operation == CZ_gate else "X"
     start_superoperator = time.time()
     qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=False)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
     end_superoperator = time.time()
 
     if pbar is not None:
@@ -222,7 +220,6 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
 
     qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
     qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    # qc._print_lines.append("\nDrawing the circuit took {} seconds".format(end_draw - start_draw))
     qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
                                                                                   start_superoperator))
     qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
@@ -338,6 +335,15 @@ def compose_parser():
                         help="Use when the program should run in multi-threaded mode. Optional",
                         required=False,
                         action="store_true")
+    parser.add_argument("--to_console",
+                        help="Print the superoperator results to the console.",
+                        required=False,
+                        action="store_true")
+    parser.add_argument("-draw",
+                        "--draw_circuit",
+                        help="Print a drawing of the circuit to the console",
+                        required=False,
+                        action="store_true")
     parser.add_argument("--print_run_order",
                         help="When added, the program will only print out the run order for the typed command. This can"
                              "be useful for debugging or file naming purposes",
@@ -359,8 +365,8 @@ def compose_parser():
     return parser
 
 
-def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q,
-         lkt_2q, prb, fn, print_mode, pbar=None):
+def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step,
+         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, pbar=None):
 
     if i == 0:
         _print_circuit_parameters(protocol=protocol, stab_type=stab_type, probabilistic=prb, pg=pg, pm=pm, pm_1=pm_1,
@@ -376,13 +382,14 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p
     gate = CZ_gate if stab_type == "Z" else CNOT_gate
 
     if protocol == "monolithic":
-        return monolithic(gate, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, ltsv, sv, fn, pbar)
+        return monolithic(gate, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, ltsv, sv, fn, pbar,
+                          draw, to_console)
     elif protocol == "expedient":
         return expedient(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
-                         lkt_2q, ltsv, sv, fn, pbar)
+                         lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
     elif protocol == "stringent":
         return stringent(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
-                         lkt_2q, ltsv, sv, fn, pbar)
+                         lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
 
 
 def _print_circuit_parameters(**kwargs):
@@ -434,6 +441,8 @@ if __name__ == "__main__":
     prb = args.pop('probabilistic')
     lkt_1q = args.pop('lookup_table_single_qubit_gates')
     lkt_2q = args.pop('lookup_table_two_qubit_gates')
+    draw = args.pop('draw_circuit')
+    to_console = args.pop('to_console')
 
     if meas_1_errors is not None and len(meas_1_errors) != len(meas_errors):
         raise ValueError("Amount of values for --pm_1 should equal the amount of values for -pm.")
@@ -451,7 +460,7 @@ if __name__ == "__main__":
     pbar = tqdm(total=100)
 
     if threaded:
-        workers = 10
+        workers = it if it > 1 else 10
         thread_pool = Pool(workers)
         results = []
 
@@ -471,10 +480,11 @@ if __name__ == "__main__":
                                            apply_async(main,
                                                        (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
                                                         p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
-                                                        prb, fn, print_mode)))
+                                                        prb, fn, print_mode, draw, to_console)))
                         else:
                             print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell,
-                                        bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, pbar))
+                                        bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
+                                        to_console, pbar))
                             pbar.reset()
                         filename_count += 1
 
