@@ -2,22 +2,17 @@ import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.basic_operations.basic_operations import (
-    CT, KP, get_value_by_prob, trace, fidelity_elementwise
+    CT, KP, get_value_by_prob, fidelity_elementwise
 )
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
-from circuit_simulation.gates.gate import SingleQubitGate, TwoQubitGate
+from circuit_simulation.gates.gate import SingleQubitGate
 from circuit_simulation.qubit.qubit import Qubit
 from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
-import numpy as np
 from scipy import sparse as sp
-import itertools as it
-import copy
-from scipy.linalg import eig, eigh
 import hashlib
-import re
 from oopsc.superoperator.superoperator import SuperoperatorElement
-from termcolor import colored, COLORS
+from termcolor import colored
 from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
@@ -191,6 +186,7 @@ class QuantumCircuit:
     from . import _quantum_circuit_init
     from . import _superoperator
     from . import _draw
+    from . import _operations
     """
         ---------------------------------------------------------------------------------------------------------
                                                     Init Methods
@@ -830,72 +826,7 @@ class QuantumCircuit:
                 Returns a matrix with dimensions equal to the dimensions of the density matrix of
                 the system.
         """
-        gate_name = None
-        if num_qubits is None:
-            num_qubits = self.num_qubits
-        if type(gate) == SingleQubitGate:
-            if num_qubits > 1 and (gate.name, tqubit, num_qubits) in self._single_qubit_gate_lookup.keys():
-                return self._single_qubit_gate_lookup[(gate.name, tqubit, num_qubits)]
-            gate_name = gate.name
-            gate = gate.sp_matrix
-            if conj:
-                gate = gate.conj().T
-
-        if num_qubits == 1:
-            if not sp.issparse(gate):
-                gate = sp.csr_matrix(gate)
-            return gate
-        if np.array_equal(gate, I_gate.matrix):
-            return sp.eye(2 ** num_qubits, 2 ** num_qubits)
-
-        first_id, second_id = self._create_identity_operations(tqubit, num_qubits=num_qubits)
-
-        full_gate = KP(first_id, gate, second_id)
-
-        if num_qubits > 1 and gate_name is not None:
-            self._single_qubit_gate_lookup[(gate_name, tqubit, num_qubits)] = full_gate
-
-        return full_gate
-
-    def _create_identity_operations(self, tqubit, num_qubits=None):
-        """
-            Private method that is used to efficiently create identity matrices, based on the target
-            qubit specified. These matrices will work on the qubits other than the target qubit
-
-            Parameters
-            ----------
-            tqubit : int
-                Integer that indicates the target qubit. Note that the qubit counting starts at
-                0.
-            num_qubits : int, optional, default=None
-                Amount of qubits that is present in the specific density matrix that the identity operations
-                are requested for. If not specified, the amount of qubits of the QuantumCircuit object is used
-
-
-            Returns
-            -------
-            first_id : sparse identity matrix
-                Sparse identity matrix that will work on the qubits prior to the target qubit. If the target
-                qubit is the first qubit, the value will be 'None'
-            second_id : sparse identity matrix
-                Sparse identity matrix that will work on the qubits following after the target qubit. If the
-                target qubit is the last qubit, the value will be 'None'
-        """
-        if num_qubits is None:
-            num_qubits = self.num_qubits
-
-        first_id = None
-        second_id = None
-
-        if tqubit == 0:
-            second_id = sp.eye(2 ** (num_qubits - 1 - tqubit), 2 ** (num_qubits - 1 - tqubit))
-        elif tqubit == num_qubits - 1:
-            first_id = sp.eye(2 ** tqubit, 2 ** tqubit)
-        else:
-            first_id = sp.eye(2 ** tqubit, 2 ** tqubit)
-            second_id = sp.eye(2 ** (num_qubits - 1 - tqubit), 2 ** (num_qubits - 1 - tqubit))
-
-        return first_id, second_id
+        return self._operations.gate_operations.create_1_qubit_gate(self, gate, tqubit, num_qubits, conj)
 
     def X(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli X gate to the specified target qubit. See apply_1_qubit_gate for more info """
@@ -1088,47 +1019,7 @@ class QuantumCircuit:
             num_qubits known for the entire QuantumCircuit object is used
 
         """
-        if num_qubits is None:
-            num_qubits = self.num_qubits
-        if cqubit == tqubit:
-            raise ValueError("Control qubit cannot be the same as the target qubit!")
-        if type(gate) == TwoQubitGate:
-            if num_qubits > 3 and (gate.name, cqubit, tqubit, num_qubits) in self._two_qubit_gate_lookup.keys():
-                return self._two_qubit_gate_lookup[(gate.name, cqubit, tqubit, num_qubits)]
-
-        def create_component_2_qubit_gate(control_qubit_matrix, target_qubit_matrix):
-            # Initialise the only identity case with on the place of the control qubit the identity replaced
-            # with the specified control_qubit_matrix
-            control_gate = self._create_1_qubit_gate(control_qubit_matrix, cqubit, num_qubits=num_qubits)
-
-            # Initialise the only identity case with on the place of the target qubit the identity replaced
-            # with the specified target_qubit_matrix
-            if not np.array_equal(target_qubit_matrix, I_gate):
-                target_gate = self._create_1_qubit_gate(target_qubit_matrix, tqubit, num_qubits=num_qubits)
-
-                # Matrix multiply the two cases to obtain the total gate
-                return target_gate.dot(control_gate)
-
-            return control_gate
-
-        one_state_matrix = gate.sp_matrix if type(gate) == SingleQubitGate else gate.upper_left_matrix
-        zero_state_matrix = I_gate.sp_matrix if type(gate) == SingleQubitGate else gate.lower_right_matrix
-
-        first_part = create_component_2_qubit_gate(CT(ket_0), zero_state_matrix)
-        second_part = create_component_2_qubit_gate(CT(ket_1), one_state_matrix)
-
-        full_gate = first_part + second_part
-
-        if type(gate) == TwoQubitGate and not gate.is_cntrl_gate:
-            third_part = create_component_2_qubit_gate(CT(ket_0, ket_1), gate.upper_right_matrix)
-            fourth_part = create_component_2_qubit_gate(CT(ket_1, ket_0), gate.lower_left_matrix)
-
-            full_gate = first_part + second_part + third_part + fourth_part
-
-        if num_qubits > 3 and type(gate) == TwoQubitGate:
-            self._two_qubit_gate_lookup[(gate.name, cqubit, tqubit, num_qubits)] = full_gate
-
-        return full_gate
+        return self._operations.gate_operations.create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits)
 
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
@@ -1424,24 +1315,7 @@ class QuantumCircuit:
             pm : float [0-1], optional, default=0.
                 The amount of measurement noise that is present (if noise is present).
         """
-        d = density_matrix.shape[0]
-
-        density_matrix_0 = density_matrix[:int(d / 2), :int(d / 2)]
-        density_matrix_1 = density_matrix[int(d / 2):, int(d / 2):]
-
-        if measure == 0 and noise:
-            temp_density_matrix = (1 - pm) * density_matrix_0 + pm * density_matrix_1
-        elif noise:
-            temp_density_matrix = (1 - pm) * density_matrix_1 + pm * density_matrix_0
-        elif measure == 0:
-            temp_density_matrix = density_matrix_0
-        else:
-            temp_density_matrix = density_matrix_1
-
-        prob = trace(temp_density_matrix)
-        temp_density_matrix = temp_density_matrix / prob
-
-        return prob, temp_density_matrix
+        return self._operations.measurement_operations.measurement_first_qubit(density_matrix, measure, noise, pm)
 
     def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, pm_1=None,
                 p_dec=None, probabilistic=None, basis_transformation_noise=None, user_operation=False):
@@ -1526,11 +1400,11 @@ class QuantumCircuit:
 
                 if rel_qubit == 0:
                     prob, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
-                                                                          noise=noise, pm=pm)
+                                                                             noise=noise, pm=pm)
                 else:
                     prob, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                      outcome=outcome_new,
-                                                                                      keep_qubit=False)
+                                                                                         outcome=outcome_new,
+                                                                                         keep_qubit=False)
                     if noise:
                         _, wrong_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                             outcome=outcome_new ^ 1,
@@ -1560,8 +1434,7 @@ class QuantumCircuit:
         parity_outcome = [True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)]
         return all(parity_outcome)
 
-    @staticmethod
-    def _get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qubit=True):
+    def _get_measurement_outcome_probability(self, qubit, density_matrix, outcome, keep_qubit=True):
         """
             Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
 
@@ -1590,298 +1463,8 @@ class QuantumCircuit:
             outcome : int [0,1]
                 Outcome for which the probability and resulting density matrix should be calculated
         """
-        d = density_matrix.shape[0]
-        dimension_block = int(d / (2 ** (qubit + 1)))
-        non_zero_rows = density_matrix.nonzero()[0]
-        non_zero_columns = density_matrix.nonzero()[1]
-
-        if keep_qubit:
-            new_density_matrix = sp.lil_matrix(copy.copy(density_matrix))
-            start = 0 if outcome == 1 else dimension_block
-            rows_columns_to_zero = [i+j for i in range(start, d, dimension_block * 2)
-                                    for j in range(dimension_block)]
-            non_zero_rows_unique = np.array(list(set(rows_columns_to_zero).intersection(non_zero_rows)))
-            non_zero_columns_unique = np.array(list(set(rows_columns_to_zero).intersection(non_zero_columns)))
-            if non_zero_columns_unique.size != 0:
-                for row in non_zero_rows_unique:
-                    column_indices = [i for i, e in enumerate(non_zero_rows) if e == row]
-                    new_density_matrix[row, non_zero_columns[column_indices]] = 0
-            if non_zero_columns_unique.size != 0:
-                for column in non_zero_columns_unique:
-                    row_indices = [i for i, e in enumerate(non_zero_columns) if e == column]
-                    new_density_matrix[non_zero_rows[row_indices], column] = 0
-
-            new_density_matrix = sp.csr_matrix(new_density_matrix)
-        else:
-            new_density_matrix = sp.lil_matrix((int(d/2), int(d/2)), dtype=density_matrix.dtype)
-            start = 0 if outcome == 0 else dimension_block
-            surviving_columns_rows = [i+j for i in range(start, d, dimension_block * 2)
-                                    for j in range(dimension_block)]
-            non_zero_rows_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_rows)))
-            non_zero_columns_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_columns)))
-            if non_zero_columns_unique.size != 0:
-                for row in non_zero_rows_unique:
-                    new_row = int(row/2) + (row % 2)
-                    column_indices = [i for i, e in enumerate(non_zero_rows) if e == row]
-                    valid_columns = [c for c in non_zero_columns[column_indices] if c in surviving_columns_rows]
-                    valid_columns_new = [(int(c/2) + (c % 2)) for c in valid_columns]
-                    new_density_matrix[new_row, valid_columns_new] = density_matrix[row, valid_columns]
-
-        prob = trace(new_density_matrix)
-        new_density_matrix = new_density_matrix / trace(new_density_matrix)
-
-        return prob, new_density_matrix
-
-    def _measurement_by_diagonalising(self, qubit, density_matrix, measure=0, eigenval=None, eigenvec=None):
-        """
-        This private method calculates the probability of a certain measurement outcome and calculates the
-        resulting density matrix after the measurement has taken place.
-
-        ----
-        Probability calculation:
-
-        From the eigenvectors and the eigenvalues of the density matrix before the measurement, first the probability
-        of the specified outcome (0 or 1) for the given qubit is calculated. This is done by setting the opposite
-        outcome for the qubit to 0 in the eigenvectors. Remember, the eigenvectors represent a system state and are thus
-        the possible qubit states tensored. Thus an eigenvector is built up as:
-
-        |a_1|   |b_1|   |c_1|   |a_1 b_1 c_1|
-        |   | * |   | * |   | = |a_1 b_1 c_2| (and so on)
-        |a_2|   |b_2|   |c_2|   |a_1 b_2 c_1|
-                                      :
-
-        So lets say that we measure qubit c to be 1, this means that c_1 is zero. For each eigenvector we will set the
-        elements that contain c_2 to zero, which leaves us with the states (if not a zero vector) that survive after
-        the measurement. While setting these elements to zero, the other elements (that contain c_2) are saved to an
-        array. From this array, the non-zero array is obtained which is then absolute squared, summed and multiplied
-        with the eigenvalue for that eigenvector. These values obtained from all the eigenvectors are then summed to
-        obtain the probability for the given outcome.
-
-        ----
-
-        Density matrix calculation:
-
-        The density matrix after the measurement is obtained by taking the CT of the adapted eigenvectors by the
-        probability calculations, multiply the result with the eigenvalue for that eigenvector and add all resulting
-        matrices.
-
-        Parameters
-        ----------
-        qubit : int
-            Indicates the qubit to be measured (qubit count starts at 0)
-        density_matrix : csr_matrix
-                Density matrix to which the qubit belongs.
-        measure : int [0 or 1], optional, default=0
-            The measurement outcome for the qubit, either 0 or 1.
-        eigenval : sparse matrix, optional, default=None
-            For speedup purposes, the eigenvalues of the density matrix can be passed to the method. *** Keep in mind
-            that this does require more memory and can therefore cause the program to stop working. ***
-        eigenvec : sparse matrix, optional, deafault=None
-            For speedup purposes, the eigenvectors of the density matrix can be passed to the method. *** Keep in mind
-            that this does require more memory and can therefore cause the program to stop working. ***
-
-        Returns
-        -------
-        prob = float [0-1]
-            The probability of the specified measurement outcome.
-        resulting_density_matrix : sparse matrix
-            The density matrix that is the result of the specified measurement outcome
-        """
-        if eigenvec is None:
-            eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
-        else:
-            eigenvalues, eigenvectors = eigenval, copy.copy(eigenvec)
-
-        d = density_matrix.shape[0]
-        iterations = 2 ** qubit
-        step = int(d / (2 ** (qubit + 1)))
-        prob = 0
-
-        # Let measurement outcome determine the states that 'survive'
-        for j, eigenvector in enumerate(eigenvectors):
-            prob_eigenvector = []
-            for i in range(iterations):
-                start = ((measure + 1) % 2) * step + (i * 2 * step)
-                start2 = measure * step + (i * 2 * step)
-                prob_eigenvector.append(eigenvector[start2: start2 + step, :])
-                eigenvector[start:start + step, :] = 0
-
-            # Get the probability of measurement outcome for the chosen qubit. This is the eigenvalue times the absolute
-            # square of the non-zero value for the qubit present in the eigenvector
-            prob_eigenvector = np.array(prob_eigenvector).flatten()
-            if np.count_nonzero(prob_eigenvector) != 0:
-                non_zero_items = prob_eigenvector[np.flatnonzero(prob_eigenvector)]
-                prob += eigenvalues[j] * np.sum(abs(non_zero_items) ** 2)
-        prob = np.round(prob, 10)
-
-        # Create the new density matrix that is the result of the measurement outcome
-        if prob > 0:
-            result = np.zeros(density_matrix.shape)
-            for i, eigenvalue in enumerate(eigenvalues):
-                eigenvector = eigenvectors[i]
-                result += eigenvalue * CT(eigenvector)
-
-            return prob, sp.csr_matrix(np.round(result / np.trace(result), 10))
-
-        return prob, sp.csr_matrix((d, d))
-
-    """
-        ---------------------------------------------------------------------------------------------------------
-                                            Density Matrix calculus Methods
-        ---------------------------------------------------------------------------------------------------------     
-    """
-
-    @staticmethod
-    def diagonalise(density_matrix, option=0):
-        """" Returns the Eigenvalues and Eigenvectors of the density matrix. option=1 returns only the Eigenvalues"""
-        if option == 0:
-            return eig(density_matrix.toarray())
-        if option == 1:
-            return eigh(density_matrix.toarray(), eigvals_only=True)
-
-    def get_non_zero_prob_eigenvectors(self, density_matrix, d, decimals=10):
-        """
-            Get the eigenvectors with non-zero eigenvalues.
-
-            Parameters
-            ----------
-            decimals : int, optional, default=10
-                Determines how the Eigenvalues should be rounded. Based on this rounding it will also be determined
-                if the Eigenvalue is non-zero.
-
-            Returns
-            -------
-            non_zero_eigenvalues : list
-                List containing the non-zero eigenvalues.
-            corresponding_eigenvectors : list
-                List containing the eigenvectors corresponding to the non-zero Eigenvalues.
-        """
-        eigenvalues, eigenvectors = self.diagonalise(density_matrix)
-        non_zero_eigenvalues_index = np.argwhere(np.round(eigenvalues, decimals) != 0).flatten()
-        eigenvectors_list = []
-
-        for index in non_zero_eigenvalues_index:
-            eigenvector = sp.csr_matrix(np.round(eigenvectors[:, index].reshape(d, 1), 8))
-            eigenvectors_list.append(eigenvector)
-
-        return eigenvalues[non_zero_eigenvalues_index], eigenvectors_list
-
-    def print_non_zero_prob_eigenvectors(self):
-        """ Prints a clear overview of the non-zero Eigenvalues and their Eigenvectors to the console """
-        eigenvalues, eigenvectors = self.get_non_zero_prob_eigenvectors()
-
-        print_line = "\n\n ---- Eigenvalues and Eigenvectors ---- \n\n"
-        for i, eigenvalue in enumerate(eigenvalues):
-            print_line += "eigenvalue: {}\n\neigenvector:\n {}\n---\n".format(eigenvalue, eigenvectors[i].toarray())
-
-        self._print_lines.append(print_line + "\n ---- End Eigenvalues and Eigenvectors ----\n")
-        if not self._thread_safe_printing:
-            self.print()
-
-    def decompose_non_zero_eigenvectors(self):
-        """
-            Method to decompose the eigenvectors, with non-zero eigenvalues, into N-qubit states (in which N is
-            the number of qubits present in the system) which on themselves are again decomposed in one-qubit states.
-            Visualised for a random eigenvector of a 6 qubit system
-
-            Eigenvector --> |000100> + |100000> + ... --> |0>#|0>#|0>#|1>#|0>#|0> + |1>#|0>#|0>#|0>#|0>#|0> + ...
-
-            in which '#' is the Kronecker product.
-
-            *** DOES NOT WORK PROPERLY WHEN MULTIPLE QUBITS OBTAINED AN EFFECTIVE PHASE, SINCE IT IS NOT YET
-            FIGURED OUT HOW THESE MULTIPLE NEGATIVE CONTRIBUTIONS CAN BE TRACED BACK --> SEE MORE INFORMATION AT
-            THE _FIND_NEGATIVE_CONTRIBUTING_QUBIT' METHOD ***
-
-            Returns
-            -------
-            non_zero_eigenvalues : list
-                List containing the non-zero eigenvalues.
-            decomposed_eigenvectors : list
-                A list containing each eigenvector (with a non-zero Eigenvalue) decomposed into a list of
-                N-qubit states which is yet again decomposed into one-qubit states
-
-        """
-        non_zero_eigenvalues, non_zero_eigenvectors = self.get_non_zero_prob_eigenvectors()
-
-        decomposed_eigenvectors = []
-        for eigenvector in non_zero_eigenvectors:
-            # Find all the values and indices of the non-zero elements in the eigenvector. Each of these elements
-            # represents an N-qubit state. The N-qubit state corresponding to the index of the non-zero element of the
-            # eigenvector is found by expressing the index in binary with the amount of bits equal to the amount
-            # of qubits.
-            non_zero_eigenvector_value_indices, _, values = sp.find(eigenvector)
-            negative_value_indices, negative_qubit_indices = \
-                self._find_negative_contributing_qubit(non_zero_eigenvector_value_indices, values)
-
-            eigenvector_in_n_qubit_states = []
-            for index in non_zero_eigenvector_value_indices:
-                one_qubit_states_in_n_qubit_state = []
-                eigenvector_index_value = np.sqrt(2 * abs(eigenvector[index, 0]))
-                state_vector_repr = [int(bit) for bit in "{0:b}".format(index).zfill(self.num_qubits)]
-                for i, state in enumerate(state_vector_repr):
-                    sign = -1 if i in negative_qubit_indices and index in negative_value_indices else 1
-                    if state == 0:
-                        one_qubit_states_in_n_qubit_state.append(sign * eigenvector_index_value
-                                                                 * copy.copy(ket_0.vector))
-                    else:
-                        one_qubit_states_in_n_qubit_state.append(sign * eigenvector_index_value
-                                                                 * copy.copy(ket_1.vector))
-
-                eigenvector_in_n_qubit_states.append(one_qubit_states_in_n_qubit_state)
-            decomposed_eigenvectors.append(eigenvector_in_n_qubit_states)
-
-        return non_zero_eigenvalues, decomposed_eigenvectors
-
-    def _find_negative_contributing_qubit(self, non_zero_eigenvector_elements_indices,
-                                          non_zero_eigenvector_elements_values):
-        """
-            returns the index of the qubit that obtained a phase (negative value). So for a
-            4 qubit system (2 data qubits (_d), 2 ancilla qubits (_a))
-
-            (|0_d, 0_a> -|1_d, 1_a>) # (|0_d, 0_a> + |1_d, 1_a>) = |0000> + |0011> - |1100> - |1111>
-
-            Comparing the data qubits of the negative N-qubit states, we see that the first data qubit
-            is always in the |1>, which is indeed the qubit that obtained the phase.
-
-            *** THIS ONLY WORKS WHEN ONE QUBIT HAS OBTAINED A PHASE. SO ONLY ONE EFFECTIVE
-            Z (OR Y) ON ONE OF THE QUBITS IN THE SYSTEM. SHOULD BE CHECKED IF IT IS POSSIBLE
-            TO DETERMINE THIS IN EVERY SITUATION ***
-
-            Parameters
-            ----------
-            non_zero_eigenvector_elements_indices : list
-                List with the indices of non-zero elements of the eigenvector.
-            non_zero_eigenvector_elements_values : list
-                List that contains the values of the elements that are non-zero.
-
-            Returns
-            -------
-            negative_value_indices : list
-                List of indices that correspond to the negative elements in the Eigenvector
-            negative_qubit_indices : list
-                List of qubits that obtained a phase (negative value). For now this will only
-                contain one qubit or no qubit index
-        """
-        # Get the indices of the negative values in the eigenvector
-        negative_value_indices = np.where(non_zero_eigenvector_elements_values < 0)[0]
-        if negative_value_indices.size == 0:
-            return [], []
-
-        # Get the N-qubit states that corresponds to the negative value indices
-        bitstrings = []
-        for negative_value_index in non_zero_eigenvector_elements_indices[negative_value_indices]:
-            bitstrings.append([int(bit) for bit in "{0:b}".format(negative_value_index).zfill(self.num_qubits)])
-
-        # Check for each data qubits (all the even qubits) if it is in the same state in each N-qubit state.
-        # If this is the case then this data qubit is the negative contributing qubits (if only one qubit
-        # has obtained an effective phase).
-        negative_qubit_indices = []
-        for i in range(0, self.num_qubits, 2):
-            row = np.array(bitstrings)[:, i]
-            if len(set(row)) == 1:
-                negative_qubit_indices.append(i)
-
-        return non_zero_eigenvector_elements_indices[negative_value_indices], negative_qubit_indices
+        return self._operations.measurement_operations.get_measurement_outcome_probability(qubit, density_matrix,
+                                                                                           outcome, keep_qubit)
 
     """
         ---------------------------------------------------------------------------------------------------------
