@@ -13,7 +13,7 @@ from scipy import sparse as sp
 import hashlib
 from oopsc.superoperator.superoperator import SuperoperatorElement
 from termcolor import colored
-from circuit_simulation.latex_circuit.qasm_to_pdf import create_pdf_from_qasm
+from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
@@ -1671,10 +1671,10 @@ class QuantumCircuit:
         """
         if kind == "dm":
             file_name = self._file_name_from_circuit(measure_error, general_name="density_matrix", extension=".npz")
-            file_path = os.path.join(os.path.dirname(__file__), "saved_density_matrices", file_name)
+            file_path = os.path.join(os.path.dirname(__file__), "_superoperator", "saved_density_matrices", file_name)
         elif kind == "qasm":
             file_name = self._file_name_from_circuit(measure_error, extension=".qasm")
-            file_path = os.path.join(os.path.dirname(__file__), "latex_circuit", file_name)
+            file_path = os.path.join(os.path.dirname(__file__), "_draw", file_name)
         elif kind == "so":
             file_name = self._file_name_from_circuit(measure_error, general_name="superoperator", extension=".csv")
             file_path = os.path.join(SuperoperatorElement.file_path(), "csv_files", file_name)
