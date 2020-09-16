@@ -18,6 +18,7 @@ simulations
 simulations/
 Simulations
 Simulations/
+test_scripts/
 __pycache__/
 errors/
 figures/
