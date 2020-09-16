@@ -1,36 +1,39 @@
-from circuit_simulation.states_and_gates import *
 import numpy as np
 from scipy import sparse as sp
 from scipy.linalg import sqrtm
 import random
+import circuit_simulation.states.states as s
+import circuit_simulation.gates.gates as g
+from circuit_simulation.states.state import State
+from circuit_simulation.gates.gate import SingleQubitGate, TwoQubitGate
 
 
 def state_repr(state):
     """ Returns the visual representation of the given state if known """
-    if np.array_equal(state, ket_0):
+    if np.array_equal(state, s.ket_0.vector):
         return "|0>"
-    if np.array_equal(state, ket_1):
+    if np.array_equal(state, s.ket_1.vector):
         return "|1>"
-    if np.array_equal(state, ket_p):
+    if np.array_equal(state, s.ket_p.vector):
         return "|+>"
-    if np.array_equal(state, ket_m):
+    if np.array_equal(state, s.ket_m.vector):
         return "|->"
     return "|?>"
 
 
 def gate_name(gate):
     """ Returns the (visual) representation of the given gate if known """
-    if np.array_equal(gate, X_gate.matrix):
+    if np.array_equal(gate, g.X_gate.matrix):
         return "X"
-    if np.array_equal(gate, Y_gate.matrix):
+    if np.array_equal(gate, g.Y_gate.matrix):
         return "Y"
-    if np.array_equal(gate, Z_gate.matrix):
+    if np.array_equal(gate, g.Z_gate.matrix):
         return "Z"
-    if np.array_equal(gate, I_gate.matrix):
+    if np.array_equal(gate, g.I_gate.matrix):
         return "I"
-    if np.array_equal(gate, H_gate.matrix):
+    if np.array_equal(gate, g.H_gate.matrix):
         return "H"
-    if np.array_equal(gate, S_gate.matrix):
+    if np.array_equal(gate, g.S_gate.matrix):
         return "S"
     return "?"
 

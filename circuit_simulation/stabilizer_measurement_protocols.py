@@ -46,7 +46,10 @@ def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
 
-    qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
+    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
+    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
+    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5)
+    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2)
 
     qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[11, 8, 18, 16])
     qc.create_bell_pair(11, 8)
@@ -137,7 +140,10 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
 
-    qc.define_nodes({"A": [18, 11, 10, 9], "B": [16, 8, 7, 6], "C": [14, 5, 4, 3], "D": [12, 2, 1, 0]})
+    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
+    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
+    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5)
+    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2)
 
     qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[11, 8, 18, 16])
 
@@ -444,17 +450,21 @@ if __name__ == "__main__":
     draw = args.pop('draw_circuit')
     to_console = args.pop('to_console')
 
+    file_dir = os.path.dirname(__file__)
+    # THIS IS NOT GENERIC, will error when directories are moved or renamed
+    look_up_table_dir = os.path.join(file_dir, 'gates', 'gate_lookup_tables')
+
     if meas_1_errors is not None and len(meas_1_errors) != len(meas_errors):
         raise ValueError("Amount of values for --pm_1 should equal the amount of values for -pm.")
     elif meas_1_errors is None:
         meas_1_errors = len(meas_errors) * [None]
 
     if lkt_1q is not None:
-        with open(lkt_1q, 'rb') as obj:
+        with open(os.path.join(look_up_table_dir, lkt_1q), 'rb') as obj:
             lkt_1q = pickle.load(obj)
 
     if lkt_2q is not None:
-        with open(lkt_2q, "rb") as obj2:
+        with open(os.path.join(look_up_table_dir, lkt_2q), "rb") as obj2:
             lkt_2q = pickle.load(obj2)
 
     pbar = tqdm(total=100)

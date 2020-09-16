@@ -1,6 +1,8 @@
 import unittest
 from circuit_simulation.circuit_simulator import QuantumCircuit as QC
-from circuit_simulation.basic_operations import *
+from circuit_simulation.basic_operations.basic_operations import *
+from circuit_simulation.states.states import *
+from circuit_simulation.gates.gates import *
 
 
 class TestBasicOperations(unittest.TestCase):
@@ -77,6 +79,7 @@ class TestQuantumCircuitInit(unittest.TestCase):
         np.testing.assert_array_equal(matrix_23.toarray(), density_matrix)
         np.testing.assert_array_equal(matrix_45.toarray(), density_matrix)
         np.testing.assert_array_equal(matrix_67.toarray(), density_matrix)
+
 
 class TestQuantumCircuitGates(unittest.TestCase):
 
