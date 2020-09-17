@@ -172,3 +172,19 @@ def create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         self._two_qubit_gate_lookup[(gate.name, cqubit, tqubit, num_qubits)] = full_gate
 
     return full_gate
+
+
+def efficient_SWAP(self, qubit_1, qubit_2, noise, pg, draw, user_operation):
+    # TODO: Implement noise into this method
+    density_matrix_1, qubits_1, rel_qubit_1, rel_num_qubits_1 = self._get_qubit_relative_objects(qubit_1)
+    density_matrix_2, qubits_2, rel_qubit_2, rel_num_qubits_2 = self._get_qubit_relative_objects(qubit_2)
+
+    qubits_1[rel_qubit_1] = qubit_2
+    qubits_2[rel_qubit_2] = qubit_1
+
+    self._qubit_density_matrix_lookup[qubit_1] = (density_matrix_2, qubits_2)
+    self._qubit_density_matrix_lookup[qubit_2] = (density_matrix_1, qubits_1)
+
+    self._add_draw_operation(SWAP_gate, (qubit_1, qubit_2), noise)
+
+

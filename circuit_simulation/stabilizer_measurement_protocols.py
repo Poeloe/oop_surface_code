@@ -42,9 +42,10 @@ def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, p_dec=p_dec,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
@@ -136,9 +137,10 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, p_dec=p_dec,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
@@ -201,6 +203,219 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     qc.start_sub_circuit("C", [5, 14])
     qc.apply_2_qubit_gate(operation, 5, 14)
     qc.measure(5, probabilistic=False)
+
+    qc.end_current_sub_circuit()
+
+    end_circuit = time.time()
+
+    if pbar is not None:
+        pbar.update(10)
+
+    if draw:
+        qc.draw_circuit(no_color=not color)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    start_superoperator = time.time()
+    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+    end_superoperator = time.time()
+
+    if pbar is not None:
+        pbar.update(10)
+
+    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
+    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                  start_superoperator))
+    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+
+    return qc._print_lines
+
+
+def expedient_swap(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+                   lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+    start = time.time()
+    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
+                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
+
+    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9)
+    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6)
+    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3)
+    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0)
+
+    qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[10, 7, 18, 16])
+    qc.create_bell_pair(9, 6)
+    qc.SWAP(9, 10, efficient=True)
+    qc.SWAP(6, 7, efficient=True)
+    qc.double_selection_swap(CZ_gate, 9, 6)
+    qc.double_selection_swap(CNOT_gate, 9, 6)
+
+    if pbar is not None:
+        pbar.update(20)
+
+    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12])
+    qc.create_bell_pair(3, 0)
+    qc.SWAP(3, 4, efficient=True)
+    qc.SWAP(0, 1, efficient=True)
+    qc.double_selection_swap(CZ_gate, 3, 0)
+    qc.double_selection_swap(CNOT_gate, 3, 0)
+
+    qc.apply_decoherence_to_fastest_sub_circuit("AB", "CD")
+
+    if pbar is not None:
+        pbar.update(20)
+
+    qc.start_sub_circuit("AC", [11, 5, 10, 9, 4, 3, 18, 14], waiting_qubits=[10, 4, 18, 14])
+    qc.single_dot_swap(CZ_gate, 9, 3)
+    qc.single_dot_swap(CZ_gate, 9, 3)
+
+    if pbar is not None:
+        pbar.update(20)
+
+    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[7, 1, 16, 12])
+    qc.single_dot_swap(CZ_gate, 6, 0)
+    qc.single_dot_swap(CZ_gate, 6, 0)
+
+    qc.apply_decoherence_to_fastest_sub_circuit("AC", "BD")
+
+    if pbar is not None:
+        pbar.update(20)
+
+    # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
+    qc.start_sub_circuit("B", [6, 16])
+    qc.SWAP(6, 7, efficient=True)
+    qc.apply_2_qubit_gate(operation, 6, 16)
+    qc.measure(6, probabilistic=False)
+
+    qc.start_sub_circuit("A", [9, 18])
+    qc.SWAP(9, 10, efficient=True)
+    qc.apply_2_qubit_gate(operation, 9, 18)
+    qc.measure(9, probabilistic=False)
+
+    qc.start_sub_circuit("D", [0, 12])
+    qc.SWAP(0, 1, efficient=True)
+    qc.apply_2_qubit_gate(operation, 0, 12)
+    qc.measure(0, probabilistic=False)
+
+    qc.start_sub_circuit("C", [3, 14])
+    qc.SWAP(3, 4, efficient=True)
+    qc.apply_2_qubit_gate(operation, 3, 14)
+    qc.measure(3, probabilistic=False)
+
+    qc.end_current_sub_circuit()
+
+    end_circuit = time.time()
+
+    if pbar is not None:
+        pbar.update(10)
+
+    if draw:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    start_superoperator = time.time()
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+    end_superoperator = time.time()
+
+    if pbar is not None:
+        pbar.update(10)
+
+    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
+    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                    start_superoperator))
+    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+
+    return qc._print_lines
+
+
+def stringent_swap(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+                   lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+    start = time.time()
+    qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
+                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
+
+    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9)
+    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6)
+    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3)
+    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0)
+
+    qc.start_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[10, 7, 18, 16])
+
+    qc.create_bell_pair(9, 6)
+    qc.SWAP(9, 10, efficient=True)
+    qc.SWAP(6, 7, efficient=True)
+    qc.double_selection_swap(CZ_gate, 9, 6)
+    qc.double_selection_swap(CNOT_gate, 9, 6)
+    qc.double_dot_swap(CZ_gate, 9, 6)
+    qc.double_dot_swap(CNOT_gate, 9, 6)
+
+    if pbar is not None:
+        pbar.update(20)
+
+    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12])
+
+    qc.create_bell_pair(3, 0)
+    qc.SWAP(3, 4, efficient=True)
+    qc.SWAP(0, 1, efficient=True)
+    qc.double_selection_swap(CZ_gate, 3, 0)
+    qc.double_selection_swap(CNOT_gate, 3, 0)
+    qc.double_dot_swap(CZ_gate, 3, 0)
+    qc.double_dot_swap(CNOT_gate, 3, 0)
+
+    qc.apply_decoherence_to_fastest_sub_circuit("AB", "CD")
+
+    if pbar is not None:
+        pbar.update(20)
+
+    qc.start_sub_circuit("AC", [11, 5, 10, 9, 4, 3, 18, 14], waiting_qubits=[10, 4, 18, 14])
+    qc.double_dot_swap(CZ_gate, 9, 3)
+    qc.double_dot_swap(CZ_gate, 9, 3)
+
+    if pbar is not None:
+        pbar.update(20)
+
+    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[7, 1, 16, 12])
+    qc.double_dot_swap(CZ_gate, 6, 0)
+    qc.double_dot_swap(CZ_gate, 6, 0)
+
+    qc.apply_decoherence_to_fastest_sub_circuit("AC", "BD")
+
+    if pbar is not None:
+        pbar.update(20)
+
+    # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
+    qc.start_sub_circuit("B", [6, 16])
+    qc.SWAP(6, 7, efficient=True)
+    qc.apply_2_qubit_gate(operation, 6, 16)
+    qc.measure(6, probabilistic=False)
+
+    qc.start_sub_circuit("A", [9, 18])
+    qc.SWAP(9, 10, efficient=True)
+    qc.apply_2_qubit_gate(operation, 9, 18)
+    qc.measure(9, probabilistic=False)
+
+    qc.start_sub_circuit("D", [0, 12])
+    qc.SWAP(0, 1, efficient=True)
+    qc.apply_2_qubit_gate(operation, 0, 12)
+    qc.measure(0, probabilistic=False)
+
+    qc.start_sub_circuit("C", [3, 14])
+    qc.SWAP(3, 4, efficient=True)
+    qc.apply_2_qubit_gate(operation, 3, 14)
+    qc.measure(3, probabilistic=False)
 
     qc.end_current_sub_circuit()
 
@@ -367,12 +582,17 @@ def compose_parser():
                         required=False,
                         type=str,
                         default=None)
+    parser.add_argument("-swap",
+                        "--use_swap_gates",
+                        help="A version of the protocol will be run that uses SWAP gates to ensure NV-center realism.",
+                        required=False,
+                        action="store_true")
 
     return parser
 
 
 def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step,
-         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, pbar=None):
+         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, pbar=None):
 
     if i == 0:
         _print_circuit_parameters(**locals())
@@ -386,9 +606,15 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p
         return monolithic(gate, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, ltsv, sv, fn, pbar,
                           draw, to_console)
     elif protocol == "expedient":
+        if swap:
+            return expedient_swap(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb,
+                                  lkt_1q, lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
         return expedient(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
     elif protocol == "stringent":
+        if swap:
+            return stringent_swap(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb,
+                                  lkt_1q, lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
         return stringent(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
 
@@ -449,6 +675,7 @@ if __name__ == "__main__":
     lkt_2q = args.pop('lookup_table_two_qubit_gates')
     draw = args.pop('draw_circuit')
     to_console = args.pop('to_console')
+    swap = args.pop('use_swap_gates')
 
     file_dir = os.path.dirname(__file__)
     # THIS IS NOT GENERIC, will error when directories are moved or renamed
@@ -490,11 +717,11 @@ if __name__ == "__main__":
                                            apply_async(main,
                                                        (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
                                                         p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
-                                                        prb, fn, print_mode, draw, to_console)))
+                                                        prb, fn, print_mode, draw, to_console, swap)))
                         else:
                             print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell,
                                         bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
-                                        to_console, pbar))
+                                        to_console, swap, pbar))
                             pbar.reset()
                         filename_count += 1
 
