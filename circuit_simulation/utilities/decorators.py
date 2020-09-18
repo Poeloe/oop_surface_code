@@ -2,7 +2,7 @@ import inspect
 import functools
 
 
-def handle_none_input(func):
+def handle_none_parameters(func):
     """
         Decorator is used to set parameters with default=None that are not specified by the user to the according
         attribute present in the object.

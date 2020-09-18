@@ -11,8 +11,6 @@ I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I")
 H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H")
 S_gate = SingleQubitGate("Phase", np.array([[1, 0], [0, 1j]]), "S")
 
-
-np.zeros((4,4)).conj()
 """
     TWO-QUBIT GATES
 """

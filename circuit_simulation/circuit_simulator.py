@@ -17,6 +17,7 @@ from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
+from circuit_simulation.utilities.decorators import handle_none_parameters
 
 
 class QuantumCircuit:
@@ -457,7 +458,12 @@ class QuantumCircuit:
             self.total_duration += amount
         else:
             current_sub_circuit = self._current_sub_circuit
-            current_sub_circuit.increase_duration(amount)
+            if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits):
+                # DIVISION BY 2 IS HARDCODED FOR 2 NODES RUNNING CONCURRENT
+                current_sub_circuit.increase_duration(amount / 2)
+            else:
+                current_sub_circuit.increase_duration(amount)
+
 
         if self.qubits is not None:
             if included_qubits is None:
@@ -568,6 +574,7 @@ class QuantumCircuit:
             self.CNOT(qubit1, qubit2, noise=False, draw=False, user_operation=False)
             self._add_draw_operation("#", (qubit1, qubit2))
 
+    @handle_none_parameters
     def create_bell_pairs_top(self, N, new_qubit=False, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
                               probabilistic=None, p_bell_success=None, bell_creation_duration=None, user_operation=True):
         """
@@ -626,18 +633,6 @@ class QuantumCircuit:
         """
         if user_operation:
             self._user_operation_order.append({"create_bell_pairs_top": [N, new_qubit, noise, pn]})
-        if noise is None:
-            noise = self.noise
-        if pn is None:
-            pn = self.pn
-        if network_noise_type is None:
-            network_noise_type = self.network_noise_type
-        if probabilistic is None:
-            probabilistic = self.probabilistic
-        if p_bell_success is None:
-            p_bell_success = self.p_bell_success
-        if bell_creation_duration is None:
-            bell_creation_duration = self.bell_creation_duration
 
         for i in range(0, 2 * N, 2):
             times = 1
@@ -672,26 +667,13 @@ class QuantumCircuit:
                 self._N_decoherence([i, i + 1], times=times_total)
                 self._increase_duration(bell_creation_duration)
 
+    @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
                          probabilistic=None, p_bell_success=None, bell_creation_duration=None,  decoherence=None,
                          user_operation=True):
         if user_operation:
             self._user_operation_order.append({"create_bell_pair": [qubit1, qubit2, noise, pn, network_noise_type,
                                                                     bell_state_type]})
-        if noise is None:
-            noise = self.noise
-        if decoherence is None:
-            decoherence = self.decoherence
-        if pn is None:
-            pn = self.pn
-        if network_noise_type is None:
-            network_noise_type = self.network_noise_type
-        if probabilistic is None:
-            probabilistic = self.probabilistic
-        if p_bell_success is None:
-            p_bell_success = self.p_bell_success
-        if bell_creation_duration is None:
-            bell_creation_duration = self.bell_creation_duration
 
         if noise and decoherence:
             self._N_decoherence([qubit1, qubit2])
@@ -776,7 +758,7 @@ class QuantumCircuit:
                                                 One-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
-
+    @handle_none_parameters
     def apply_1_qubit_gate(self, gate, tqubit, conj=False, noise=None, pg=None, draw=True, decoherence=None,
                            user_operation=True):
         """
@@ -807,12 +789,6 @@ class QuantumCircuit:
         """
         if user_operation:
             self._user_operation_order.append({"apply_1_qubit_gate": [gate, tqubit, noise, pg, draw]})
-        if noise is None:
-            noise = self.noise
-        if decoherence is None:
-            decoherence = self.decoherence
-        if pg is None:
-            pg = self.pg
 
         if noise and decoherence:
             self._N_decoherence([tqubit])
@@ -943,7 +919,7 @@ class QuantumCircuit:
                                                 Two-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
-
+    @handle_none_parameters
     def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True, decoherence=None,
                            user_operation=True):
         """
@@ -976,12 +952,6 @@ class QuantumCircuit:
         """
         if user_operation:
             self._user_operation_order.append({"apply_2_qubit_gate": [gate, cqubit, tqubit, noise, pg, draw]})
-        if noise is None:
-            noise = self.noise
-        if decoherence is None:
-            decoherence = self.decoherence
-        if pg is None:
-            pg = self.pg
 
         if noise and decoherence:
             self._N_decoherence([cqubit, tqubit])
@@ -1058,18 +1028,19 @@ class QuantumCircuit:
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
 
-        self.apply_2_qubit_gate(CNOT_gate, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
+        self.apply_2_qubit_gate(CNOT_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def CZ(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CZ gate to the specified target qubit. See apply_2_qubit_gate for more info """
 
-        self.apply_2_qubit_gate(CZ_gate, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
+        self.apply_2_qubit_gate(CZ_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
         if efficient:
             self._operations.gate_operations.efficient_SWAP(self, cqubit, tqubit, noise, pg, draw, user_operation)
         else:
-            self.apply_2_qubit_gate(SWAP_gate, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
+            self.apply_2_qubit_gate(SWAP_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw,
+                                    user_operation=user_operation)
 
     def two_qubit_gate_NV(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the two-qubit gate that is specific to the actual NV center"""
@@ -1322,8 +1293,8 @@ class QuantumCircuit:
                                                 Measurement Methods
         ---------------------------------------------------------------------------------------------------------   
     """
-
-    def measure_first_N_qubits(self, N, qubit=None, measure=0, uneven_parity=False, noise=None, pm=None, p_dec=None, basis="X",
+    @handle_none_parameters
+    def measure_first_N_qubits(self, N, measure=0, uneven_parity=False, noise=None, pm=None, p_dec=None, basis="X",
                                basis_transformation_noise=None, probabilistic=None, user_operation=True):
         """
             Method measures the first N qubits, given by the user, all in the 0 or 1 state.
@@ -1360,18 +1331,6 @@ class QuantumCircuit:
         if user_operation:
             self._user_operation_order.append({"measure_first_N_qubits": [N, measure, noise, pm, basis,
                                                                           basis_transformation_noise]})
-        if noise is None:
-            noise = self.noise
-        if pm is None:
-            pm = self.pm
-        if p_dec is None:
-            p_dec = self.p_dec
-        if basis_transformation_noise is None:
-            basis_transformation_noise = self.basis_transformation_noise
-        if probabilistic is None:
-            probabilistic = self.probabilistic
-        if qubit is None:
-            qubit = 0
 
         measurement_outcomes = []
 
@@ -1446,6 +1405,7 @@ class QuantumCircuit:
         """
         return self._operations.measurement_operations.measurement_first_qubit(density_matrix, measure, noise, pm)
 
+    @handle_none_parameters
     def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, pm_1=None,
                 probabilistic=None, basis_transformation_noise=None, decoherence=None,
                 user_operation=False):
@@ -1470,18 +1430,6 @@ class QuantumCircuit:
         """
         if user_operation:
             self._user_operation_order.append({"measure": [measure_qubits, outcome, basis]})
-        if noise is None:
-            noise = self.noise
-        if decoherence is None:
-            decoherence = self.decoherence
-        if pm is None:
-            pm = self.pm
-        if pm_1 is None:
-            pm_1 = self.pm_1
-        if probabilistic is None:
-            probabilistic = self.probabilistic
-        if basis_transformation_noise is None:
-            basis_transformation_noise = self.basis_transformation_noise
 
         if type(measure_qubits) == int:
             measure_qubits = [measure_qubits]
