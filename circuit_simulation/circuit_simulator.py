@@ -462,7 +462,11 @@ class QuantumCircuit:
         if self.qubits is not None:
             if included_qubits is None:
                 if self._current_sub_circuit is not None:
-                    involved_qubits = self._current_sub_circuit.qubits
+                    # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
+                    if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits):
+                        involved_qubits = self.get_node_qubits(excluded_qubits[0])
+                    else:
+                        involved_qubits = self._current_sub_circuit.qubits
                 else:
                     involved_qubits = [i for i in range(self.num_qubits)]
 
@@ -475,15 +479,23 @@ class QuantumCircuit:
                 current_qubit.increase_waiting_time(amount, waiting_type=kind)
 
     def _update_uninitialised_qubit_register(self, qubits, update_type):
-        if update_type.lower() not in ["remove", "add"]:
-            raise ValueError("Type can only be 'remove' or 'add'.")
+        if update_type.lower() not in ["remove", "add", 'swap']:
+            raise ValueError("Type can only be 'remove', 'add' or 'swap'.")
 
         if update_type.lower() == 'remove':
             self._uninitialised_qubits = list(set(self._uninitialised_qubits) ^ set(qubits))
         if update_type.lower() == 'add':
             self._uninitialised_qubits.extend(qubits)
             self._uninitialised_qubits = list(set(self._uninitialised_qubits))
-    """
+        if update_type.lower() == 'swap':
+            qubit_1_state = qubits[0] in self._uninitialised_qubits
+            qubit_2_state = qubits[1] in self._uninitialised_qubits
+
+            if qubit_1_state != qubit_2_state:
+                uninitialised_qubit = [qubit_1_state, qubit_2_state].index(True)
+                index = self._uninitialised_qubits.index(qubits[uninitialised_qubit])
+                self._uninitialised_qubits[index] = qubits[uninitialised_qubit ^ 1]
+    """ 
         ---------------------------------------------------------------------------------------------------------
                                                 Setter and getter Methods
         ---------------------------------------------------------------------------------------------------------
@@ -661,10 +673,11 @@ class QuantumCircuit:
                 self._increase_duration(bell_creation_duration)
 
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
-                         probabilistic=None, p_bell_success=None, bell_creation_duration=None, user_operation=True,
-                         decoherence=None):
+                         probabilistic=None, p_bell_success=None, bell_creation_duration=None,  decoherence=None,
+                         user_operation=True):
         if user_operation:
-            self._user_operation_order.append({"create_bell_pair": [qubit1, qubit2, noise, pn]})
+            self._user_operation_order.append({"create_bell_pair": [qubit1, qubit2, noise, pn, network_noise_type,
+                                                                    bell_state_type]})
         if noise is None:
             noise = self.noise
         if decoherence is None:
@@ -681,7 +694,7 @@ class QuantumCircuit:
             bell_creation_duration = self.bell_creation_duration
 
         if noise and decoherence:
-            self._N_decoherence_new([qubit1, qubit2])
+            self._N_decoherence([qubit1, qubit2])
 
         times = 1
         while probabilistic and random.random() > p_bell_success:
@@ -802,7 +815,7 @@ class QuantumCircuit:
             pg = self.pg
 
         if noise and decoherence:
-            self._N_decoherence_new([tqubit])
+            self._N_decoherence([tqubit])
 
         tqubit_density_matrix, _, relative_tqubit_index, relative_num_qubits = self._get_qubit_relative_objects(tqubit)
 
@@ -971,7 +984,7 @@ class QuantumCircuit:
             pg = self.pg
 
         if noise and decoherence:
-            self._N_decoherence_new([cqubit, tqubit])
+            self._N_decoherence([cqubit, tqubit])
 
         cqubit_density_matrix, _ = self._qubit_density_matrix_lookup[cqubit]
         tqubit_density_matrix, _ = self._qubit_density_matrix_lookup[tqubit]
@@ -1291,8 +1304,8 @@ class QuantumCircuit:
     def _N_preparation(self, state, p_prep):
         return self._noise.noise_maps.N_preparation(state, p_prep)
 
-    def _N_decoherence_new(self, qubits):
-        self._noise.decoherence.N_decoherence_new(self, qubits)
+    def _N_decoherence(self, qubits):
+        self._noise.decoherence.N_decoherence(self, qubits)
 
     def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
         return self._noise.noise_maps.N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits,
@@ -1480,7 +1493,7 @@ class QuantumCircuit:
                 self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
 
             if noise and decoherence:
-                self._N_decoherence_new([qubit])
+                self._N_decoherence([qubit])
 
             density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
 

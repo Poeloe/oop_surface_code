@@ -38,11 +38,11 @@ def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lk
     return qc._print_lines
 
 
-def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
+def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
@@ -133,11 +133,11 @@ def expedient(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     return qc._print_lines
 
 
-def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
+def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
@@ -235,11 +235,11 @@ def stringent(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_
     return qc._print_lines
 
 
-def expedient_swap(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                    lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
@@ -338,11 +338,11 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, 
     return qc._print_lines
 
 
-def stringent_swap(operation, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                    lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=False,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
@@ -471,11 +471,11 @@ def compose_parser():
                         choices=['Z', 'X'],
                         type=str.upper,
                         default='Z')
-    parser.add_argument('-p_dec',
-                        '--decoherence_probability',
-                        help='Specifies the decoherence probability for the protocol.',
-                        type=float,
-                        default=0.)
+    parser.add_argument('-dec',
+                        '--decoherence',
+                        help='Specifies if decoherence is present in the system.',
+                        required=False,
+                        action='store_true')
     parser.add_argument('-pg',
                         '--gate_error_probability',
                         help='Specifies the amount of gate error present in the system',
@@ -591,7 +591,7 @@ def compose_parser():
     return parser
 
 
-def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell, bell_dur, meas_dur, time_step,
+def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell, bell_dur, meas_dur, time_step,
          lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, pbar=None):
 
     if i == 0:
@@ -607,15 +607,15 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p
                           draw, to_console)
     elif protocol == "expedient":
         if swap:
-            return expedient_swap(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb,
+            return expedient_swap(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb,
                                   lkt_1q, lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
-        return expedient(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+        return expedient(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
     elif protocol == "stringent":
         if swap:
-            return stringent_swap(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb,
+            return stringent_swap(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb,
                                   lkt_1q, lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
-        return stringent(gate, pg, pm, pm_1, pn, color, p_dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+        return stringent(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
 
 
@@ -630,9 +630,9 @@ def _print_circuit_parameters(**kwargs):
     stab_type= kwargs.get('stab_type')
     lkt_1q = bool(kwargs.get('lkt_1q'))
     lkt_2q = bool(kwargs.get('lkt_2q'))
-    kwargs.pop('pbar')
-    kwargs.pop('i')
     kwargs.update(lkt_1q=lkt_1q, lkt_2q=lkt_2q)
+    kwargs.pop('i')
+    kwargs.pop('pbar')
 
     protocol = protocol.lower()
     fn_text = ""
@@ -655,7 +655,7 @@ if __name__ == "__main__":
     protocols = args.pop('protocol')
     stab_type = args.pop('stabilizer_type')
     color = args.pop('color')
-    p_dec = args.pop('decoherence_probability')
+    dec = args.pop('decoherence')
     time_step = args.pop('time_step')
     meas_errors = args.pop('measurement_error_probability')
     meas_1_errors = args.pop('measurement_error_probability_one_state')
@@ -716,10 +716,10 @@ if __name__ == "__main__":
                             results.append(thread_pool.
                                            apply_async(main,
                                                        (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
-                                                        p_dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
+                                                        dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
                                                         prb, fn, print_mode, draw, to_console, swap)))
                         else:
-                            print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, p_dec, p_bell,
+                            print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell,
                                         bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
                                         to_console, swap, pbar))
                             pbar.reset()
