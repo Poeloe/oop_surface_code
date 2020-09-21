@@ -12,8 +12,8 @@ def N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waitin
     kraus_opp_1 = SingleQubitGate("A1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'A1')
     kraus_opp_2 = SingleQubitGate("A2", np.array([[0, math.sqrt(p)], [0, 0]]), 'A2')
 
-    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits)
-    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits)
+    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
+    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
 
     return kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) + \
            kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full)
@@ -24,15 +24,15 @@ def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_ti
     kraus_opp_1 = SingleQubitGate("K1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'K1')
     kraus_opp_2 = SingleQubitGate("K2", np.array([[1, 0], [0, math.sqrt(p)]]), 'K2')
 
-    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits)
-    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits)
+    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
+    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
 
     return kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) + \
            kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full)
 
 
 def N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p):
-    Z_gate_full = self._create_1_qubit_gate(Z_gate, tqubit, num_qubits)
+    Z_gate_full = self._create_1_qubit_gate(Z_gate, tqubit, num_qubits=num_qubits)
 
     return (1 - p) * density_matrix + p * (Z_gate_full * density_matrix * Z_gate_full)
 
@@ -165,7 +165,7 @@ def _sum_pauli_error_single(qc, tqubit, density_matrix, num_qubits):
     summed_matrix = sp.csr_matrix((2**num_qubits, 2**num_qubits))
 
     for gate in gates:
-        pauli_error = qc._create_1_qubit_gate(gate, tqubit, num_qubits)
+        pauli_error = qc._create_1_qubit_gate(gate, tqubit, num_qubits=num_qubits)
         summed_matrix = summed_matrix + pauli_error.dot(CT(density_matrix, pauli_error))
     return summed_matrix
 

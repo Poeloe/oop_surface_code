@@ -27,8 +27,6 @@ def create_1_qubit_gate(self, gate, tqubit, num_qubits=None, conj=False):
             the system.
     """
     gate_name = None
-    if num_qubits is None:
-        num_qubits = self.num_qubits
     if type(gate) == SingleQubitGate:
         if num_qubits > 1 and (gate.name, tqubit, num_qubits) in self._single_qubit_gate_lookup.keys():
             return self._single_qubit_gate_lookup[(gate.name, tqubit, num_qubits)]
@@ -131,8 +129,6 @@ def create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         num_qubits known for the entire QuantumCircuit object is used
 
     """
-    if num_qubits is None:
-        num_qubits = self.num_qubits
     if cqubit == tqubit:
         raise ValueError("Control qubit cannot be the same as the target qubit!")
     if type(gate) == TwoQubitGate:
