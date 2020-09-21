@@ -4,10 +4,13 @@ import argparse
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.circuit_simulator import *
 from multiprocessing import Pool
+import threading
 import time
 from tqdm import tqdm
 import pickle
 from pprint import pprint
+import pandas as pd
+import re
 
 
 def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
@@ -323,7 +326,8 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console,
+                         use_exact_path=True)
     end_superoperator = time.time()
 
     if pbar is not None:
@@ -433,7 +437,8 @@ def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     stab_rep = "Z" if operation == CZ_gate else "X"
     start_superoperator = time.time()
     qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console,
+                         use_exact_path=True)
     end_superoperator = time.time()
 
     if pbar is not None:
@@ -541,15 +546,11 @@ def compose_parser():
                              '`circuit_pdfs` folder. Optional',
                         required=False,
                         action='store_true')
-    parser.add_argument('-sv',
-                        '--save_csv',
-                        help='Specifies if a csv file of the superoperator should be saved. Optional',
-                        required=False,
-                        action='store_true')
     parser.add_argument('-fn',
                         '--csv_filename',
                         required=False,
                         nargs="*",
+                        default=None,
                         help='Give the file name of the csv file that will be saved.')
     parser.add_argument("-tr",
                         "--threaded",
@@ -591,8 +592,28 @@ def compose_parser():
     return parser
 
 
+def _combine_multiple_csv_files(filenames):
+    csv_dir = os.path.dirname(os.path.abspath(filenames[0]))
+    original_data_frame = None
+    plain_file_name = os.path.split(filenames[0])[1]
+    regex_pattern = re.compile('^' + plain_file_name + '_.*')
+    final_file_name = os.path.join(csv_dir, "combined_" + plain_file_name + ".csv")
+    for i, file in enumerate(os.listdir(csv_dir)):
+        if regex_pattern.fullmatch(file):
+            data_frame = pd.read_csv(os.path.join(csv_dir, file), sep=';', index_col=[0, 1])
+            if original_data_frame is None:
+                original_data_frame = data_frame
+            else:
+                original_data_frame.add(data_frame, axis=0)
+                original_data_frame.div(2)
+
+    original_data_frame.to_csv(final_file_name, sep=';')
+
+
 def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell, bell_dur, meas_dur, time_step,
-         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, pbar=None):
+         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, threaded=False, pbar=None):
+    if threaded and fn:
+        fn += ("_" + str(threading.get_ident()))
 
     if i == 0:
         _print_circuit_parameters(**locals())
@@ -666,7 +687,6 @@ if __name__ == "__main__":
     bell_dur = args.pop('bell_pair_creation_duration')
     gate_errors = args.pop('gate_error_probability')
     ltsv = args.pop('save_latex_pdf')
-    sv = args.pop('save_csv')
     filenames = args.pop('csv_filename')
     threaded = args.pop('threaded')
     print_mode = args.pop('print_run_order')
@@ -680,6 +700,8 @@ if __name__ == "__main__":
     file_dir = os.path.dirname(__file__)
     # THIS IS NOT GENERIC, will error when directories are moved or renamed
     look_up_table_dir = os.path.join(file_dir, 'gates', 'gate_lookup_tables')
+
+    sv = True if filenames else False
 
     if meas_1_errors is not None and len(meas_1_errors) != len(meas_errors):
         raise ValueError("Amount of values for --pm_1 should equal the amount of values for -pm.")
@@ -697,7 +719,7 @@ if __name__ == "__main__":
     pbar = tqdm(total=100)
 
     if threaded:
-        workers = it if 1 < it < 11 else 10
+        workers = it if 1 < it < 17 else 16
         thread_pool = Pool(workers)
         results = []
 
@@ -717,11 +739,11 @@ if __name__ == "__main__":
                                            apply_async(main,
                                                        (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
                                                         dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
-                                                        prb, fn, print_mode, draw, to_console, swap)))
+                                                        prb, fn, print_mode, draw, to_console, swap, threaded)))
                         else:
                             print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell,
                                         bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
-                                        to_console, swap, pbar))
+                                        to_console, swap, pbar=pbar))
                             pbar.reset()
                         filename_count += 1
 
@@ -730,6 +752,9 @@ if __name__ == "__main__":
         for res in results:
             print_results.extend(res.get())
             pbar.update(100*(1/it))
+        if filenames:
+            _combine_multiple_csv_files(filenames)
+
         print(*print_results)
         thread_pool.close()
 

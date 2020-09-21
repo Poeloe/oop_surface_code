@@ -264,7 +264,7 @@ def print_superoperator(self, superoperator, no_color):
         self.print()
 
 
-def superoperator_to_csv(self, superoperator, proj_type, file_name=None):
+def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exact_path=False):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -285,6 +285,8 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None):
     path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
     if file_name is None:
         self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
+    elif use_exact_path:
+        path_to_file = file_name + ".csv"
     else:
         path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
         self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
@@ -295,49 +297,50 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None):
 
     index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
 
-    with FileLock('path_to_file.lock'):
-        if os.path.exists(path_to_file):
-            data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
+    if os.path.exists(path_to_file):
+        data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
+    else:
+        columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to']
+        data = pd.DataFrame(0., index=index, columns=columns)
+        data.iat[0, 2] = self.pg
+        data.iat[0, 3] = self.pm
+        data.iat[0, 4] = self.pn
+        data.iat[0, 5] = self.decoherence
+        data.iat[0, 6] = self.time_step
+        data.iat[0, 7] = self.p_bell_success
+        data.iat[0, 8] = self.bell_creation_duration
+        data.iat[0, 9] = self.measurement_duration
+
+    stab_type = 'p' if proj_type == "Z" else 's'
+    opp_stab = 's' if proj_type == "Z" else 'p'
+
+    for supop_el in superoperator:
+        error_array = "".join(sorted(supop_el.error_array))
+        current_index = (error_array, supop_el.lie)
+        if current_index in data.index:
+            current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
+            new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
+            data.at[current_index, stab_type] = new_value_stab
         else:
-            columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to']
-            data = pd.DataFrame(0., index=index, columns=columns)
-            data.iat[0, 2] = self.pg
-            data.iat[0, 3] = self.pm
-            data.iat[0, 4] = self.pn
-            data.iat[0, 5] = self.p_dec
-            data.iat[0, 6] = self.time_step
-            data.iat[0, 7] = self.p_bell_success
-            data.iat[0, 8] = self.bell_creation_duration
-            data.iat[0, 9] = self.measurement_duration
+            data.loc[current_index, stab_type] = supop_el.p
 
-        stab_type = 'p' if proj_type == "Z" else 's'
-        opp_stab = 's' if proj_type == "Z" else 'p'
+        # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
+        # error_array
+        error_array = "".join(sorted(error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))
+        current_index_opp = (error_array, supop_el.lie)
+        if current_index_opp in data.index:
+            current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
+            new_value_opp_stab = (current_value_opp_stab + supop_el.p) / 2 if current_value_opp_stab != 0. \
+                else supop_el.p
+            data.at[current_index_opp, opp_stab] = new_value_opp_stab
+        else:
+            data.loc[current_index_opp, opp_stab] = supop_el.p
 
-        for supop_el in superoperator:
-            error_array = "".join(sorted(supop_el.error_array))
-            current_index = (error_array, supop_el.lie)
-            if current_index in data.index:
-                current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
-                new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
-                data.at[current_index, stab_type] = new_value_stab
-            else:
-                data.loc[current_index, stab_type] = supop_el.p
+    # Register amount of writes to the csv file
+    data.iat[0, 10] = data.iat[0, 10] + 1.0
+    # Remove rows that contain only zero probability
+    data = data[(data.T != 0).any()]
 
-            # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
-            # error_array
-            error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))
-            current_index_opp = (error_array, supop_el.lie)
-            if current_index_opp in data.index:
-                current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
-                new_value_opp_stab = (
-                                                 current_value_stab + supop_el.p) / 2 if current_value_opp_stab != 0. else supop_el.p
-                data.at[current_index_opp, opp_stab] = new_value_opp_stab
-            else:
-                data.loc[current_index_opp, opp_stab] = supop_el.p
-
-        data.iat[0, 10] = data.iat[0, 10] + 1.0
-        data = data[(data.T != 0).any()]
-
-        data.to_csv(path_to_file, sep=';')
+    data.to_csv(path_to_file, sep=';')
     if not self._thread_safe_printing:
         self.print()

@@ -445,7 +445,7 @@ class QuantumCircuit:
         if (sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
             self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
                                     [], included_qubits=sub_circuit_1.waiting_qubits)
-            self._N_decoherence([sub_circuit_1.waiting_qubits])
+            self._N_decoherence(sub_circuit_1.waiting_qubits)
         elif (sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
             self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
                                     [], included_qubits=sub_circuit_1.waiting_qubits)
@@ -1553,7 +1553,8 @@ class QuantumCircuit:
 
     def get_superoperator(self, qubits, proj_type, stabilizer_protocol=False, save_noiseless_density_matrix=False,
                           combine=True, most_likely=True, print_to_console=True, file_name_noiseless=None,
-                          file_name_measerror=None, no_color=False, to_csv=False, csv_file_name=None):
+                          file_name_measerror=None, no_color=False, to_csv=False, csv_file_name=None,
+                          use_exact_path=False):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -1606,6 +1607,9 @@ class QuantumCircuit:
             csv_file_name : str, optional, default=None
                 The file name that should be used for the csv file. If not supplied, the system will use generic naming
                 and the file will be saved to the 'oopsc/superoperator/csv_files' folder.
+            use_exact_path : bool, optional, default=False
+                If True, the csv_file_name string will be treated as an exact path to the file and can thus be saved
+                anywhere.
         """
         noiseless_density_matrix = self._get_noiseless_density_matrix(stabilizer_protocol=stabilizer_protocol,
                                                                       proj_type=proj_type,
@@ -1650,7 +1654,7 @@ class QuantumCircuit:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         if to_csv:
-            self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name)
+            self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name, use_exact_path=use_exact_path)
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
         return superoperator
@@ -1856,7 +1860,7 @@ class QuantumCircuit:
         """ Prints the superoperator in a clear way to the console """
         self._superoperator.superoperator_methods.print_superoperator(self, superoperator, no_color)
 
-    def _superoperator_to_csv(self, superoperator, proj_type, file_name=None):
+    def _superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exact_path=False):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
             format that is used in the (distributed) surface code simulations.
@@ -1874,7 +1878,8 @@ class QuantumCircuit:
                 User specified file name that should be used to save the csv file with. The file will always be stored
                 in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
         """
-        return self._superoperator.superoperator_methods.superoperator_to_csv(self, superoperator, proj_type, file_name)
+        return self._superoperator.superoperator_methods.superoperator_to_csv(self, superoperator, proj_type, file_name,
+                                                                              use_exact_path)
 
     """
         ----------------------------------------------------------------------------------------------------------
