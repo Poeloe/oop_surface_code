@@ -442,28 +442,28 @@ class QuantumCircuit:
         sub_circuit_1 = self._sub_circuits[name_sub_circuit_1]
         sub_circuit_2 = self._sub_circuits[name_sub_circuit_2]
 
-        if (diff := sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
-            times = int(math.ceil(abs(diff)/self.time_step))
-            self._N_decoherence([], involved_qubits=sub_circuit_1.waiting_qubits, times=times)
-            self.total_duration += sub_circuit_2.total_duration
-        elif (diff := sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
-            times = int(math.ceil(abs(diff)/self.time_step))
-            self._N_decoherence([], involved_qubits=sub_circuit_2.waiting_qubits, times=times)
-            self.total_duration += sub_circuit_1.total_duration
-        else:
-            self.total_duration += sub_circuit_1.total_duration
+        if (sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
+            self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
+                                    [], included_qubits=sub_circuit_1.waiting_qubits)
+            self._N_decoherence([sub_circuit_1.waiting_qubits])
+        elif (sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
+            self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
+                                    [], included_qubits=sub_circuit_1.waiting_qubits)
+            self._N_decoherence(sub_circuit_2.waiting_qubits)
+
+        self.total_duration += sub_circuit_1.total_duration
 
     def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle'):
         if self._current_sub_circuit is None:
             self.total_duration += amount
         else:
             current_sub_circuit = self._current_sub_circuit
-            if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits):
+            if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits) and \
+                    len(excluded_qubits) > 0:
                 # DIVISION BY 2 IS HARDCODED FOR 2 NODES RUNNING CONCURRENT
                 current_sub_circuit.increase_duration(amount / 2)
             else:
                 current_sub_circuit.increase_duration(amount)
-
 
         if self.qubits is not None:
             if included_qubits is None:
@@ -797,7 +797,8 @@ class QuantumCircuit:
 
         one_qubit_gate = self._create_1_qubit_gate(gate,
                                                    relative_tqubit_index,
-                                                   relative_num_qubits, conj=conj)
+                                                   num_qubits=relative_num_qubits,
+                                                   conj=conj)
         new_density_matrix = one_qubit_gate.dot(CT(tqubit_density_matrix, one_qubit_gate))
 
         if noise and not self.no_single_qubit_error:
@@ -811,7 +812,8 @@ class QuantumCircuit:
         if draw:
             self._add_draw_operation(gate, tqubit, noise)
 
-    def _create_1_qubit_gate(self, gate, tqubit, num_qubits=None, conj=False):
+    @handle_none_parameters
+    def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
             apply_1_qubit_gate method.
@@ -984,6 +986,7 @@ class QuantumCircuit:
 
         self._increase_duration(gate.duration, [cqubit, tqubit])
 
+    @handle_none_parameters
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
         """
         Create a controlled gate matrix for the density matrix according to the control and target qubits given.

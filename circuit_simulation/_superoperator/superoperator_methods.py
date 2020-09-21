@@ -315,7 +315,8 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None):
 
         for supop_el in superoperator:
             error_array = "".join(sorted(supop_el.error_array))
-            if (current_index := (error_array, supop_el.lie)) in data.index:
+            current_index = (error_array, supop_el.lie)
+            if current_index in data.index:
                 current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
                 new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
                 data.at[current_index, stab_type] = new_value_stab
@@ -325,7 +326,8 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None):
             # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
             # error_array
             error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))
-            if (current_index_opp := (error_array, supop_el.lie)) in data.index:
+            current_index_opp = (error_array, supop_el.lie)
+            if current_index_opp in data.index:
                 current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
                 new_value_opp_stab = (
                                                  current_value_stab + supop_el.p) / 2 if current_value_opp_stab != 0. else supop_el.p

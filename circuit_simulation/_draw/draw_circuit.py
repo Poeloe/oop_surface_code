@@ -19,10 +19,12 @@ def draw_init(self, no_color):
         a_stripped = ansi_escape.sub("", init_state_repr[a[0]])
         b_stripped = ansi_escape.sub("", init_state_repr[b[0]])
 
-        if (diff := len(b_stripped) - len(a_stripped)) > 0:
+        if len(b_stripped) - len(a_stripped) > 0:
+            diff = len(b_stripped) - len(a_stripped)
             state_repr_split = init_state_repr[a[0]].split(" ")
             init_state_repr[a[0]] = state_repr_split[0] + ((diff + 1) * " ") + state_repr_split[1]
-        elif (diff := len(a_stripped) - len(b_stripped)) > 0:
+        elif len(a_stripped) - len(b_stripped) > 0:
+            diff = len(a_stripped) - len(b_stripped)
             state_repr_split = init_state_repr[b[0]].split(" ")
             init_state_repr[b[0]] = state_repr_split[0] + ((diff + 1) * " ") + state_repr_split[1]
 
@@ -67,9 +69,11 @@ def draw_gates(self, init, no_color):
             a_stripped = ansi_escape.sub("", init[a[0]])
             b_stripped = ansi_escape.sub("", init[b[0]])
 
-            if (diff := len(b_stripped) - len(a_stripped)) > 0:
+            if len(b_stripped) - len(a_stripped) > 0:
+                diff = len(b_stripped) - len(a_stripped)
                 init[a[0]] += diff * "-"
-            elif (diff := len(a_stripped) - len(b_stripped)) > 0:
+            elif len(a_stripped) - len(b_stripped) > 0:
+                diff = len(a_stripped) - len(b_stripped)
                 init[b[0]] += diff * "-"
 
 
