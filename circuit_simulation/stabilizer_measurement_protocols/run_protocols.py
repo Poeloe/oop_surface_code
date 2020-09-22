@@ -10,21 +10,22 @@ from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import
 
 
 def _combine_multiple_csv_files(filenames):
-    csv_dir = os.path.dirname(os.path.abspath(filenames[0]))
-    original_data_frame = None
-    plain_file_name = os.path.split(filenames[0])[1]
-    regex_pattern = re.compile('^' + plain_file_name + '_.*')
-    final_file_name = os.path.join(csv_dir, "combined_" + plain_file_name + ".csv")
-    for i, file in enumerate(os.listdir(csv_dir)):
-        if regex_pattern.fullmatch(file):
-            data_frame = pd.read_csv(os.path.join(csv_dir, file), sep=';', index_col=[0, 1])
-            if original_data_frame is None:
-                original_data_frame = data_frame
-            else:
-                original_data_frame.add(data_frame, axis=0)
-                original_data_frame.div(2)
+    for filename in filenames:
+        csv_dir = os.path.dirname(os.path.abspath(filename))
+        original_data_frame = None
+        plain_file_name = os.path.split(filename)[1]
+        regex_pattern = re.compile('^' + plain_file_name + '_.*')
+        final_file_name = os.path.join(csv_dir, "combined_" + plain_file_name + ".csv")
+        for i, file in enumerate(os.listdir(csv_dir)):
+            if regex_pattern.fullmatch(file):
+                data_frame = pd.read_csv(os.path.join(csv_dir, file), sep=';', index_col=[0, 1])
+                if original_data_frame is None:
+                    original_data_frame = data_frame
+                else:
+                    original_data_frame.add(data_frame, axis=0)
+                    original_data_frame.div(2)
 
-    original_data_frame.to_csv(final_file_name, sep=';')
+        original_data_frame.to_csv(final_file_name, sep=';')
 
 
 def _print_circuit_parameters(**kwargs):

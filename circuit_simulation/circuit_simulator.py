@@ -18,6 +18,7 @@ from fractions import Fraction as Fr
 import math
 import random
 from circuit_simulation.utilities.decorators import handle_none_parameters
+from copy import copy
 
 
 class QuantumCircuit:
@@ -385,12 +386,26 @@ class QuantumCircuit:
                                                 SubQuantumCircuit Methods
         ---------------------------------------------------------------------------------------------------------
     """
-    def start_sub_circuit(self, name, qubits, waiting_qubits=None):
+    def start_sub_circuit(self, name, qubits, waiting_qubits=None, concurrent_sub_circuits=None):
+        concurrent_sub_circuit_objects = []
         if waiting_qubits is None:
             waiting_qubits = qubits
-        sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits)
-        self._sub_circuits[name] = sub_circuit
+        if concurrent_sub_circuits is not None:
+            if type(concurrent_sub_circuits) in [str, int]:
+                concurrent_sub_circuits = [concurrent_sub_circuits]
+            concurrent_sub_circuit_objects = [self._sub_circuits[sub_name] for sub_name in concurrent_sub_circuits]
 
+        sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects)
+
+        if concurrent_sub_circuit_objects is not None:
+            for sub_circuit_object in concurrent_sub_circuit_objects:
+                copy_csco = copy(concurrent_sub_circuit_objects)
+                copy_csco.remove(sub_circuit_object)
+                decreased_concurrent_objects = [sub_circuit] + copy_csco
+
+                sub_circuit_object.add_concurrent_sub_circuits(decreased_concurrent_objects)
+
+        self._sub_circuits[name] = sub_circuit
         self._current_sub_circuit = sub_circuit
 
     def end_current_sub_circuit(self):
@@ -421,11 +436,11 @@ class QuantumCircuit:
 
     def get_node_qubits(self, qubit):
         if self.nodes is None:
-            return None
+            return []
         for node_qubits in self.nodes.values():
             if qubit in node_qubits:
                 return node_qubits
-        return None
+        return []
 
     def get_node_name_from_qubit(self, qubit):
         if self.nodes is None:
@@ -445,12 +460,14 @@ class QuantumCircuit:
         if (sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
             self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
                                     [], included_qubits=sub_circuit_1.waiting_qubits)
-            self._N_decoherence(sub_circuit_1.waiting_qubits)
-        elif (sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
-            self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
-                                    [], included_qubits=sub_circuit_1.waiting_qubits)
-            self._N_decoherence(sub_circuit_2.waiting_qubits)
+            self._N_decoherence(sub_circuit_1.waiting_qubits, sub_circuit=sub_circuit_1, sub_circuit_concurrent=True)
 
+        elif (sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
+            self._increase_duration(abs(sub_circuit_2.total_duration - sub_circuit_1.total_duration),
+                                    [], included_qubits=sub_circuit_2.waiting_qubits)
+            self._N_decoherence(sub_circuit_2.waiting_qubits, sub_circuit=sub_circuit_2, sub_circuit_concurrent=True)
+
+        self._draw_order.append("LEVEL")
         self.total_duration += sub_circuit_1.total_duration
 
     def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle'):
@@ -1278,8 +1295,8 @@ class QuantumCircuit:
     def _N_preparation(self, state, p_prep):
         return self._noise.noise_maps.N_preparation(state, p_prep)
 
-    def _N_decoherence(self, qubits):
-        self._noise.decoherence.N_decoherence(self, qubits)
+    def _N_decoherence(self, qubits, sub_circuit=None, sub_circuit_concurrent=False):
+        self._noise.decoherence.N_decoherence(self, qubits, sub_circuit, sub_circuit_concurrent)
 
     def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
         return self._noise.noise_maps.N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits,
@@ -1931,7 +1948,7 @@ class QuantumCircuit:
         """
         return self._draw.draw_circuit_latex.create_qasm_file(self, meas_error)
 
-    def _add_draw_operation(self, operation, qubits, noise=False):
+    def _add_draw_operation(self, operation, qubits, noise=False, sub_circuit=None, sub_circuit_concurrent=False):
         """
             Adds an operation to the draw order list.
 
@@ -1951,7 +1968,8 @@ class QuantumCircuit:
                 MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
                 MEASUREMENTS AND QUBIT ADDITIONS.
         """
-        self._draw.draw_circuit.add_draw_operation(self, operation, qubits, noise)
+        self._draw.draw_circuit.add_draw_operation(self, operation, qubits, noise, _current_sub_circuit=sub_circuit,
+                                                   sub_circuit_concurrent=sub_circuit_concurrent)
 
     def _correct_drawing_for_n_top_qubit_additions(self, n=1):
         """

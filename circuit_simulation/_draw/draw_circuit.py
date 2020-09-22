@@ -1,6 +1,9 @@
 import re
 from termcolor import colored, COLORS
 from circuit_simulation.gates.gate import SingleQubitGate, TwoQubitGate
+from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
+import numpy as np
+from circuit_simulation.utilities.decorators import handle_none_parameters
 import itertools as it
 
 
@@ -36,9 +39,19 @@ def draw_gates(self, init, no_color):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     for draw_item in self._draw_order:
+        if draw_item == "LEVEL":
+            init = _level_qubit_paths(init)
+            continue
         gate = draw_item[0]
         qubits = draw_item[1]
         noise = draw_item[2]
+        sub_circuit_concurrent = draw_item[4]
+        if sub_circuit_concurrent:
+            concurrent_qubits = draw_item[3].qubits if draw_item[3] is not None else []
+        else:
+            concurrent_qubits = draw_item[3].get_all_concurrent_qubits if draw_item[3] is not None else []
+
+        non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in range(self.num_qubits)]))
 
         if type(qubits) == tuple:
             if type(gate) in [SingleQubitGate, TwoQubitGate]:
@@ -55,8 +68,17 @@ def draw_gates(self, init, no_color):
 
             cqubit = qubits[0]
             tqubit = qubits[1]
+
+            init = _correct_path_length(init, cqubit, tqubit)
+
             init[cqubit] += "---{}---".format(control)
             init[tqubit] += "---{}---".format(gate)
+
+            cqubit_stripped = ansi_escape.sub("", init[cqubit])
+            tqubit_stripped = ansi_escape.sub("", init[tqubit])
+            longest_item = cqubit_stripped if len(cqubit_stripped) >= len(tqubit_stripped) else tqubit_stripped
+            current_qubits = list(set(self.get_node_qubits(cqubit) + self.get_node_qubits(tqubit)
+                                      + non_involved_qubits))
         else:
             if type(gate) == SingleQubitGate:
                 gate = gate.representation
@@ -64,17 +86,46 @@ def draw_gates(self, init, no_color):
                 gate = "~" + gate if no_color else colored("~", 'red') + gate
             init[qubits] += "---{}---".format(gate)
 
-        for a, b in it.combinations(enumerate(init), 2):
-            # Since colored ansi code is shown as color and not text it should be stripped for length comparison
-            a_stripped = ansi_escape.sub("", init[a[0]])
-            b_stripped = ansi_escape.sub("", init[b[0]])
+            longest_item = ansi_escape.sub("", init[qubits])
+            current_qubits = list(set(self.get_node_qubits(qubits) + non_involved_qubits))
 
-            if len(b_stripped) - len(a_stripped) > 0:
-                diff = len(b_stripped) - len(a_stripped)
-                init[a[0]] += diff * "-"
-            elif len(a_stripped) - len(b_stripped) > 0:
-                diff = len(a_stripped) - len(b_stripped)
-                init[b[0]] += diff * "-"
+        partial_update = list(np.array(init)[current_qubits]) if current_qubits != [] else init
+        for index, item in enumerate(partial_update):
+            item_stripped = ansi_escape.sub("", item)
+            diff = len(longest_item) - len(item_stripped)
+            if current_qubits != []:
+                init[current_qubits[index]] += diff * "-"
+            else:
+                init[index] += diff * '-'
+
+
+def _correct_path_length(init, qubit_1, qubit_2):
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    len_qubit_1 = len(ansi_escape.sub("", init[qubit_1]))
+    len_qubit_2 = len(ansi_escape.sub("", init[qubit_2]))
+
+    if len_qubit_1 > len_qubit_2:
+        diff = len_qubit_1 - len_qubit_2
+        init[qubit_2] += diff * "-"
+    elif len_qubit_2 > len_qubit_1:
+        diff = len_qubit_2 - len_qubit_1
+        init[qubit_1] += diff * "-"
+
+    return init
+
+
+def _level_qubit_paths(init):
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    init_lengths = [len(ansi_escape.sub("", item)) for item in init]
+    longest_path = max(init_lengths)
+
+    for index, path in enumerate(init):
+        path_length = len(ansi_escape.sub("", path))
+        diff = longest_path - path_length
+        init[index] += diff * "-"
+
+    return init
+
 
 
 def color_qubit_lines(self, init):
@@ -95,7 +146,8 @@ def color_qubit_lines(self, init):
         init[i] = colored(espaced_lines, node_color_dict[node_name])
 
 
-def add_draw_operation(self, operation, qubits, noise=False):
+@handle_none_parameters
+def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circuit=None,sub_circuit_concurrent=False):
     """
         Adds an operation to the draw order list.
 
@@ -115,7 +167,6 @@ def add_draw_operation(self, operation, qubits, noise=False):
             MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
             MEASUREMENTS AND QUBIT ADDITIONS.
     """
-
     if type(qubits) is tuple:
 
         cqubit = qubits[0] + self._effective_measurements
@@ -132,7 +183,7 @@ def add_draw_operation(self, operation, qubits, noise=False):
 
         if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
             qubits += len(self._measured_qubits)
-    item = [operation, qubits, noise]
+    item = [operation, qubits, noise, _current_sub_circuit, sub_circuit_concurrent]
     self._draw_order.append(item)
 
 

@@ -52,7 +52,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[5, 2, 14, 12])
+    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[5, 2, 14, 12], concurrent_sub_circuits="AB")
     qc.create_bell_pair(5, 2)
     qc.double_selection(CZ_gate, 4, 1)
     qc.double_selection(CNOT_gate, 4, 1)
@@ -69,7 +69,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12])
+    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[8, 2, 16, 12], concurrent_sub_circuits="AC")
     qc.single_dot(CZ_gate, 7, 1)
     qc.single_dot(CZ_gate, 7, 1)
 
@@ -91,7 +91,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     qc.apply_2_qubit_gate(operation, 2, 12)
     qc.measure(2)
 
-    qc.start_sub_circuit("C", [5, 14])
+    qc.start_sub_circuit("C", [5, 14], concurrent_sub_circuits=["A", "B", "D"])
     qc.apply_2_qubit_gate(operation, 5, 14)
     qc.measure(5)
 
@@ -251,7 +251,7 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12])
+    qc.start_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12], concurrent_sub_circuits="AB")
     qc.create_bell_pair(3, 0)
     qc.SWAP(3, 4, efficient=True)
     qc.SWAP(0, 1, efficient=True)
@@ -270,7 +270,7 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     if pbar is not None:
         pbar.update(20)
 
-    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[7, 1, 16, 12])
+    qc.start_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[7, 1, 16, 12], concurrent_sub_circuits="AC")
     qc.single_dot_swap(CZ_gate, 6, 0)
     qc.single_dot_swap(CZ_gate, 6, 0)
 
@@ -280,22 +280,22 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
         pbar.update(20)
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B", [6, 16])
+    qc.start_sub_circuit("B", [16, 8, 7, 6])
     qc.SWAP(6, 7, efficient=True)
     qc.apply_2_qubit_gate(operation, 6, 16)
     qc.measure(6, probabilistic=False)
 
-    qc.start_sub_circuit("A", [9, 18])
+    qc.start_sub_circuit("A", [18, 11, 10, 9])
     qc.SWAP(9, 10, efficient=True)
     qc.apply_2_qubit_gate(operation, 9, 18)
     qc.measure(9, probabilistic=False)
 
-    qc.start_sub_circuit("D", [0, 12])
+    qc.start_sub_circuit("D", [12, 2, 1, 0])
     qc.SWAP(0, 1, efficient=True)
     qc.apply_2_qubit_gate(operation, 0, 12)
     qc.measure(0, probabilistic=False)
 
-    qc.start_sub_circuit("C", [3, 14])
+    qc.start_sub_circuit("C", [14, 5, 4, 3], concurrent_sub_circuits=["A", "B", "D"])
     qc.SWAP(3, 4, efficient=True)
     qc.apply_2_qubit_gate(operation, 3, 14)
     qc.measure(3, probabilistic=False)
