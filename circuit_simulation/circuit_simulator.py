@@ -136,7 +136,8 @@ class QuantumCircuit:
                  pm_1=None, pn=None, decoherence=False, T1_idle=None, T2_idle=None, T1_idle_electron=None,
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
-                 thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None):
+                 thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
+                 pulse_duration=13e-3, fixed_lde_attempts=40):
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.noise = noise
@@ -157,6 +158,8 @@ class QuantumCircuit:
         self.time_step = time_step
         self.measurement_duration = measurement_duration
         self.probabilistic = probabilistic
+        self.pulse_duration = pulse_duration
+        self.fixed_lde_attempts = fixed_lde_attempts
         self.no_single_qubit_error = no_single_qubit_error
         self.density_matrices = None
         self.total_duration = 0
@@ -471,6 +474,8 @@ class QuantumCircuit:
         self.total_duration += sub_circuit_1.total_duration
 
     def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle'):
+        if amount == 0:
+            return
         if self._current_sub_circuit is None:
             self.total_duration += amount
         else:
@@ -486,7 +491,8 @@ class QuantumCircuit:
             if included_qubits is None:
                 if self._current_sub_circuit is not None:
                     # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
-                    if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits):
+                    if excluded_qubits and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
+                                               for ex_qubit in excluded_qubits):
                         involved_qubits = self.get_node_qubits(excluded_qubits[0])
                     else:
                         involved_qubits = self._current_sub_circuit.qubits
@@ -715,9 +721,27 @@ class QuantumCircuit:
                                                   qubit2: (new_density_matrix, qubits)})
 
         self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
-        self._increase_duration(times * bell_creation_duration, [qubit1, qubit2], kind='LDE')
+        lde_time, idle_time = self._split_total_duration_lde(times, bell_creation_duration=bell_creation_duration,
+                                                             probabilistic=probabilistic)
+        self._increase_duration(lde_time, [qubit1, qubit2], kind='LDE')
+        self._increase_duration(idle_time, [], kind='idle')
 
         self._add_draw_operation("#", (qubit1, qubit2), noise)
+
+    @handle_none_parameters
+    def _split_total_duration_lde(self, attempts_till_success, fixed_lde_attempts=None, bell_creation_duration=None,
+                                  probabilistic=None, pulse_duration=None):
+        if not probabilistic:
+            return bell_creation_duration, 0
+        n_pulses_before_success = math.floor(1 + (attempts_till_success-fixed_lde_attempts)/(2*fixed_lde_attempts))
+        lde_time = attempts_till_success * bell_creation_duration + n_pulses_before_success * pulse_duration
+
+        total_amount_pulses = math.ceil(attempts_till_success/(2*fixed_lde_attempts))
+        n_pulses_after_success = total_amount_pulses - n_pulses_before_success
+        idle_time = ((total_amount_pulses * (2 * fixed_lde_attempts) - attempts_till_success) * bell_creation_duration
+                     + n_pulses_after_success * pulse_duration)
+
+        return lde_time, idle_time
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):

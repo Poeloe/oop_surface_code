@@ -16,6 +16,7 @@ def handle_none_parameters(func=None, *, excluded_parameters=None):
     """
     if not func:
         return functools.partial(handle_none_parameters, excluded_parameters=excluded_parameters)
+
     @functools.wraps(func)
     def set_nones_to_object_value(*args, **kwargs):
         nonlocal excluded_parameters
