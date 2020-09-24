@@ -239,5 +239,59 @@ class TestMeasurement(unittest.TestCase):
         np.testing.assert_equal(qc.total_density_matrix().toarray().real, correct_result)
 
 
+class TestSeparatedDensityMatrices(unittest.TestCase):
+
+    def testDensityMatrixInit(self):
+        qc = QC(10, 0)
+        for qubit, (density_matrix, qubits) in qc._qubit_density_matrix_lookup.items():
+            np.testing.assert_array_equal(sp.csr_matrix([[1, 0], [0, 0]]).toarray(), density_matrix.toarray())
+            self.assertListEqual([qubit], qubits)
+
+    def testTwoQubitGateFusion(self):
+        qc = QC(10, 0)
+        qc.apply_2_qubit_gate(CNOT_gate, 0, 1)
+
+        density_matrix_0, qubits_0 = qc._qubit_density_matrix_lookup[0]
+        density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
+        self.assertTrue(density_matrix_0 is density_matrix_1)
+        self.assertTrue(qubits_0 is qubits_1)
+
+    def testBellPairFusion(self):
+        qc = QC(5, 0)
+        qc.create_bell_pair(0, 1)
+
+        density_matrix_0, qubits_0 = qc._qubit_density_matrix_lookup[0]
+        density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
+        self.assertTrue(density_matrix_0 is density_matrix_1)
+        self.assertTrue(qubits_0 is qubits_1)
+
+    def testSWAP(self):
+        qc = QC(5, 0)
+        qc.X(0)
+        qc.SWAP(0, 1)
+
+        density_matrix_0, qubits_0 = qc._qubit_density_matrix_lookup[0]
+        density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
+        np.testing.assert_array_equal(density_matrix_0.toarray(), np.array([[1, 0], [0, 0]]))
+        np.testing.assert_array_equal(density_matrix_1.toarray(), np.array([[0, 0], [0, 1]]))
+
+    def testSWAPBellPair(self):
+        qc = QC(5, 0)
+        qc.create_bell_pair(0, 1)
+        qc.SWAP(0, 2)
+        qc.SWAP(1, 3)
+
+        density_matrix_0, qubits_0 = qc._qubit_density_matrix_lookup[0]
+        density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
+        density_matrix_2, qubits_2 = qc._qubit_density_matrix_lookup[2]
+        density_matrix_3, qubits_3 = qc._qubit_density_matrix_lookup[3]
+        self.assertTrue(density_matrix_2 is density_matrix_3)
+        self.assertTrue(density_matrix_2.shape == (4, 4))
+        self.assertTrue(qubits_2 is qubits_3)
+        np.testing.assert_array_equal(density_matrix_0.toarray(), np.array([[1, 0], [0, 0]]))
+        np.testing.assert_array_equal(density_matrix_1.toarray(), np.array([[1, 0], [0, 0]]))
+        self.assertTrue(qubits_0 is not qubits_1)
+
+
 if __name__ == '__main__':
     unittest.main()
