@@ -17,7 +17,7 @@ from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
-from circuit_simulation.utilities.decorators import handle_none_parameters
+from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached
 from copy import copy
 
 
@@ -137,32 +137,14 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=13e-3, fixed_lde_attempts=40):
+                 pulse_duration=13e-3, fixed_lde_attempts=40, cut_off_time=600):
+
+        # Basic attributes
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
-        self.noise = noise
-        self.pg = pg
-        self.pm = pm
-        self.pm_1 = pm_1
-        self.pn = pn
-        self.decoherence = decoherence
-        self.T1_idle = T1_idle
-        self.T2_idle = T2_idle
-        self.T1_idle_electron = T1_idle_electron
-        self.T2_idle_electron = T2_idle_electron
-        self.T1_lde = T1_lde
-        self.T2_lde = T2_lde
-        self.p_bell_success = p_bell_success
-        self.bell_creation_duration = bell_creation_duration
-        self.network_noise_type = network_noise_type
-        self.time_step = time_step
-        self.measurement_duration = measurement_duration
-        self.probabilistic = probabilistic
-        self.pulse_duration = pulse_duration
-        self.fixed_lde_attempts = fixed_lde_attempts
-        self.no_single_qubit_error = no_single_qubit_error
         self.density_matrices = None
-        self.total_duration = 0
+        self.qubits = None
+        self.nodes = None
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
@@ -174,14 +156,44 @@ class QuantumCircuit:
         self._print_lines = []
         self._thread_safe_printing = thread_safe_printing
         self._fused = False
-        self._sub_circuits = {}
-        self._current_sub_circuit = None
-        self.nodes = None
-        self.qubits = None
         self._single_qubit_gate_lookup = single_qubit_gate_lookup if single_qubit_gate_lookup is not None else {}
         self._two_qubit_gate_lookup = two_qubit_gate_lookup if two_qubit_gate_lookup is not None else {}
 
+        # Noise attributes (without decoherence)
+        self.noise = noise
+        self.pg = pg
+        self.pm = pm
+        self.pm_1 = pm_1
+        self.pn = pn
+        self.network_noise_type = network_noise_type
+        self.no_single_qubit_error = no_single_qubit_error
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
+
+        # Decoherence and duration attributes
+        self.decoherence = decoherence
+        self.time_step = time_step
+        self.T1_idle = T1_idle
+        self.T2_idle = T2_idle
+        self.T1_idle_electron = T1_idle_electron
+        self.T2_idle_electron = T2_idle_electron
+        self.T1_lde = T1_lde
+        self.T2_lde = T2_lde
+        self.total_duration = 0
+        self.bell_creation_duration = bell_creation_duration
+        self.measurement_duration = measurement_duration
+        self.pulse_duration = pulse_duration
+        self.cut_off_time = cut_off_time
+        self.cut_off_time_reached = False
+
+        # Probabilistic nature attributes
+        self.probabilistic = probabilistic
+        self.p_bell_success = p_bell_success
+        self.fixed_lde_attempts = fixed_lde_attempts
+
+        # Sub circuit attributes
+        self._sub_circuits = {}
+        self._current_sub_circuit = None
+        self._circuit_operations_ended = False
 
         if init_type == 0:
             self.density_matrices = self._init_density_matrix()
@@ -389,7 +401,26 @@ class QuantumCircuit:
                                                 SubQuantumCircuit Methods
         ---------------------------------------------------------------------------------------------------------
     """
-    def start_sub_circuit(self, name, qubits, waiting_qubits=None, concurrent_sub_circuits=None):
+    def define_sub_circuit(self, name, qubits, waiting_qubits=None, concurrent_sub_circuits=None):
+        """
+            Define a sub circuit for the QuantumCircuit object. Sub circuits can be used to emulate concurrent
+            circuits. This can be useful when working with decoherence or to obtain the concurrent circuit drawing
+            for example. Note that circuits will not actually run in parallel when simulated, this remains in serial on
+            the back-end.
+
+            Parameters
+            ----------
+            name : str
+                Unique name for the sub circuit in order to separate it from the others
+            qubits : list
+                List of qubit indices that are involved in the sub circuit
+            waiting_qubits : list, optional, default=None
+                List of qubit indices that are waiting whenever the other concurrent sub circuit takes longer to
+                calculate (useful when working with decoherence)
+            concurrent_sub_circuits : List, optional, default=None
+                List containing the concurrent SubQuantumCircuit objects. Please only specify this parameter for the
+                last concurrent sub circuit object created, since otherwise the others cannot be found.
+        """
         concurrent_sub_circuit_objects = []
         if waiting_qubits is None:
             waiting_qubits = qubits
@@ -409,14 +440,79 @@ class QuantumCircuit:
                 sub_circuit_object.add_concurrent_sub_circuits(decreased_concurrent_objects)
 
         self._sub_circuits[name] = sub_circuit
-        self._current_sub_circuit = sub_circuit
 
-    def end_current_sub_circuit(self):
+    @skip_if_cut_off_reached(run_once=True)
+    def start_sub_circuit(self, name):
+        """
+            Sets the provided sub circuit (here referred to as: 'started sub circuit') as current sub circuit and will
+            mark the previous sub circuit (here referred to as: 'current sub circuit') as 'ran' if present. Method will
+            first add the maximum duration of the concurrent sub circuits, of which the 'current sub circuit' is part,
+            to the total duration of the QuantumCircuit object if the 'started sub circuit' is not part these concurrent
+            sub circuits.
+
+            Parameters
+            ----------
+            name : str
+                Name of the sub circuit that should be marked as current sub circuit.
+        """
+        if name not in self._sub_circuits.keys():
+            raise ValueError('Provided sub circuit name is not an existing sub circuit.')
+
+        # Add the maximum duration of the concurrent sub circuits to the total duration of the QuantumCircuit object
+        current_sub_circuit = self._current_sub_circuit
+        started_sub_circuit = self._sub_circuits[name]
+        if current_sub_circuit is not None and not current_sub_circuit.ran:
+            current_sub_circuit.set_ran()
+            if current_sub_circuit.all_ran:
+                self._apply_decoherence_to_fastest_sub_circuits()
+                added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
+                                 + [current_sub_circuit]])
+                self.total_duration += added_dur
+                self._draw_order.append("LEVEL")
+                if self.total_duration > self.cut_off_time:
+                    self.cut_off_time_reached = True
+
+        self._current_sub_circuit = started_sub_circuit
+
+    def end_current_sub_circuit(self, total=False):
+        """
+            Method can be used to mark the current sub circuit as 'ran'. This method is only needed when no new sub
+            circuit is started. DO NOT USE THIS METHOD IN BETWEEN SUB CIRCUITS THAT ARE MARKED AS CONCURRENT, OTHERWISE
+            THE TOTAL DURATION OF THE QUANTUMCIRCUIT OBJECT IS CORRUPTED.
+
+            Parameters
+            ----------
+            total : bool
+                If set to True, the operations to the main circuit are marked as finished. This is necessary when
+                working with the cut-off time. This is thus ONLY set to True at the very end of the operations that are
+                applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
+                methods from being skipped when not used specifically as an operation to the main circuit.
+        """
+        self._apply_decoherence_to_fastest_sub_circuits()
         if self._current_sub_circuit is not None:
             self.total_duration += self._current_sub_circuit.total_duration
+            self._current_sub_circuit.set_ran()
+
         self._current_sub_circuit = None
 
+        if total:
+            self._circuit_operations_ended = True
+        self._draw_order.append("LEVEL")
+
     def define_node(self, name, qubits, electron_qubits=None):
+        """
+            Defines a node for the QuantumCircuit object. This is especially useful when working with a networked
+            architecture. For now it is assumed that one uses an NV-center as a node.
+
+            Parameters
+            ----------
+            name : str
+                Unique name for the defined node
+            qubits : list
+                List of qubit indices that are part of the node
+            electron_qubits : list or int
+                Sub list of qubits that should be marked as the electron qubits
+        """
         if self.nodes is None:
             self.nodes = {}
         if self.qubits is None:
@@ -438,6 +534,14 @@ class QuantumCircuit:
             self.qubits[qubit] = q
 
     def get_node_qubits(self, qubit):
+        """
+            Returns the qubits of a node of which the supplied qubit is part of.
+
+            Parameters
+            ----------
+            qubit : int
+                Qubit index of the qubit of which the node qubits should be returned
+        """
         if self.nodes is None:
             return []
         for node_qubits in self.nodes.values():
@@ -446,68 +550,142 @@ class QuantumCircuit:
         return []
 
     def get_node_name_from_qubit(self, qubit):
+        """
+            Returns the name of the node that the supplied qubit is part of.
+
+            Parameters
+            ----------
+            qubit : int
+                Qubit index of the qubit of which the name of the node should be returned
+        """
         if self.nodes is None:
             return
         for key, values in self.nodes.items():
             if qubit in values:
                 return key
 
-    def apply_decoherence_to_fastest_sub_circuit(self, name_sub_circuit_1, name_sub_circuit_2):
+    def _apply_decoherence_to_fastest_sub_circuits(self):
+        """
+            Applies decoherence to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
+        """
         if not self.decoherence:
-            sub_circuit_1 = self._sub_circuits[name_sub_circuit_1]
-            self.total_duration += sub_circuit_1.total_duration
             return
-        sub_circuit_1 = self._sub_circuits[name_sub_circuit_1]
-        sub_circuit_2 = self._sub_circuits[name_sub_circuit_2]
 
-        if (sub_circuit_1.total_duration - sub_circuit_2.total_duration) < 0:
-            self._increase_duration(abs(sub_circuit_1.total_duration - sub_circuit_2.total_duration),
-                                    [], included_qubits=sub_circuit_1.waiting_qubits)
-            self._N_decoherence(sub_circuit_1.waiting_qubits, sub_circuit=sub_circuit_1, sub_circuit_concurrent=True)
+        all_sub_circuits = self._current_sub_circuit.concurrent_sub_circuits + [self._current_sub_circuit]
+        longest_duration = max(sc.total_duration for sc in all_sub_circuits)
 
-        elif (sub_circuit_2.total_duration - sub_circuit_1.total_duration) < 0:
-            self._increase_duration(abs(sub_circuit_2.total_duration - sub_circuit_1.total_duration),
-                                    [], included_qubits=sub_circuit_2.waiting_qubits)
-            self._N_decoherence(sub_circuit_2.waiting_qubits, sub_circuit=sub_circuit_2, sub_circuit_concurrent=True)
+        for sub_circuit in all_sub_circuits:
+            if (longest_duration - sub_circuit.total_duration) > 0:
+                self._increase_duration(longest_duration - sub_circuit.total_duration, [],
+                                        included_qubits=sub_circuit.waiting_qubits,
+                                        sub_circuit=sub_circuit)
+                self._N_decoherence(sub_circuit.waiting_qubits, sub_circuit=sub_circuit, sub_circuit_concurrent=True)
 
-        self._draw_order.append("LEVEL")
-        self.total_duration += sub_circuit_1.total_duration
+    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None, kind='idle'):
+        """
+            Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
+            the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
+            updated depending on the value set for 'kind' parameter.
 
-    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle'):
+            Parameters
+            ----------
+            amount : float
+                Amount of time with which the duration should be increased
+            excluded_qubits : list
+                List of qubit indices that are excluded from idle time addition (usually the qubits involved in the
+                operation)
+            included_qubits : list
+                List of qubit indices of which the idle time should be increased. If not specified, the program will
+                determine this dynamically (preferred).
+            kind : str
+                Type of waiting time that should be added to the qubits
+        """
         if amount == 0:
             return
-        if self._current_sub_circuit is None:
+        if self._current_sub_circuit is None and sub_circuit is None:
             self.total_duration += amount
-        else:
+
+        # At this point in time, if sub_circuit parameter is specified the method is invoked by the
+        # 'apply_decoherence_to_fastest_sub_circuit' method an no time increase is needed for the sub circuit
+        elif sub_circuit is None:
             current_sub_circuit = self._current_sub_circuit
+            # If excluded qubits are in the same node it is a local operation, then time must be divided by the amount
+            # of concurrent circuits (those local operations will also be added and together it will make up the total)
             if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits) and \
                     len(excluded_qubits) > 0:
-                # DIVISION BY 2 IS HARDCODED FOR 2 NODES RUNNING CONCURRENT
-                current_sub_circuit.increase_duration(amount / 2)
+                current_sub_circuit.increase_duration(amount / current_sub_circuit.amount_concurrent_sub_circuits)
             else:
                 current_sub_circuit.increase_duration(amount)
 
         if self.qubits is not None:
-            if included_qubits is None:
-                if self._current_sub_circuit is not None:
-                    # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
-                    if excluded_qubits and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
-                                               for ex_qubit in excluded_qubits):
-                        involved_qubits = self.get_node_qubits(excluded_qubits[0])
-                    else:
-                        involved_qubits = self._current_sub_circuit.qubits
+            self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind)
+
+        self._check_if_cut_off_time_is_reached()
+
+    def _check_if_cut_off_time_is_reached(self):
+        """
+            Checks whether the cut-off time for the circuit duration is reached. When not all concurrent sub circuits
+            are finished, but a sub circuit already reaches the cut-off time then only for this sub circuit it is
+            marked that the cut-off time is reached.
+        """
+        sub_circuit_duration = self._current_sub_circuit.total_duration if self._current_sub_circuit is not None else 0
+
+        if self.total_duration + sub_circuit_duration > self.cut_off_time:
+            if self._current_sub_circuit is not None:
+                if self._current_sub_circuit.all_ran:
+                    self.cut_off_time_reached = True
                 else:
-                    involved_qubits = [i for i in range(self.num_qubits)]
+                    self._current_sub_circuit.set_cut_off_time_reached()
+            if self.total_duration > self.cut_off_time:
+                self.cut_off_time_reached = True
 
-                excluded_qubits.extend(self._uninitialised_qubits)
-                # apply waiting time to the qubits not involved in the operation.
-                included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits)))
+    def _increase_qubit_duration(self, amount, excluded_qubits, included_qubits, kind):
+        """
+            Increase the idle time of the given qubit objects. This is used to determine the amount of decoherence that
+            a qubit is supposed to experience.
 
-            for qubit in included_qubits:
-                current_qubit = self.qubits[qubit]
-                current_qubit.increase_waiting_time(amount, waiting_type=kind)
+            Parameters
+            ----------
+            amount : float
+                Amount of idle time with which the given qubit objects should be increased
+            excluded_qubits : list
+                List of qubit indices of which the idle time should NOT be increased
+            included_qubits : list
+                List of qubit indices of which the idle time should be increased. If not specified, the program will
+                determine this dynamically (preferred).
+            kind : str
+                String indicating the kind of waiting time that is supposed to be added (options are 'idle' or 'LDE')
+        """
+        if included_qubits is None:
+            if self._current_sub_circuit is not None:
+                # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
+                if excluded_qubits and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
+                                           for ex_qubit in excluded_qubits):
+                    involved_qubits = self.get_node_qubits(excluded_qubits[0])
+                else:
+                    involved_qubits = self._current_sub_circuit.qubits
+            else:
+                involved_qubits = [i for i in range(self.num_qubits)]
+
+            excluded_qubits.extend(self._uninitialised_qubits)
+            # apply waiting time to the qubits not involved in the operation.
+            included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits)))
+        for qubit in included_qubits:
+            current_qubit = self.qubits[qubit]
+            current_qubit.increase_waiting_time(amount, waiting_type=kind)
 
     def _update_uninitialised_qubit_register(self, qubits, update_type):
+        """
+            Updates the qubit uninitialised qubit register. This register is used in the dynamic process of which
+            qubits should obtain decoherence.
+
+            Parameters
+            ----------
+            qubits : list
+                List of qubit indices that should be removed/added/swapped
+            update_type : str
+                Type of update action (options: 'remove', 'add' or 'swap')
+        """
         if update_type.lower() not in ["remove", "add", 'swap']:
             raise ValueError("Type can only be 'remove', 'add' or 'swap'.")
 
@@ -690,6 +868,7 @@ class QuantumCircuit:
                 self._N_decoherence([i, i + 1], times=times_total)
                 self._increase_duration(bell_creation_duration)
 
+    @skip_if_cut_off_reached
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
                          probabilistic=None, p_bell_success=None, bell_creation_duration=None,  decoherence=None,
@@ -853,6 +1032,7 @@ class QuantumCircuit:
         if draw:
             self._add_draw_operation(gate, tqubit, noise)
 
+    @skip_if_cut_off_reached
     @handle_none_parameters
     def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
         """
@@ -962,6 +1142,7 @@ class QuantumCircuit:
                                                 Two-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
+    @skip_if_cut_off_reached
     @handle_none_parameters
     def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True, decoherence=None,
                            user_operation=True):
@@ -1079,8 +1260,12 @@ class QuantumCircuit:
 
         self.apply_2_qubit_gate(CZ_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
+    @skip_if_cut_off_reached
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
         if efficient:
+            if user_operation:
+               self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
+
             self._operations.gate_operations.efficient_SWAP(self, cqubit, tqubit, noise, pg, draw, user_operation)
         else:
             self.apply_2_qubit_gate(SWAP_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw,
@@ -1105,7 +1290,7 @@ class QuantumCircuit:
                                             Protocol gate sequences
         ---------------------------------------------------------------------------------------------------------  
     """
-
+    @skip_if_cut_off_reached
     def single_selection(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                          pg=None, user_operation=True):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1123,6 +1308,7 @@ class QuantumCircuit:
             else:
                 success = True
 
+    @skip_if_cut_off_reached
     def single_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, next_qubit=1, measure=True, noise=None,
                               pn=None, pm=None, pg=None, user_operation=True):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1142,6 +1328,7 @@ class QuantumCircuit:
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 success = True
 
+    @skip_if_cut_off_reached
     def double_selection(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                          user_operation=True):
         """ Double selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1157,6 +1344,7 @@ class QuantumCircuit:
             measurement_outcomes = iter(measurement_outcomes)
             success = all([True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)])
 
+    @skip_if_cut_off_reached
     def double_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                               user_operation=True):
         """ Double selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1177,6 +1365,7 @@ class QuantumCircuit:
                 parity.append(True if measurement_outcomes[0] == measurement_outcomes[1] else False)
             success = all(parity)
 
+    @skip_if_cut_off_reached
     def single_dot(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                    pg=None, user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1198,6 +1387,7 @@ class QuantumCircuit:
             else:
                 success = True
 
+    @skip_if_cut_off_reached
     def single_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                         pg=None, user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1225,6 +1415,7 @@ class QuantumCircuit:
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 success = True
 
+    @skip_if_cut_off_reached
     def double_dot(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                    user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1238,6 +1429,7 @@ class QuantumCircuit:
                                                 user_operation=user_operation)
             success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
+    @skip_if_cut_off_reached
     def double_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                         user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
@@ -1338,8 +1530,9 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------   
     """
     @handle_none_parameters
-    def measure_first_N_qubits(self, N, measure=0, uneven_parity=False, noise=None, pm=None, p_dec=None, basis="X",
-                               basis_transformation_noise=None, probabilistic=None, user_operation=True):
+    def measure_first_N_qubits(self, N, measure=0, uneven_parity=False, noise=None, pm=None, basis="X",
+                               basis_transformation_noise=None, probabilistic=None, user_operation=True,
+                               decoherence=None):
         """
             Method measures the first N qubits, given by the user, all in the 0 or 1 state.
             This will thus result in an even parity measurement. To also be able to enforce uneven
@@ -1411,7 +1604,7 @@ class QuantumCircuit:
             self.d = 2 ** self.num_qubits
             self._add_draw_operation("M_{}:{}".format(basis, outcome), qubit, noise)
 
-            if noise and p_dec != 0:
+            if noise and decoherence:
                 self._effective_measurements += (1+qubit)
                 times = int(math.ceil(self.measurement_duration/self.time_step))
                 self._N_decoherence([], times=times)
@@ -1449,10 +1642,11 @@ class QuantumCircuit:
         """
         return self._operations.measurement_operations.measurement_first_qubit(density_matrix, measure, noise, pm)
 
+    @skip_if_cut_off_reached
     @handle_none_parameters
     def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, pm_1=None,
                 probabilistic=None, basis_transformation_noise=None, decoherence=None,
-                user_operation=False):
+                user_operation=True):
         """
             Measurement that can be applied to any qubit.
 
@@ -1535,7 +1729,7 @@ class QuantumCircuit:
 
                 if prob == 0:
                     raise ValueError("Measuring a state with 0 probability cannot be dealt with. Please write"
-                                     "a valid circuit.")
+                                     " a valid circuit.")
 
             if basis == "X":
                 density_matrix_measured = CT(ket_p) if outcome == 0 else CT(ket_m)
@@ -1655,12 +1849,14 @@ class QuantumCircuit:
         noiseless_density_matrix = self._get_noiseless_density_matrix(stabilizer_protocol=stabilizer_protocol,
                                                                       proj_type=proj_type,
                                                                       save=save_noiseless_density_matrix,
-                                                                      file_name=file_name_noiseless)
+                                                                      file_name=file_name_noiseless,
+                                                                      qubits=qubits)
         measerror_density_matrix = self._get_noiseless_density_matrix(measure_error=True,
                                                                       stabilizer_protocol=stabilizer_protocol,
                                                                       proj_type=proj_type,
                                                                       save=save_noiseless_density_matrix,
-                                                                      file_name=file_name_measerror)
+                                                                      file_name=file_name_measerror,
+                                                                      qubits=qubits)
         superoperator = []
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
@@ -1705,7 +1901,7 @@ class QuantumCircuit:
         return QuantumCircuit(num_qubits, init)
 
     def _get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
-                                      file_name=None):
+                                      file_name=None, qubits=None):
         """
             Private method to calculate the noiseless variant of the density matrix.
             It traverses the operations on the system by the hand of the '_user_operation_order' attribute. If the
@@ -1740,7 +1936,8 @@ class QuantumCircuit:
                                                                                       proj_type,
                                                                                       measure_error,
                                                                                       save,
-                                                                                      file_name)
+                                                                                      file_name,
+                                                                                      qubits=qubits)
 
     def _file_name_from_circuit(self, measure_error=False, general_name="circuit", extension=""):
         """

@@ -9,6 +9,8 @@ class SubQuantumCircuit:
         self._waiting_qubits = waiting_qubits
         self._total_duration = 0
         self._concurrent_sub_circuits = concurrent_sub_circuits if concurrent_sub_circuits is not None else []
+        self._cut_off_time_reached = False
+        self._ran = False
 
     @property
     def name(self):
@@ -31,12 +33,38 @@ class SubQuantumCircuit:
         return self._concurrent_sub_circuits
 
     @property
+    def amount_concurrent_sub_circuits(self):
+        return len(self.concurrent_sub_circuits) + 1
+
+    @property
     def get_all_concurrent_qubits(self):
         total_qubits = copy(self.qubits)
         for sub_circuit in self.concurrent_sub_circuits:
             total_qubits.extend(sub_circuit.qubits)
 
         return total_qubits
+
+    @property
+    def ran(self):
+        return self._ran
+
+    @property
+    def all_ran(self):
+        return all([sc.ran for sc in self._concurrent_sub_circuits])
+
+    @property
+    def cut_off_time_reached(self):
+        return self._cut_off_time_reached
+
+    def set_cut_off_time_reached(self, value=True):
+        if type(value) != bool:
+            raise ValueError("Property 'cut_off_time_reached' cannot be set with types other than bool.")
+        self._cut_off_time_reached = value
+
+    def set_ran(self, value=True):
+        if type(value) != bool:
+            raise ValueError("Property 'ran' cannot be set with types other than bool.")
+        self._ran = value
 
     def increase_duration(self, amount):
         self._total_duration += amount

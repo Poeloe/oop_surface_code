@@ -5,12 +5,11 @@ from circuit_simulation.gates.gates import *
 from oopsc.superoperator.superoperator import SuperoperatorElement
 from itertools import combinations, product, combinations_with_replacement
 from termcolor import colored
-from filelock import FileLock
 import pandas as pd
 
 
 def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
-                                  file_name=None):
+                                  file_name=None, qubits=None):
     """
         Private method to calculate the noiseless variant of the density matrix.
         It traverses the operations on the system by the hand of the '_user_operation_order' attribute. If the
@@ -59,24 +58,25 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         operation = list(user_operation.keys())[0]
         parameters = list(user_operation.values())[0]
 
-        if operation == "create_bell_pairs_top":
-            qc_noiseless.create_bell_pairs_top(parameters[0], parameters[1])
+        if operation == "create_bell_pair":
+            qc_noiseless.create_bell_pair(parameters[0], parameters[1], network_noise_type=parameters[4],
+                                          bell_state_type=parameters[5])
+        if operation == "SWAP":
+            qc_noiseless.SWAP(parameters[0], parameters[1])
         elif operation == "apply_1_qubit_gate":
             qc_noiseless.apply_1_qubit_gate(parameters[0], parameters[1])
         elif operation == "apply_2_qubit_gate":
             qc_noiseless.apply_2_qubit_gate(parameters[0], parameters[1], parameters[2])
-        elif operation == "add_top_qubit":
-            qc_noiseless.add_top_qubit(parameters[0])
-        elif operation == "measure_first_N_qubits":
+        elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
-            qc_noiseless.measure_first_N_qubits(parameters[0], parameters[1], uneven_parity)
+            qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
 
     qc_noiseless.draw_circuit()
 
     if save:
         sp.save_npz(file_name, qc_noiseless.total_density_matrix())
 
-    return qc_noiseless.total_density_matrix()
+    return qc_noiseless.get_combined_density_matrix(qubits)
 
 
 def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error):
