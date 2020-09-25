@@ -127,7 +127,6 @@ def _level_qubit_paths(init):
     return init
 
 
-
 def color_qubit_lines(self, init):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     colors = sorted(list(COLORS.keys()))
@@ -147,7 +146,7 @@ def color_qubit_lines(self, init):
 
 
 @handle_none_parameters
-def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circuit=None,sub_circuit_concurrent=False):
+def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circuit=None, sub_circuit_concurrent=False):
     """
         Adds an operation to the draw order list.
 

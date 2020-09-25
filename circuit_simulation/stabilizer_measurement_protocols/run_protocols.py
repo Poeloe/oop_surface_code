@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.insert(1, os.path.abspath(os.getcwd()))
 from pprint import pprint
 from multiprocessing import Pool
 from tqdm import tqdm
