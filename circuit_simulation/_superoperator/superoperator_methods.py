@@ -258,6 +258,7 @@ def print_superoperator(self, superoperator, no_color):
         me = "me" if supop_el.lie else "no me"
         self._print_lines.append("\n{} - {}".format(config, me))
     self._print_lines.append("\n\nSum of the probabilities is: {}\n".format(total))
+    self._print_lines.append("\nTotal lde attempts: {}\n".format(self._total_lde_attempts))
     self._print_lines.append("\n---- End of Superoperator ----\n")
 
     if not self._thread_safe_printing:
@@ -300,7 +301,8 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
     if os.path.exists(path_to_file):
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
-        columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to']
+        columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
+                   'lde_attempts']
         data = pd.DataFrame(0., index=index, columns=columns)
         data.iat[0, 2] = self.pg
         data.iat[0, 3] = self.pm
@@ -310,6 +312,7 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         data.iat[0, 7] = self.p_bell_success
         data.iat[0, 8] = self.bell_creation_duration
         data.iat[0, 9] = self.measurement_duration
+        data.iat[0, 11] = self._total_lde_attempts
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'

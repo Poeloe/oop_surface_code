@@ -189,6 +189,7 @@ class QuantumCircuit:
         self.probabilistic = probabilistic
         self.p_bell_success = p_bell_success
         self.fixed_lde_attempts = fixed_lde_attempts
+        self._total_lde_attempts = 0
 
         # Sub circuit attributes
         self._sub_circuits = {}
@@ -884,8 +885,10 @@ class QuantumCircuit:
             self._N_decoherence([qubit1, qubit2])
 
         times = 1
+        self._total_lde_attempts += 1
         while probabilistic and random.random() > p_bell_success:
             times += 1
+            self._total_lde_attempts += 1
 
         _, _, _, num_qubits_1 = self._get_qubit_relative_objects(qubit1)
         _, _, _, num_qubits_2 = self._get_qubit_relative_objects(qubit2)
