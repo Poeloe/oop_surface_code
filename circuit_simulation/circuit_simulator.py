@@ -137,7 +137,7 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=13e-3, fixed_lde_attempts=40, cut_off_time=600):
+                 pulse_duration=13e-3, fixed_lde_attempts=40, cut_off_time=10):
 
         # Basic attributes
         self.num_qubits = num_qubits
@@ -470,8 +470,10 @@ class QuantumCircuit:
                                  + [current_sub_circuit]])
                 self.total_duration += added_dur
                 if self.total_duration > self.cut_off_time:
+                    self._apply_decoherence_to_fastest_sub_circuits(cut_off_time_reached=True)
                     self.cut_off_time_reached = True
-                self._apply_decoherence_to_fastest_sub_circuits()
+                else:
+                    self._apply_decoherence_to_fastest_sub_circuits()
 
         self._current_sub_circuit = started_sub_circuit
 
@@ -565,7 +567,7 @@ class QuantumCircuit:
             if qubit in values:
                 return key
 
-    def _apply_decoherence_to_fastest_sub_circuits(self):
+    def _apply_decoherence_to_fastest_sub_circuits(self, cut_off_time_reached=False):
         """
             Applies decoherence to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
         """
@@ -578,14 +580,16 @@ class QuantumCircuit:
         for sub_circuit in all_sub_circuits:
             if (longest_duration - sub_circuit.total_duration) > 0:
                 # If the cut-off time is reached, all remaining decoherence should be applied
-                qubits = sub_circuit.waiting_qubits if not self.cut_off_time_reached else sorted(self.qubits.keys())
+                qubits = sub_circuit.waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
                 self._increase_duration(longest_duration - sub_circuit.total_duration, [],
                                         included_qubits=sub_circuit.waiting_qubits,
-                                        sub_circuit=sub_circuit)
+                                        sub_circuit=sub_circuit, skip_check=True)
                 self._N_decoherence(qubits=qubits, sub_circuit=sub_circuit,
                                     sub_circuit_concurrent=True)
+                self._check_if_cut_off_time_is_reached()
 
-    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None, kind='idle'):
+    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None, kind='idle',
+                           skip_check=False):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -624,7 +628,8 @@ class QuantumCircuit:
         if self.qubits is not None:
             self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind)
 
-        self._check_if_cut_off_time_is_reached()
+        if not skip_check:
+            self._check_if_cut_off_time_is_reached()
 
     def _check_if_cut_off_time_is_reached(self):
         """
@@ -637,10 +642,13 @@ class QuantumCircuit:
         if self.total_duration + sub_circuit_duration > self.cut_off_time:
             if self._current_sub_circuit is not None:
                 if self._current_sub_circuit.all_ran:
+                    print("Total circuit reached cut-off")
                     self.cut_off_time_reached = True
                 else:
+                    print("Sub circuit reached cut-off")
                     self._current_sub_circuit.set_cut_off_time_reached()
             if self.total_duration > self.cut_off_time:
+                print("Total circuit reached cut-off")
                 self.cut_off_time_reached = True
 
     def _increase_qubit_duration(self, amount, excluded_qubits, included_qubits, kind):
@@ -1368,7 +1376,10 @@ class QuantumCircuit:
                     self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 measurement_outcomes = self.measure([qubit_1, qubit_2], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                parity.append(True if measurement_outcomes[0] == measurement_outcomes[1] else False)
+                # If measurement_outcomes is None the cut-off time is reached and success should be set to True to be
+                # able to get out of the while loop
+                parity.append(True if measurement_outcomes is None or measurement_outcomes[0] ==
+                                      measurement_outcomes[1] else False)
             success = all(parity)
 
     @skip_if_cut_off_reached

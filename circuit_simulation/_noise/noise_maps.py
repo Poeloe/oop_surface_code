@@ -52,7 +52,6 @@ def N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num
             kraus_opp_3_full * CT(density_matrix, kraus_opp_3_full))
 
 
-
 def N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p):
     Z_gate_full = self._create_1_qubit_gate(Z_gate, tqubit, num_qubits=num_qubits)
 
