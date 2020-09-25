@@ -302,17 +302,18 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
         columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts']
+                   'lde_attempts', 'total_duration']
         data = pd.DataFrame(0., index=index, columns=columns)
-        data.iat[0, 2] = self.pg
-        data.iat[0, 3] = self.pm
-        data.iat[0, 4] = self.pn
-        data.iat[0, 5] = self.decoherence
-        data.iat[0, 6] = self.time_step
-        data.iat[0, 7] = self.p_bell_success
-        data.iat[0, 8] = self.bell_creation_duration
-        data.iat[0, 9] = self.measurement_duration
-        data.iat[0, 11] = self._total_lde_attempts
+        data['pg'].iloc[0] = self.pg
+        data['pm'].iloc[0] = self.pm
+        data['pn'].iloc[0] = self.pn
+        data['p_dec'].iloc[0] = self.decoherence
+        data['ts'].iloc[0] = self.time_step
+        data['p_bell'].iloc[0] = self.p_bell_success
+        data['bell_dur'].iloc[0] = self.bell_creation_duration
+        data['meas_dur'].iloc[0] = self.measurement_duration
+        data['lde_attempts'].iloc[0] = self._total_lde_attempts
+        data['total_duration'].iloc[0] = self.total_duration
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
@@ -339,9 +340,22 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         else:
             data.loc[current_index_opp, opp_stab] = supop_el.p
 
-    data.iat[0, 11] = (data.iat[0, 11] + self._total_lde_attempts) / 2
-    # Register amount of writes to the csv file
-    data.iat[0, 10] = data.iat[0, 10] + 1.0
+    if 'total_duration' in data:
+        data['total_duration'].iloc[0] = (data['total_duration'].iloc[0] + self.total_duration) / 2
+    else:
+        data['total_duration'] = 0
+        data['total_duration'].iloc[0] = self.total_duration
+    if 'total_lde_attempts' in data:
+        data['lde_attempts'].iloc[0] = (data['lde_attempts'].iloc[0] + self._total_lde_attempts) / 2
+    else:
+        data['lde_attempts'] = 0
+        data['lde_attempts'].iloc[0] = self._total_lde_attempts
+    if 'written_to'in data:
+        data['written_to'].iloc[0] = data['written_to'].iloc[0] + 1.0
+    else:
+        data['written_to'] = 0
+        data['written_to'].iloc[0] = 1
+
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]
 

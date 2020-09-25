@@ -100,7 +100,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     qc.apply_2_qubit_gate(operation, 5, 14)
     qc.measure(5)
 
-    qc.end_current_sub_circuit()
+    qc.end_current_sub_circuit(total=True)
 
     end_circuit = time.time()
 
@@ -206,7 +206,7 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     qc.apply_2_qubit_gate(operation, 5, 14)
     qc.measure(5, probabilistic=False)
 
-    qc.end_current_sub_circuit()
+    qc.end_current_sub_circuit(total=True)
 
     end_circuit = time.time()
 
@@ -428,7 +428,7 @@ def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     qc.apply_2_qubit_gate(operation, 3, 14)
     qc.measure(3, probabilistic=False)
 
-    qc.end_current_sub_circuit()
+    qc.end_current_sub_circuit(total=True)
 
     end_circuit = time.time()
 
