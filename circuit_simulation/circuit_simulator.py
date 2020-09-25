@@ -137,7 +137,7 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=13e-3, fixed_lde_attempts=40, cut_off_time=10):
+                 pulse_duration=13e-3, fixed_lde_attempts=40, cut_off_time=600):
 
         # Basic attributes
         self.num_qubits = num_qubits
@@ -620,7 +620,7 @@ class QuantumCircuit:
             # If excluded qubits are in the same node it is a local operation, then time must be divided by the amount
             # of concurrent circuits (those local operations will also be added and together it will make up the total)
             if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits) and \
-                    len(excluded_qubits) > 0:
+                    len(excluded_qubits) > 0 and current_sub_circuit.name not in self.nodes:
                 current_sub_circuit.increase_duration(amount / current_sub_circuit.amount_concurrent_sub_circuits)
             else:
                 current_sub_circuit.increase_duration(amount)
