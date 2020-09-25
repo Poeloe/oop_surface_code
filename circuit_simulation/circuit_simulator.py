@@ -2138,7 +2138,7 @@ class QuantumCircuit:
     def draw_circuit(self, no_color=False, color_nodes=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
-        legenda = "\n--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
+        legenda = "\n--- Circuit ---\n\n #: Bell-pair, o: control qubit " \
                   "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement,"\
                   " {}: noisy operation (gate/measurement)\n".format("~" if no_color else colored("~", 'red'))
         init = self._draw_init(no_color)
