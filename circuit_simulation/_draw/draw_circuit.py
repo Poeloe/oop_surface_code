@@ -57,7 +57,7 @@ def draw_gates(self, init, no_color):
             if type(gate) in [SingleQubitGate, TwoQubitGate]:
                 control = gate.control_repr if type(gate) == TwoQubitGate else "o"
                 gate = gate.representation
-            elif gate == "#":
+            elif "#" in gate:
                 control = gate
             else:
                 control = "o"

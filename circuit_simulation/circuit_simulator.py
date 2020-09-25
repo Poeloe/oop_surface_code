@@ -908,7 +908,7 @@ class QuantumCircuit:
         self._increase_duration(lde_time, [qubit1, qubit2], kind='LDE')
         self._increase_duration(idle_time, [], kind='idle')
 
-        self._add_draw_operation("#", (qubit1, qubit2), noise)
+        self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
 
     @handle_none_parameters
     def _split_total_duration_lde(self, attempts_till_success, fixed_lde_attempts=None, bell_creation_duration=None,
