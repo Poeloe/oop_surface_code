@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import random
 import copy
+import inspect
 
 
 class Superoperator:
@@ -54,12 +55,18 @@ class Superoperator:
                     A dictionary with the z layer a key and the value a list of the stabilizers that are involved in
                     the second round of star stabilizer measurements for that layer.
         """
-        self.file_name = file_name
+        self.file_name = file_name.replace('.csv', '')
+        self._path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
         self.GHZ_success = GHZ_success
 
         self.pg = None
         self.pm = None
         self.pn = None
+        self.bell_dur = None
+        self.meas_dur = None
+        self.dec = None
+        self.ts = None
+        self.p_bell = None
 
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
@@ -109,20 +116,13 @@ class Superoperator:
             0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99       ;  0.01;   0.01;  0.1;
             0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;               ;      ;       ;      ;
         """
-        path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
-
-        with open(path_to_file) as file:
+        with open(self._path_to_file) as file:
             reader = pd.read_csv(file, sep=";", float_precision='round_trip')
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
             if 'GHZ_success' in reader and self.GHZ_success == 1.1:
                 self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.').replace(" ", ""))
-            if "pm" in reader:
-                self.pm = round(float(str(reader.pm[0]).replace(",", ".").replace(" ", "")), 9)
-            if "pg" in reader:
-                self.pg = round(float(str(reader.pg[0]).replace(",", ".").replace(" ", "")), 9)
-            if "pn" in reader:
-                self.pn = round(float(str(reader.pn[0]).replace(",", ".").replace(" ", "")), 9)
+            self._set_superoperator_attributes_if_present(reader)
 
             for i in range(len(list(reader.p_prob))):
                 # Do some parsing operations on the entries to ensure proper form
@@ -134,17 +134,54 @@ class Superoperator:
                 self.sup_op_elements_p.append(SuperoperatorElement(p_prob, bool(int(reader.p_lie[i])), p_error))
                 self.sup_op_elements_s.append(SuperoperatorElement(s_prob, bool(int(reader.s_lie[i])), s_error))
 
-        # Check if the probabilities add up to 1 to ensure a valid decomposition
-        if round(sum(self.sup_op_elements_p), 4) != 1.0 or round(sum(self.sup_op_elements_s), 4) != 1.0:
-            raise ValueError("Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
-                             "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
-                             "Check your superoperator csv."
-                             .format(sum(self.sup_op_elements_p), 1.0 - sum(self.sup_op_elements_p),
-                                     sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
+        self._check_sum_probabilities()
 
         # Sort the entries such that the most likely entries will be listed first
         self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
         self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
+
+    def _convert_csv_file_to_superoperator(self):
+        with open(self._path_to_file) as file:
+            data_frame = pd.read_csv(file, sep=';', float_precision='round_trip', index_col=[0, 1])
+
+            # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
+            if 'GHZ_success' in data_frame and self.GHZ_success == 1.1:
+                self.GHZ_success = float(str(data_frame.GHZ_success[0]).replace(',', '.').replace(" ", ""))
+            self._set_superoperator_attributes_if_present(data_frame)
+
+            for index, row in data_frame.iterrows():
+                error_config = list(index[0])
+                lie = index[1]
+                p_prob = row['p']
+                s_prob = row['s']
+
+                self.sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config))
+                self.sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config))
+
+        self._check_sum_probabilities()
+
+        # Sort the entries such that the most likely entries will be listed first
+        self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
+        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
+
+    def _set_superoperator_attributes_if_present(self, data_frame):
+        attributes = inspect.getmembers(self, lambda a:not(inspect.isroutine(a)))
+        attributes = [a[0] for a in attributes if not (a[0].startswith('__') and a[0].endswith('__'))]
+        attributes.remove('GHZ_success')
+
+        for a in attributes:
+            if a in data_frame:
+                setattr(self, a, round(float(str(data_frame[a][0]).replace(",", ".").replace(" ", "")), 9))
+
+    def _check_sum_probabilities(self):
+        # Check if the probabilities add up to 1 to ensure a valid decomposition
+        if round(sum(self.sup_op_elements_p), 4) != 1.0 or round(sum(self.sup_op_elements_s), 4) != 1.0:
+            raise ValueError(
+                "Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
+                "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
+                "Check your superoperator csv."
+                .format(sum(self.sup_op_elements_p), 1.0 - sum(self.sup_op_elements_p),
+                        sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
 
     def _convert_second_round_elements(self):
         """

@@ -10,6 +10,7 @@
 *.lprof
 *.npz
 *.pdf
+*.lock
 
 .python-version
 
@@ -17,6 +18,7 @@ simulations
 simulations/
 Simulations
 Simulations/
+test_scripts/
 __pycache__/
 errors/
 figures/
@@ -31,3 +33,4 @@ _trial_temp/
 cartesiusdata
 !csv_files/
 !expedient*.csv
+old_files/

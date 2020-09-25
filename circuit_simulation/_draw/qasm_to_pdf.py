@@ -1,10 +1,9 @@
-import os
 import subprocess
 import shutil
 import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
-from circuit_simulation.latex_circuit.qasm2texLib import main as qasm2pdf
+from circuit_simulation._draw.qasm2texLib import main as qasm2pdf
 import warnings
 
 
@@ -35,13 +34,13 @@ def create_pdf_from_qasm(file_name, tex_file_name):
         os.unlink(output_file_path.replace(".tex", ".idx"))
         os.unlink(output_file_path.replace(".tex", ".aux"))
         os.unlink(output_file_path.replace(".tex", ".log"))
-        if not os.path.exists(os.path.join(destination_file_path,"circuit_pdfs")):
+        if not os.path.exists(os.path.join(destination_file_path, "circuit_pdfs")):
             os.mkdir(os.path.join(destination_file_path, "circuit_pdfs"))
         if not failed:
             shutil.move(output_file_path.replace(".tex", ".pdf"),
                         os.path.join(destination_file_path,
-                                    "circuit_pdfs",
-                                    tex_file_name.split(os.sep)[-1].replace(".tex", ".pdf")))
+                                     "circuit_pdfs",
+                                     tex_file_name.split(os.sep)[-1].replace(".tex", ".pdf")))
 
     os.unlink(os.path.join(destination_file_path, tex_file_name.split(os.sep)[-1].replace(".tex", ".qasm")))
     if not failed:

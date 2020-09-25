@@ -1,7 +1,8 @@
 import numpy as np
-from abc import ABC, abstractmethod
+from abc import ABC
 import scipy.sparse as sp
 import circuit_simulation.circuit_simulator as cs
+from circuit_simulation.states.state import State
 
 
 class Gate(ABC):
@@ -58,6 +59,15 @@ class Gate(ABC):
     def duration(self, duration):
         self._duration = duration
 
+    def __mul__(self, other):
+        if type(other) not in [SingleQubitGate, TwoQubitGate, State, sp.csr_matrix]:
+            raise ValueError('It is not possible to multiply this object with a Gate object')
+        if type(other) in [SingleQubitGate, TwoQubitGate]:
+            other_matrix = other.matrix
+        if type(other) == State:
+            other_matrix = other.vector
+
+        return self.matrix * other_matrix
 
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
@@ -145,98 +155,4 @@ class TwoQubitGate(Gate):
             return False
         return np.array_equal(self.matrix, other.matrix)
 
-class State(object):
-    """
-        State class
 
-        Class defines a state with the attributes
-
-        Attributes
-        ----------
-        name : str
-            Name that will be used to refer to the state
-        vector : numpy array
-            Vector that represents the state
-        representation : str
-            Representation is used in the drawing of the circuits
-    """
-
-    def __init__(self, name, vector, representation):
-        self._name = name
-        self._vector = vector
-        self._representation = representation
-        self._sp_vector = sp.csr_matrix(vector)
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def vector(self):
-        return self._vector
-
-    @property
-    def representation(self):
-        return self._representation
-
-    @property
-    def sp_vector(self):
-        return self._sp_vector
-
-    def __repr__(self):
-        return self.representation
-
-    def __eq__(self, other):
-        if type(other) != State:
-            return False
-        return np.array_equal(self.vector, other.vector)
-
-"""
-    SINGLE QUBIT STATES
-"""
-ket_0 = State("Zero", np.array([[1, 0]]).T, "|0>")
-ket_1 = State("One", np.array([[0, 1]]).T, "|1>")
-ket_p = State("Plus", 1 / np.sqrt(2) * np.array([[1, 1]]).T, "|+>")
-ket_m = State("Minus", 1 / np.sqrt(2) * np.array([[1, -1]]).T, "|->")
-
-"""
-    SINGLE QUBIT GATES
-"""
-X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X")
-Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y")
-Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z")
-I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I")
-H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H")
-S_gate = SingleQubitGate("Phase", np.array([[1, 0], [0, 1j]]), "S")
-
-"""
-    TWO-QUBIT GATES
-"""
-CNOT_gate = TwoQubitGate("CNOT",
-                         np.array([[1, 0, 0, 0],
-                                   [0, 1, 0, 0],
-                                   [0, 0, 0, 1],
-                                   [0, 0, 1, 0]]),
-                         "X",
-                         25.1e-3)
-CZ_gate = TwoQubitGate("CPhase",
-                       np.array([[1, 0, 0, 0],
-                                 [0, 1, 0, 0],
-                                 [0, 0, 1, 0],
-                                 [0, 0, 0, -1]]),
-                       "Z",
-                       25.1e-3)
-NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
-                                 np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
-                                           [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],
-                                           [0, 0, np.cos(np.pi/4), -1 * np.sin(np.pi/4)],
-                                           [0, 0, 1 * np.sin(np.pi/4), np.cos(np.pi/4)]]),
-                                 "NV")
-
-SWAP_gate = TwoQubitGate("Swap",
-                         np.array([[1, 0, 0, 0],
-                                   [0, 0, 1, 0],
-                                   [0, 1, 0, 0],
-                                   [0, 0, 0, 1]]),
-                         "(X)",
-                         control_repr="(X)")
