@@ -339,6 +339,7 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         else:
             data.loc[current_index_opp, opp_stab] = supop_el.p
 
+    data.iat[0, 11] = (data.iat[0, 11] + self._total_lde_attempts) / 2
     # Register amount of writes to the csv file
     data.iat[0, 10] = data.iat[0, 10] + 1.0
     # Remove rows that contain only zero probability
