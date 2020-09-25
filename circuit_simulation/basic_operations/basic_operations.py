@@ -42,7 +42,7 @@ def get_value_by_prob(array, p):
     """ Returns, bases on the given weights 'p', a value out of the given array """
     r = random.random()
     index = 0
-    while r >= 0 and index < len(p):
+    while r > 0 and index < len(p):
         r -= p[index]
         index += 1
     return array[index - 1]

@@ -137,7 +137,7 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=13e-3, fixed_lde_attempts=40, cut_off_time=600):
+                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=1000000):
 
         # Basic attributes
         self.num_qubits = num_qubits
@@ -1318,7 +1318,8 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = True if measurement_outcomes is None or measurement_outcomes[0] == measurement_outcomes[1] \
+                    else False
             else:
                 success = True
 
@@ -1336,7 +1337,8 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = True if measurement_outcomes is None or measurement_outcomes[0] == measurement_outcomes[1] \
+                    else False
             else:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
@@ -1355,6 +1357,9 @@ class QuantumCircuit:
             self.CZ(bell_qubit_2 - 1, bell_qubit_2, noise=noise, pg=pg, user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1],
                                                 noise=noise, pm=pm, user_operation=user_operation)
+            if measurement_outcomes is None:
+                success = True
+                continue
             measurement_outcomes = iter(measurement_outcomes)
             success = all([True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)])
 
@@ -1400,7 +1405,8 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = True if measurement_outcomes is None or measurement_outcomes[0] == measurement_outcomes[1] \
+                    else False
             else:
                 success = True
 
@@ -1718,6 +1724,8 @@ class QuantumCircuit:
                     prob2, density_matrix2 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                        outcome=1,
                                                                                        keep_qubit=False)
+                if round(prob1 + prob2, 10) != 1:
+                    raise ValueError("Probabilities do not sum to 1")
 
                 density_matrices = [density_matrix1, density_matrix2]
                 outcome_new = get_value_by_prob([0, 1], [prob1, prob2])
