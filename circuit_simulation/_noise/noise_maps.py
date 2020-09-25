@@ -22,13 +22,35 @@ def N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waitin
 def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
     p = 1 - math.exp(-waiting_time / T)
     kraus_opp_1 = SingleQubitGate("K1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'K1')
-    kraus_opp_2 = SingleQubitGate("K2", np.array([[1, 0], [0, math.sqrt(p)]]), 'K2')
+    kraus_opp_2 = SingleQubitGate("K2", np.array([[0, 0], [0, math.sqrt(p)]]), 'K2')
 
     kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
     kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
 
     return kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) + \
            kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full)
+
+
+def N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T_a, T_p):
+    """
+        Obtained from https://quantumcomputing.stackexchange.com/questions/12857/find-the-kraus-operators-of-a-combined-
+        amplitude-and-phase-damping-channel
+    """
+    p_a = 1 - math.exp(-waiting_time / T_a)
+    p_p = 1 - math.exp(-waiting_time / T_p)
+
+    kraus_opp_1 = SingleQubitGate("K1_ap", np.array([[1, 0], [0, math.sqrt(1 - p_a) * math.sqrt(1 - p_p)]]), 'K1_ap')
+    kraus_opp_2 = SingleQubitGate("K2_ap", np.array([[0, math.sqrt(p_a)], [0, 0]]), 'K2_ap')
+    kraus_opp_3 = SingleQubitGate("K3_ap", np.array([[0, 0], [0, math.sqrt(1 - p_a) * math.sqrt(p_p)]]), 'K3_ap')
+
+    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
+    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
+    kraus_opp_3_full = self._create_1_qubit_gate(kraus_opp_3, tqubit, num_qubits=num_qubits)
+
+    return (kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) +
+            kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full) +
+            kraus_opp_3_full * CT(density_matrix, kraus_opp_3_full))
+
 
 
 def N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p):
