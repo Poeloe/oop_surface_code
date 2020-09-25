@@ -74,7 +74,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
     qc_noiseless.draw_circuit()
 
     if save:
-        sp.save_npz(file_name, qc_noiseless.total_density_matrix())
+        sp.save_npz(file_name, qc_noiseless.get_combined_density_matrix(qubits))
 
     return qc_noiseless.get_combined_density_matrix(qubits)
 

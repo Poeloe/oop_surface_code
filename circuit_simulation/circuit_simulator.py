@@ -464,13 +464,13 @@ class QuantumCircuit:
         if current_sub_circuit is not None and not current_sub_circuit.ran:
             current_sub_circuit.set_ran()
             if current_sub_circuit.all_ran:
-                self._apply_decoherence_to_fastest_sub_circuits()
+                self._draw_order.append("LEVEL")
                 added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
                                  + [current_sub_circuit]])
                 self.total_duration += added_dur
-                self._draw_order.append("LEVEL")
                 if self.total_duration > self.cut_off_time:
                     self.cut_off_time_reached = True
+                self._apply_decoherence_to_fastest_sub_circuits()
 
         self._current_sub_circuit = started_sub_circuit
 
@@ -576,10 +576,13 @@ class QuantumCircuit:
 
         for sub_circuit in all_sub_circuits:
             if (longest_duration - sub_circuit.total_duration) > 0:
+                # If the cut-off time is reached, all remaining decoherence should be applied
+                qubits = sub_circuit.waiting_qubits if not self.cut_off_time_reached else sorted(self.qubits.keys())
                 self._increase_duration(longest_duration - sub_circuit.total_duration, [],
                                         included_qubits=sub_circuit.waiting_qubits,
                                         sub_circuit=sub_circuit)
-                self._N_decoherence(sub_circuit.waiting_qubits, sub_circuit=sub_circuit, sub_circuit_concurrent=True)
+                self._N_decoherence(qubits=qubits, sub_circuit=sub_circuit,
+                                    sub_circuit_concurrent=True)
 
     def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None, kind='idle'):
         """
@@ -1521,6 +1524,10 @@ class QuantumCircuit:
     def _N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
         return self._noise.noise_maps.N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T)
 
+    def _N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T_a, T_p):
+        return self._noise.noise_maps.N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix,
+                                                                                 num_qubits, waiting_time, T_a, T_p)
+
     def _N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p):
         return self._noise.noise_maps.N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p)
 
@@ -1881,14 +1888,17 @@ class QuantumCircuit:
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
 
-            superoperator.append(SuperoperatorElement(fid_me, True, operators))
-            superoperator.append(SuperoperatorElement(fid_no_me, False, operators))
+            if fid_me != 0:
+                superoperator.append(SuperoperatorElement(fid_me, True, operators))
+            if fid_no_me != 0:
+                superoperator.append(SuperoperatorElement(fid_no_me, False, operators))
 
         # Possible post-processing options for the superoperator
-        if combine:
-            superoperator = self._fuse_equal_config_up_to_permutation(superoperator, proj_type)
-        if combine and most_likely:
-            superoperator = self._remove_not_likely_configurations(superoperator)
+        if not self.cut_off_time_reached:
+            if combine:
+                superoperator = self._fuse_equal_config_up_to_permutation(superoperator, proj_type)
+            if combine and most_likely:
+                superoperator = self._remove_not_likely_configurations(superoperator)
 
         if to_csv:
             self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name, use_exact_path=use_exact_path)
@@ -2128,7 +2138,7 @@ class QuantumCircuit:
     def draw_circuit(self, no_color=False, color_nodes=False):
         """ Draws the circuit that corresponds to the operation that have been applied on the system,
         up until the moment of calling. """
-        legenda = "\n--- Circuit ---\n\n @: noisy Bell-pair, #: perfect Bell-pair, o: control qubit " \
+        legenda = "\n--- Circuit ---\n\n #: Bell-pair, o: control qubit " \
                   "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement,"\
                   " {}: noisy operation (gate/measurement)\n".format("~" if no_color else colored("~", 'red'))
         init = self._draw_init(no_color)
