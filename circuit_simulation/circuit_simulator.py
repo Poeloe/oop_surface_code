@@ -1783,7 +1783,8 @@ class QuantumCircuit:
 
             measurement_outcomes.append(outcome_new)
             self._update_uninitialised_qubit_register([qubit], update_type="add")
-            self._add_draw_operation("M_{}:{}-{:1g}%".format(basis, outcome_new, probs[outcome_new]*100), qubit, noise)
+            self._add_draw_operation("M_{}:{}-{:3.0f}%".format(basis, outcome_new, probs[outcome_new]*100), qubit,
+                                     noise)
 
             # Please note that the decoherence is implemented after the H gate. When the H gate should be taken into
             # account for decoherence small implementation alteration is necessary.
