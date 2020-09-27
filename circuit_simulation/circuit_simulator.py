@@ -1729,6 +1729,7 @@ class QuantumCircuit:
                     prob2, density_matrix2 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                        outcome=1,
                                                                                        keep_qubit=False)
+                probs = [prob1, prob2]
                 if round(prob1 + prob2, 10) != 1:
                     raise ValueError("Probabilities do not sum to 1")
 
@@ -1768,6 +1769,7 @@ class QuantumCircuit:
                                                                                             keep_qubit=False)
                         new_density_matrix = (1 - pm) * new_density_matrix + pm * wrong_density_matrix
 
+                probs = [prob, prob]
                 if prob == 0:
                     raise ValueError("Measuring a state with 0 probability cannot be dealt with. Please write"
                                      " a valid circuit.")
@@ -1781,7 +1783,7 @@ class QuantumCircuit:
 
             measurement_outcomes.append(outcome_new)
             self._update_uninitialised_qubit_register([qubit], update_type="add")
-            self._add_draw_operation("M_{}:{}".format(basis, outcome_new), qubit, noise)
+            self._add_draw_operation("M_{}:{}-{:1g}%".format(basis, outcome_new, probs[outcome_new]*100), qubit, noise)
 
             # Please note that the decoherence is implemented after the H gate. When the H gate should be taken into
             # account for decoherence small implementation alteration is necessary.
