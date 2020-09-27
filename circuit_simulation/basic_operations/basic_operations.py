@@ -40,6 +40,8 @@ def gate_name(gate):
 
 def get_value_by_prob(array, p):
     """ Returns, bases on the given weights 'p', a value out of the given array """
+    if len(p) == 2 and 0 in p:
+        return array[p.index(max(p))]
     r = random.random()
     index = 0
     while r > 0 and index < len(p):
