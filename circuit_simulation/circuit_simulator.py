@@ -383,7 +383,7 @@ class QuantumCircuit:
                 density_matrix, involved_qubits, _, _ = self._get_qubit_relative_objects(qubit)
                 density_matrices.append(density_matrix)
                 skip_qubits.extend(involved_qubits)
-        return KP(*density_matrices)
+        return KP(*density_matrices), skip_qubits
 
     def total_density_matrix(self):
         """
@@ -395,7 +395,7 @@ class QuantumCircuit:
             if qubit not in skip_qubits:
                 density_matrices.append(density_matrix)
                 skip_qubits.extend(qubits)
-        return KP(*density_matrices)
+        return KP(*density_matrices), skip_qubits
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -940,10 +940,10 @@ class QuantumCircuit:
     def _get_bell_state_by_type(bell_state_type=1):
         """
             Returns a Bell state density matrix based on the type provided. types are:
-                    1 : |00> + |11>
-                    2 : |00> - |11>
-                    3 : |01> + |10>
-                    4 : |01> - |10>
+                    1 : 1/2(|00> + |11>)
+                    2 : 1/2(|00> - |11>)
+                    3 : 1/2(|01> + |10>)
+                    4 : 1/2(|01> - |10>)
         """
         rho = sp.lil_matrix((4, 4))
         if bell_state_type == 1:
@@ -1358,10 +1358,9 @@ class QuantumCircuit:
             measurement_outcomes = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1],
                                                 noise=noise, pm=pm, user_operation=user_operation)
             if measurement_outcomes is None:
-                success = True
-                continue
-            measurement_outcomes = iter(measurement_outcomes)
-            success = all([True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)])
+                return
+            success = (measurement_outcomes[0] == measurement_outcomes[1] and
+                       measurement_outcomes[2] == measurement_outcomes[3])
 
     @skip_if_cut_off_reached
     def double_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
@@ -1383,8 +1382,9 @@ class QuantumCircuit:
                                                     user_operation=user_operation)
                 # If measurement_outcomes is None the cut-off time is reached and success should be set to True to be
                 # able to get out of the while loop
-                parity.append(True if measurement_outcomes is None or measurement_outcomes[0] ==
-                                      measurement_outcomes[1] else False)
+                if measurement_outcomes is None:
+                    return
+                parity.append(True if measurement_outcomes[0] == measurement_outcomes[1] else False)
             success = all(parity)
 
     @skip_if_cut_off_reached
@@ -1405,8 +1405,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                success = True if measurement_outcomes is None or measurement_outcomes[0] == measurement_outcomes[1] \
-                    else False
+                if measurement_outcomes is None:
+                    return
+                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
             else:
                 success = True
 
@@ -1432,6 +1433,8 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
+                if measurement_outcomes is None:
+                    return
                 success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
             else:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
@@ -1450,6 +1453,8 @@ class QuantumCircuit:
                                   user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
+            if measurement_outcomes is None:
+                return
             success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
     @skip_if_cut_off_reached
@@ -1466,6 +1471,8 @@ class QuantumCircuit:
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
+            if measurement_outcomes is None:
+                return
             success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
     """
@@ -1643,7 +1650,7 @@ class QuantumCircuit:
         parity_outcome = [True if i == j else False for i, j in zip(measurement_outcomes, measurement_outcomes)]
         return all(parity_outcome)
 
-    def _measurement_first_qubit(self, density_matrix, measure=0, noise=True, pm=0.):
+    def _measurement_first_qubit(self, density_matrix, measure=0, noise=None, pm=0.):
         """
             Private method that is used to measure the first qubit (qubit 0) in the system and removing it
             afterwards. If a 0 is measured, the upper left quarter of the density matrix 'survives'
@@ -1702,21 +1709,19 @@ class QuantumCircuit:
         measurement_outcomes = []
 
         for i, qubit in enumerate(measure_qubits):
-            if basis == "X":
-                self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
-
             if noise and decoherence:
                 self._N_decoherence([qubit])
+
+            if basis == "X":
+                self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
 
             density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
 
             # If no specific measurement outcome is given it is chosen by the hand of the probability
             if probabilistic:
                 if rel_qubit == 0:
-                    prob1, density_matrix1 = self._measurement_first_qubit(density_matrix, measure=0, noise=False,
-                                                                           pm=pm)
-                    prob2, density_matrix2 = self._measurement_first_qubit(density_matrix, measure=1, noise=False,
-                                                                           pm=pm)
+                    prob1, density_matrix1 = self._measurement_first_qubit(density_matrix, measure=0, noise=False)
+                    prob2, density_matrix2 = self._measurement_first_qubit(density_matrix, measure=1, noise=False)
                 else:
                     prob1, density_matrix1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                        outcome=0,
@@ -1730,9 +1735,16 @@ class QuantumCircuit:
                 density_matrices = [density_matrix1, density_matrix2]
                 outcome_new = get_value_by_prob([0, 1], [prob1, prob2])
 
+                if round(prob1, 4) == 0.5 and len(measurement_outcomes) in [1, 3]:
+                    if outcome_new != measurement_outcomes[0]:
+                        result = 'OPPOSITE'
+                    else:
+                        result = 'Expected'
+                    print("\nUnexpected equal measurement probabilities. Chosen {} outcome.".format(result))
+
                 new_density_matrix = density_matrices[outcome_new]
 
-                if pm_1 is not None and outcome == 1:
+                if pm_1 is not None and outcome_new == 1:
                     pm = pm_1
 
                 if noise:
@@ -1761,17 +1773,17 @@ class QuantumCircuit:
                                      " a valid circuit.")
 
             if basis == "X":
-                density_matrix_measured = CT(ket_p) if outcome == 0 else CT(ket_m)
+                density_matrix_measured = CT(ket_p) if outcome_new == 0 else CT(ket_m)
                 self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
             else:
-                density_matrix_measured = CT(ket_0) if outcome == 0 else CT(ket_1)
+                density_matrix_measured = CT(ket_0) if outcome_new == 0 else CT(ket_1)
                 self._correct_lookup_for_measurement_any(qubit, qubits, density_matrix_measured, new_density_matrix)
 
             measurement_outcomes.append(outcome_new)
             self._update_uninitialised_qubit_register([qubit], update_type="add")
             self._add_draw_operation("M_{}:{}".format(basis, outcome_new), qubit, noise)
 
-            # Please not that the decoherence is implemented after the H gate. When the H gate should be taken into
+            # Please note that the decoherence is implemented after the H gate. When the H gate should be taken into
             # account for decoherence small implementation alteration is necessary.
             self._increase_duration(self.measurement_duration, [qubit])
 
@@ -1889,7 +1901,7 @@ class QuantumCircuit:
         superoperator = []
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
-        total_density_matrix = self.get_combined_density_matrix(qubits)
+        total_density_matrix = self.get_combined_density_matrix(qubits)[0]
         num_qubits = int(math.log(total_density_matrix.shape[0])/math.log(2))
         all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits, num_qubits=num_qubits)
 

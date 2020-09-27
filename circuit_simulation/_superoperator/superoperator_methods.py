@@ -74,9 +74,9 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
     qc_noiseless.draw_circuit()
 
     if save:
-        sp.save_npz(file_name, qc_noiseless.get_combined_density_matrix(qubits))
+        sp.save_npz(file_name, qc_noiseless.get_combined_density_matrix(qubits)[0])
 
-    return qc_noiseless.get_combined_density_matrix(qubits)
+    return qc_noiseless.get_combined_density_matrix(qubits)[0]
 
 
 def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error):
@@ -100,7 +100,7 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
 
     qc.measure([0], outcome=0 if not measure_error else 1)
 
-    return qc.get_combined_density_matrix([1])
+    return qc.get_combined_density_matrix([1])[0]
 
 
 def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
