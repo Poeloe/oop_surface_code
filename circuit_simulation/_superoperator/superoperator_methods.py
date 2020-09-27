@@ -74,9 +74,9 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
     qc_noiseless.draw_circuit()
 
     if save:
-        sp.save_npz(file_name, qc_noiseless.get_combined_density_matrix(qubits))
+        sp.save_npz(file_name, qc_noiseless.get_combined_density_matrix(qubits)[0])
 
-    return qc_noiseless.get_combined_density_matrix(qubits)
+    return qc_noiseless.get_combined_density_matrix(qubits)[0]
 
 
 def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error):
@@ -100,7 +100,7 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
 
     qc.measure([0], outcome=0 if not measure_error else 1)
 
-    return qc.get_combined_density_matrix([1])
+    return qc.get_combined_density_matrix([1])[0]
 
 
 def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
@@ -304,16 +304,15 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
                    'lde_attempts', 'total_duration']
         data = pd.DataFrame(0., index=index, columns=columns)
-        data['pg'].iloc[0] = self.pg
-        data['pm'].iloc[0] = self.pm
-        data['pn'].iloc[0] = self.pn
-        data['p_dec'].iloc[0] = self.decoherence
-        data['ts'].iloc[0] = self.time_step
-        data['p_bell'].iloc[0] = self.p_bell_success
-        data['bell_dur'].iloc[0] = self.bell_creation_duration
-        data['meas_dur'].iloc[0] = self.measurement_duration
-        data['lde_attempts'].iloc[0] = self._total_lde_attempts
-        data['total_duration'].iloc[0] = self.total_duration
+        data.iloc[0, data.columns.get_loc('pg')] = self.pg
+        data.iloc[0, data.columns.get_loc('pm')] = self.pm
+        data.iloc[0, data.columns.get_loc('pn')] = self.pn
+        data.iloc[0, data.columns.get_loc('p_dec')] = self.decoherence
+        data.iloc[0, data.columns.get_loc('p_bell')] = self.p_bell_success
+        data.iloc[0, data.columns.get_loc('bell_dur')] = self.bell_creation_duration
+        data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
+        data.iloc[0, data.columns.get_loc('lde_attempts')] = self._total_lde_attempts
+        data.iloc[0, data.columns.get_loc('total_duration')] = self.total_duration
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
@@ -341,20 +340,22 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
             data.loc[current_index_opp, opp_stab] = supop_el.p
 
     if 'total_duration' in data:
-        data['total_duration'].iloc[0] = (data['total_duration'].iloc[0] + self.total_duration) / 2
+        data.iloc[0, data.columns.get_loc("total_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] +
+                                                                self.total_duration) / 2
     else:
         data['total_duration'] = 0
-        data['total_duration'].iloc[0] = self.total_duration
-    if 'total_lde_attempts' in data:
-        data['lde_attempts'].iloc[0] = (data['lde_attempts'].iloc[0] + self._total_lde_attempts) / 2
+        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
+    if 'lde_attempts' in data:
+        data.iloc[0, data.columns.get_loc("lde_attempts")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] +
+                                                              self._total_lde_attempts) / 2
     else:
         data['lde_attempts'] = 0
-        data['lde_attempts'].iloc[0] = self._total_lde_attempts
-    if 'written_to'in data:
-        data['written_to'].iloc[0] = data['written_to'].iloc[0] + 1.0
+        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
+    if 'written_to' in data:
+        data.iloc[0, data.columns.get_loc("written_to")] += 1.0
     else:
         data['written_to'] = 0
-        data['written_to'].iloc[0] = 1
+        data.iloc[0, data.columns.get_loc("written_to")] = 1
 
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]

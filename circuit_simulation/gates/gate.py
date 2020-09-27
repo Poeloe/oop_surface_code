@@ -64,8 +64,10 @@ class Gate(ABC):
             raise ValueError('It is not possible to multiply this object with a Gate object')
         if type(other) in [SingleQubitGate, TwoQubitGate]:
             other_matrix = other.matrix
-        if type(other) == State:
+        elif type(other) == State:
             other_matrix = other.vector
+        else:
+            other_matrix = other
 
         return self.matrix * other_matrix
 

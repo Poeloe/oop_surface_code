@@ -2,7 +2,7 @@ from circuit_simulation.basic_operations.basic_operations import *
 import copy
 
 
-def measurement_first_qubit(density_matrix, measure=0, noise=True, pm=0.):
+def measurement_first_qubit(density_matrix, measure=0, noise=None, pm=0.):
     """
         Private method that is used to measure the first qubit (qubit 0) in the system and removing it
         afterwards. If a 0 is measured, the upper left quarter of the density matrix 'survives'
@@ -41,7 +41,8 @@ def measurement_first_qubit(density_matrix, measure=0, noise=True, pm=0.):
         temp_density_matrix = density_matrix_1
 
     prob = trace(temp_density_matrix)
-    temp_density_matrix = temp_density_matrix / prob
+    if prob != 0:
+        temp_density_matrix = temp_density_matrix / prob
 
     return prob, temp_density_matrix
 
