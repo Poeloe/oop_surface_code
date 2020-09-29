@@ -4,12 +4,22 @@ sys.path.insert(1, os.path.abspath(os.getcwd()))
 from pprint import pprint
 from multiprocessing import Pool
 from tqdm import tqdm
+import random
 import threading
 import pickle
 import re
 import pandas as pd
 from circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_protocols import *
 from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
+from decimal import Decimal as dec
+
+
+def _init_random_seed(timestamp=None, worker=0, iteration=0):
+    if timestamp is None:
+        timestamp = time.time()
+    seed = int("{:.0f}".format(timestamp * 10 ** 7) + str(worker) + str(iteration))
+    random.seed(dec(seed))
+    return seed
 
 
 def _combine_multiple_csv_files(filenames, delete=False):
@@ -19,18 +29,22 @@ def _combine_multiple_csv_files(filenames, delete=False):
         plain_file_name = os.path.split(filename)[1]
         regex_pattern = re.compile('^' + plain_file_name + '_.*')
         final_file_name = os.path.join(csv_dir, "combined_" + plain_file_name + ".csv")
+        if os.path.exists(final_file_name):
+            original_data_frame = pd.read_csv(final_file_name, sep=';', index_col=[0, 1])
+
         for i, file in enumerate(os.listdir(csv_dir)):
             if regex_pattern.fullmatch(file):
                 data_frame = pd.read_csv(os.path.join(csv_dir, file), sep=';', index_col=[0, 1])
                 if original_data_frame is None:
                     original_data_frame = data_frame
                 else:
-                    original_data_frame.add(data_frame, axis=0)
-                    original_data_frame.div(2)
+                    original_data_frame = original_data_frame.add(data_frame, axis=0, fill_value=0)
+                    original_data_frame = original_data_frame.div(2, axis=0)
                     if 'written_to' in original_data_frame:
                         original_data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")] *= 2
                 if delete:
                     os.remove(os.path.join(csv_dir, file))
+                skip_first_written_to = False
 
         original_data_frame.to_csv(final_file_name, sep=';')
 
@@ -71,6 +85,7 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_b
 
     if threaded and fn:
         fn += ("_" + str(threading.get_ident()))
+        _init_random_seed(threading.get_ident(), iteration=it)
 
     if print_mode:
         return []
@@ -148,6 +163,7 @@ if __name__ == "__main__":
         workers = it if 1 < it < 17 else 16
         thread_pool = Pool(workers)
         results = []
+        pbar = tqdm(total=it)
 
     for i in range(it):
         filename_count = 0
@@ -178,9 +194,9 @@ if __name__ == "__main__":
         print_results = []
         for res in results:
             print_results.extend(res.get())
-            pbar.update(100*(1/it))
+            pbar.update(1)
         if filenames:
-            _combine_multiple_csv_files(filenames)
+            _combine_multiple_csv_files(filenames, delete=True)
 
         print(*print_results)
         thread_pool.close()
