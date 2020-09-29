@@ -1045,7 +1045,7 @@ class QuantumCircuit:
         self._increase_duration(gate.duration, [tqubit])
 
         if draw:
-            self._add_draw_operation(gate, tqubit, noise)
+            self._add_draw_operation(gate, tqubit, noise and not self.no_single_qubit_error)
 
     @skip_if_cut_off_reached
     @handle_none_parameters
@@ -1394,6 +1394,7 @@ class QuantumCircuit:
                    pg=None, draw_X_gate=False, parity_check=True, user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        drawn = False
         while not success:
             self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
             self.single_selection(CNOT_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
@@ -1411,13 +1412,14 @@ class QuantumCircuit:
                     return
                 success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
+                if draw_X_gate and self._sub_circuits and not drawn:
+                    self._add_draw_operation(X_gate, bell_qubit_2 + 1,
+                                             noise=self.noise and not self.no_single_qubit_error)
+                    drawn = True
                 if not parity_check:
                     if not success:
                         self.X(bell_qubit_2 + 1, noise=noise)
                         self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                    if draw_X_gate and self._sub_circuits:
-                        self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
-                    return success
             else:
                 return
 
@@ -1426,6 +1428,7 @@ class QuantumCircuit:
                         pg=None, draw_X_gate=False, parity_check=True, user_operation=True):
         """ single dot with swaps """
         success = False
+        drawn = False
         while not success:
             self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
             self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
@@ -1447,12 +1450,15 @@ class QuantumCircuit:
                     return
                 success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
+                if draw_X_gate and self._sub_circuits and not drawn:
+                    self._add_draw_operation(X_gate, bell_qubit_2 + 1,
+                                             noise=self.noise and not self.no_single_qubit_error)
+                    drawn = True
+
                 if not parity_check:
                     if not success:
                         self.X(bell_qubit_2 + 1, noise=noise)
                         self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                    if draw_X_gate and self._sub_circuits:
-                        self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
                     return success
             else:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
@@ -1464,6 +1470,7 @@ class QuantumCircuit:
                    draw_X_gate=False, parity_check=True, user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        drawn = False
         while not success:
             self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                             user_operation=user_operation)
@@ -1475,12 +1482,14 @@ class QuantumCircuit:
                 return
             success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
+            if draw_X_gate and self._sub_circuits and not drawn:
+                self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
+                drawn = True
+
             if not parity_check:
                 if not success:
                     self.X(bell_qubit_2 + 1, noise=noise)
                     self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                if draw_X_gate and self._sub_circuits:
-                    self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
                 return success
 
     @skip_if_cut_off_reached
@@ -1488,6 +1497,7 @@ class QuantumCircuit:
                         draw_X_gate=False, parity_check=True, user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
+        drawn = False
         while not success:
             self.single_dot_swap(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                                  user_operation=user_operation)
@@ -1501,12 +1511,14 @@ class QuantumCircuit:
                 return
             success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
+            if draw_X_gate and self._sub_circuits:
+                self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
+                drawn = True
+
             if not parity_check:
                 if not success:
                     self.X(bell_qubit_2 + 1, noise=noise)
                     self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                if draw_X_gate and self._sub_circuits:
-                    self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
                 return success
 
     """

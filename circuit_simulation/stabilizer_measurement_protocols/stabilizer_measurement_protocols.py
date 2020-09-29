@@ -78,8 +78,8 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
         pbar.update(20)
 
     qc.start_sub_circuit("BD")
-    qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_1, parity_check=False)
-    qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_2, parity_check=False)
+    qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_1)
+    qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_2)
 
     if pbar is not None:
         pbar.update(20)
@@ -184,8 +184,8 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
         pbar.update(20)
 
     qc.start_sub_circuit("BD")
-    qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_1, parity_check=False)
-    qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_2, parity_check=False)
+    qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_1)
+    qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_2)
 
     if pbar is not None:
         pbar.update(20)
@@ -289,8 +289,8 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
         pbar.update(20)
 
     qc.start_sub_circuit('BD')
-    qc.single_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_1, parity_check=False)
-    qc.single_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_2, parity_check=False)
+    qc.single_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_1)
+    qc.single_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_2)
 
     if pbar is not None:
         pbar.update(20)
@@ -401,8 +401,8 @@ def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
         pbar.update(20)
 
     qc.start_sub_circuit("BD")
-    qc.double_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_1, parity_check=False)
-    qc.double_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_2, parity_check=False)
+    qc.double_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_1)
+    qc.double_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_2)
 
     if pbar is not None:
         pbar.update(20)

@@ -166,6 +166,7 @@ if __name__ == "__main__":
                             print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell,
                                         bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
                                         to_console, swap, pbar=pbar))
+                            print("\nFinished iteration {} of the {}\n".format(i+1, it))
                             pbar.reset()
                         filename_count += 1
 
