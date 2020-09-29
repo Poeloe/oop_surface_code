@@ -116,7 +116,8 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console,
+                         use_exact_path=True)
     end_superoperator = time.time()
 
     if pbar is not None:

@@ -12,7 +12,7 @@ from circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_
 from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
 
 
-def _combine_multiple_csv_files(filenames):
+def _combine_multiple_csv_files(filenames, workers, delete=False):
     for filename in filenames:
         csv_dir = os.path.dirname(os.path.abspath(filename))
         original_data_frame = None
@@ -27,7 +27,11 @@ def _combine_multiple_csv_files(filenames):
                 else:
                     original_data_frame.add(data_frame, axis=0)
                     original_data_frame.div(2)
+                if delete:
+                    os.remove(os.path.join(csv_dir, file))
 
+        if 'written_to' in original_data_frame:
+            original_data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")] *= workers
         original_data_frame.to_csv(final_file_name, sep=';')
 
 
@@ -176,7 +180,7 @@ if __name__ == "__main__":
             print_results.extend(res.get())
             pbar.update(100*(1/it))
         if filenames:
-            _combine_multiple_csv_files(filenames)
+            _combine_multiple_csv_files(filenames, workers)
 
         print(*print_results)
         thread_pool.close()
