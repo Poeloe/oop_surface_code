@@ -47,7 +47,7 @@ def measurement_first_qubit(density_matrix, measure=0, noise=None, pm=0.):
     return prob, temp_density_matrix
 
 
-def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qubit=True):
+def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qubit=False):
     """
         Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
 
@@ -102,16 +102,28 @@ def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qub
         new_density_matrix = sp.lil_matrix((int(d/2), int(d/2)), dtype=density_matrix.dtype)
         start = 0 if outcome == 0 else dimension_block
         surviving_columns_rows = [i+j for i in range(start, d, dimension_block * 2)
-                                for j in range(dimension_block)]
+                                  for j in range(dimension_block)]
         non_zero_rows_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_rows)))
         non_zero_columns_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_columns)))
         if non_zero_columns_unique.size != 0:
             for row in non_zero_rows_unique:
-                new_row = int(row/2) + (row % 2)
+                if (outcome == 0 and ((row/dimension_block) % 2 == 0)) or \
+                   (outcome == 1 and ((row/dimension_block) % 2 == 1)):
+                    new_row = int(row/2) if row not in [i for i in range(dimension_block)] else row
+                else:
+                    new_row = int(row/2) + (row % 2)
+
                 column_indices = [i for i, e in enumerate(non_zero_rows) if e == row]
                 valid_columns = [c for c in non_zero_columns[column_indices] if c in surviving_columns_rows]
-                valid_columns_new = [(int(c/2) + (c % 2)) for c in valid_columns]
-                new_density_matrix[new_row, valid_columns_new] = density_matrix[row, valid_columns]
+                new_columns = []
+                for column in valid_columns:
+                    if (outcome == 0 and ((column/dimension_block) % 2 == 0)) or \
+                       (outcome == 1 and ((column/dimension_block) % 2 == 1)):
+                        new_columns.append(int(column / 2) if column not in [i for i in range(dimension_block)] else
+                                           column)
+                    else:
+                        new_columns.append(int(column / 2) + (column % 2))
+                new_density_matrix[new_row, new_columns] = density_matrix[row, valid_columns]
 
     prob = trace(new_density_matrix)
     new_density_matrix = new_density_matrix / trace(new_density_matrix)

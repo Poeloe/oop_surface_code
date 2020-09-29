@@ -77,6 +77,11 @@ class SubQuantumCircuit:
 
         self._concurrent_sub_circuits = list(set(self._concurrent_sub_circuits))
 
+    def reset(self):
+        self._total_duration = 0
+        self._ran = False
+        self._cut_off_time_reached = False
+
     def __hash__(self):
         return hash(self.name)
 

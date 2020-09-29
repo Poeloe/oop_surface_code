@@ -121,8 +121,8 @@ class TwoQubitGate(Gate):
         self._lower_right_matrix = self.sp_matrix[:2, :2]
         self._upper_right_matrix = self.sp_matrix[:2, 2:]
         self._lower_left_matrix = self.sp_matrix[2:, :2]
-        self._cntrl_gate = True if np.array_equal(self._upper_right_matrix, np.zeros((2, 2))) and \
-                                   np.array_equal(self._lower_left_matrix, np.zeros((2, 2))) else False
+        self._cntrl_gate = True if np.array_equal(self._upper_right_matrix.toarray(), np.zeros((2, 2))) and \
+                                   np.array_equal(self._lower_left_matrix.toarray(), np.zeros((2, 2))) else False
 
     @property
     def control_repr(self):
