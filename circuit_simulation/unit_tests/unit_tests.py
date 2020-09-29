@@ -51,7 +51,7 @@ class TestQuantumCircuitInit(unittest.TestCase):
         qc = QC(4, 0)
         self.assertEqual(qc.num_qubits, 4)
         self.assertEqual(qc.d, 2**4)
-        self.assertEqual(qc.total_density_matrix().shape, (2**4, 2**4))
+        self.assertEqual(qc.total_density_matrix()[0].shape, (2**4, 2**4))
 
     def test_first_qubit_ket_p_init(self):
         qc = QC(2, 1)
@@ -59,9 +59,9 @@ class TestQuantumCircuitInit(unittest.TestCase):
 
         self.assertEqual(qc.num_qubits, 2)
         self.assertEqual(qc.d, 2 ** 2)
-        self.assertEqual(qc.total_density_matrix().shape, (2 ** 2, 2 ** 2))
+        self.assertEqual(qc.total_density_matrix()[0].shape, (2 ** 2, 2 ** 2))
         self.assertEqual(qc._qubit_array[0], ket_p)
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray(), density_matrix)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(), density_matrix)
 
     def test_bell_pair_init(self):
         qc = QC(8, 2)
@@ -74,7 +74,7 @@ class TestQuantumCircuitInit(unittest.TestCase):
 
         self.assertEqual(qc.num_qubits, 8)
         self.assertEqual(qc.d, 2 ** 8)
-        self.assertEqual(qc.total_density_matrix().shape, (2 ** 8, 2 ** 8))
+        self.assertEqual(qc.total_density_matrix()[0].shape, (2 ** 8, 2 ** 8))
         np.testing.assert_array_equal(matrix_01.toarray(), density_matrix)
         np.testing.assert_array_equal(matrix_23.toarray(), density_matrix)
         np.testing.assert_array_equal(matrix_45.toarray(), density_matrix)
@@ -159,7 +159,7 @@ class TestErrorImplementation(unittest.TestCase):
         qc.X(0)
 
         expected_density_matrix = np.array([[2/3*0.01, 0], [0, (1-0.01)+0.01/3]])
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, expected_density_matrix)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray().real, expected_density_matrix)
 
     def test_two_qubit_gate_error(self):
         qc = QC(2, 0, noise=True, pg=0.01)
@@ -169,7 +169,7 @@ class TestErrorImplementation(unittest.TestCase):
                                             [0, 0.04/15, 0, 0],
                                             [0, 0, 0.04/15, 0],
                                             [0, 0, 0, 0.04/15]])
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, expected_density_matrix)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray().real, expected_density_matrix)
 
 
 class TestMeasurement(unittest.TestCase):
@@ -181,7 +181,7 @@ class TestMeasurement(unittest.TestCase):
         qc.measure_first_N_qubits(1, measure=0)
 
         correct_result = np.array([[0.5, 0.5], [0.5, 0.5]])
-        np.testing.assert_array_equal(qc.total_density_matrix().toarray(), correct_result)
+        np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), correct_result)
 
         # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
         qc2 = QC(2, 1)
@@ -189,14 +189,14 @@ class TestMeasurement(unittest.TestCase):
         qc2.measure_first_N_qubits(1, measure=1)
 
         correct_result_2 = np.array([[0.5, -0.5], [-0.5, 0.5]])
-        np.testing.assert_array_equal(qc2.total_density_matrix().toarray(), correct_result_2)
+        np.testing.assert_array_equal(qc2.total_density_matrix()[0].toarray(), correct_result_2)
 
     def test_measure_first_qubit_plus_x_basis(self):
         qc = QC(2, 1)
         qc.measure(0, outcome=0)
 
         correct_result = 1/2 * np.array([[1, 0, 1, 0], [0, 0, 0, 0], [1, 0, 1, 0], [0, 0, 0, 0]])
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray().real, correct_result)
 
     def test_measure_first_qubit_minus_x_basis(self):
         qc = QC(2, 1)
@@ -211,7 +211,7 @@ class TestMeasurement(unittest.TestCase):
         qc.measure(0, outcome=0)
 
         correct_result = 1/4 * np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray().real, correct_result)
 
     def test_measure_first_qubit_bell_state_minus(self):
         # Initialise second system also in |+0>, CNOT on 2nd qubit and measure |-> on first qubit
@@ -220,7 +220,7 @@ class TestMeasurement(unittest.TestCase):
         qc.measure(0, outcome=1)
 
         correct_result = 1/4 * np.array([[1, -1, -1, 1], [-1, 1, 1, -1], [-1, 1, 1, -1], [1, -1, -1, 1]])
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray().real, correct_result)
 
     def test_measure_first_qubit_bell_state_zero(self):
         qc = QC(2, 1)
@@ -228,7 +228,7 @@ class TestMeasurement(unittest.TestCase):
         qc.measure(0, outcome=0, basis="Z")
 
         correct_result = np.array([[1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
-        np.testing.assert_array_almost_equal(qc.total_density_matrix().toarray().real, correct_result)
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray().real, correct_result)
 
     def test_measure_first_qubit_bell_state_one(self):
         qc = QC(2, 1)
@@ -236,7 +236,59 @@ class TestMeasurement(unittest.TestCase):
         qc.measure(0, outcome=1, basis="Z")
 
         correct_result = np.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1]])
-        np.testing.assert_equal(qc.total_density_matrix().toarray().real, correct_result)
+        np.testing.assert_equal(qc.total_density_matrix()[0].toarray().real, correct_result)
+
+    def test_outcome_probabilities(self):
+        for _ in range(100):
+            qc = QC(4, 0, probabilistic=True)
+            qc.create_bell_pair(0, 1)
+            outcome = qc.measure([1, 0])
+
+            self.assertEqual(outcome[0], outcome[1])
+
+    def test_outcome_probabilities_CZ(self):
+        for _ in range(100):
+            qc = QC(4, 0, probabilistic=True)
+            qc.create_bell_pair(0, 1)
+            qc.CZ(1, 0)
+            outcome = qc.measure([1, 0])
+
+            self.assertFalse(outcome[0] == outcome[1])
+
+    def test_outcome_probabilities_cntrl(self):
+        for _ in range(100):
+            qc = QC(4, 0, probabilistic=True)
+            qc.create_bell_pair(0, 1)
+            qc.CZ(0, 2)
+            outcome = qc.measure([1, 0])
+
+            self.assertEqual(outcome[0], outcome[1])
+
+    def test_outcome_probabilities_single_selection(self):
+        for _ in range(100):
+            qc = QC(4, 0, probabilistic=True)
+            qc.create_bell_pair(3, 1)
+            qc.create_bell_pair(2, 0)
+            qc.CZ(0, 1)
+            qc.CZ(2, 3)
+            outcome = qc.measure([0, 2])
+
+            self.assertEqual(outcome[0], outcome[1])
+
+    def test_outcome_probabilities_single_dot(self):
+        for _ in range(100):
+            qc = QC(6, 0, probabilistic=True)
+            qc.create_bell_pair(5, 2)
+            qc.create_bell_pair(4, 1)
+            qc.single_selection(CNOT_gate, 3, 0)
+            qc.single_selection(CZ_gate, 3, 0)
+            qc.CZ(4, 5)
+            qc.CZ(1, 2)
+            outcomes = qc.measure([1, 4])
+
+            self.assertEqual(outcomes[0], outcomes[1])
+            bell_matrix = 1/2 * np.array([[1, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 1]])
+            np.testing.assert_array_equal(qc._qubit_density_matrix_lookup[5][0].toarray(), bell_matrix)
 
 
 class TestSeparatedDensityMatrices(unittest.TestCase):
@@ -255,6 +307,8 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
         self.assertTrue(density_matrix_0 is density_matrix_1)
         self.assertTrue(qubits_0 is qubits_1)
+        # Qubits must be fused in the order control qubits + target qubits
+        self.assertEqual(qubits_0, [0, 1])
 
     def testBellPairFusion(self):
         qc = QC(5, 0)
@@ -264,6 +318,8 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
         self.assertTrue(density_matrix_0 is density_matrix_1)
         self.assertTrue(qubits_0 is qubits_1)
+        # Second qubit of 'create_bell_pair' should be the first qubit in the density matrix
+        self.assertEqual(qubits_0, [1, 0])
 
     def testSWAP(self):
         qc = QC(5, 0)
@@ -274,6 +330,8 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]
         np.testing.assert_array_equal(density_matrix_0.toarray(), np.array([[1, 0], [0, 0]]))
         np.testing.assert_array_equal(density_matrix_1.toarray(), np.array([[0, 0], [0, 1]]))
+        self.assertEqual(qubits_0, [0])
+        self.assertEqual(qubits_1, [1])
 
     def testSWAPBellPair(self):
         qc = QC(5, 0)
@@ -291,6 +349,9 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         np.testing.assert_array_equal(density_matrix_0.toarray(), np.array([[1, 0], [0, 0]]))
         np.testing.assert_array_equal(density_matrix_1.toarray(), np.array([[1, 0], [0, 0]]))
         self.assertTrue(qubits_0 is not qubits_1)
+        self.assertEqual(qubits_0, [0])
+        self.assertEqual(qubits_1, [1])
+        self.assertEqual(qubits_3, [3, 2])
 
 
 if __name__ == '__main__':
