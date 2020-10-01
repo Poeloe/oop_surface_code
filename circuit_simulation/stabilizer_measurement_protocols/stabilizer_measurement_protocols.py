@@ -8,10 +8,10 @@ def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lk
                         thread_safe_printing=True, bell_creation_duration=bell_dur, measurement_duration=meas_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
     qc.set_qubit_states({0: ket_p})
-    qc.apply_2_qubit_gate(operation, 0, 1)
-    qc.apply_2_qubit_gate(operation, 0, 3)
-    qc.apply_2_qubit_gate(operation, 0, 5)
-    qc.apply_2_qubit_gate(operation, 0, 7)
+    qc.apply_gate(operation, cqubit=0, tqubit=1)
+    qc.apply_gate(operation, cqubit=0, tqubit=3)
+    qc.apply_gate(operation, cqubit=0, tqubit=5)
+    qc.apply_gate(operation, cqubit=0, tqubit=7)
     qc.measure([0])
 
     if pbar is not None:
@@ -86,19 +86,19 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
-    qc.apply_2_qubit_gate(operation, 8, 16)
+    qc.apply_gate(operation, cqubit=8, tqubit=16)
     qc.measure(8)
 
     qc.start_sub_circuit("A")
-    qc.apply_2_qubit_gate(operation, 11, 18)
+    qc.apply_gate(operation, cqubit=11, tqubit=18)
     qc.measure(11)
 
     qc.start_sub_circuit("D")
-    qc.apply_2_qubit_gate(operation, 2, 12)
+    qc.apply_gate(operation, cqubit=2, tqubit=12)
     qc.measure(2)
 
     qc.start_sub_circuit("C")
-    qc.apply_2_qubit_gate(operation, 5, 14)
+    qc.apply_gate(operation, cqubit=5, tqubit=14)
     qc.measure(5)
 
     qc.end_current_sub_circuit(total=True)
@@ -193,19 +193,19 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
-    qc.apply_2_qubit_gate(operation, 8, 16)
+    qc.apply_gate(operation, cqubit=8, tqubit=16)
     qc.measure(8, probabilistic=False)
 
     qc.start_sub_circuit("A")
-    qc.apply_2_qubit_gate(operation, 11, 18)
+    qc.apply_gate(operation, cqubit=11, tqubit=18)
     qc.measure(11, probabilistic=False)
 
     qc.start_sub_circuit("D")
-    qc.apply_2_qubit_gate(operation, 2, 12)
+    qc.apply_gate(operation, cqubit=2, tqubit=12)
     qc.measure(2, probabilistic=False)
 
     qc.start_sub_circuit("C")
-    qc.apply_2_qubit_gate(operation, 5, 14)
+    qc.apply_gate(operation, cqubit=5, tqubit=14)
     qc.measure(5, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
@@ -299,22 +299,22 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
     qc.SWAP(6, 7, efficient=True)
-    qc.apply_2_qubit_gate(operation, 6, 16)
+    qc.apply_gate(operation, cqubit=6, tqubit=16)
     qc.measure(6, probabilistic=False)
 
     qc.start_sub_circuit("A")
     qc.SWAP(9, 10, efficient=True)
-    qc.apply_2_qubit_gate(operation, 9, 18)
+    qc.apply_gate(operation, cqubit=9, tqubit=18)
     qc.measure(9, probabilistic=False)
 
     qc.start_sub_circuit("D")
     qc.SWAP(0, 1, efficient=True)
-    qc.apply_2_qubit_gate(operation, 0, 12)
+    qc.apply_gate(operation, cqubit=0, tqubit=12)
     qc.measure(0, probabilistic=False)
 
     qc.start_sub_circuit("C")
     qc.SWAP(3, 4, efficient=True)
-    qc.apply_2_qubit_gate(operation, 3, 14)
+    qc.apply_gate(operation, cqubit=3, tqubit=14)
     qc.measure(3, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
@@ -411,22 +411,22 @@ def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
     qc.SWAP(6, 7, efficient=True)
-    qc.apply_2_qubit_gate(operation, 6, 16)
+    qc.apply_gate(operation, cqubit=6, tqubit=16)
     qc.measure(6, probabilistic=False)
 
     qc.start_sub_circuit("A")
     qc.SWAP(9, 10, efficient=True)
-    qc.apply_2_qubit_gate(operation, 9, 18)
+    qc.apply_gate(operation, cqubit=9, tqubit=18)
     qc.measure(9, probabilistic=False)
 
     qc.start_sub_circuit("D")
     qc.SWAP(0, 1, efficient=True)
-    qc.apply_2_qubit_gate(operation, 0, 12)
+    qc.apply_gate(operation, cqubit=0, tqubit=12)
     qc.measure(0, probabilistic=False)
 
     qc.start_sub_circuit("C")
     qc.SWAP(3, 4, efficient=True)
-    qc.apply_2_qubit_gate(operation, 3, 14)
+    qc.apply_gate(operation, cqubit=3, tqubit=14)
     qc.measure(3, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)

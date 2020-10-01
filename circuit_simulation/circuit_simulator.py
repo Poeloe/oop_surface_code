@@ -990,12 +990,41 @@ class QuantumCircuit:
 
     """
         ---------------------------------------------------------------------------------------------------------
+                                                General Gate Application
+        ---------------------------------------------------------------------------------------------------------     
+    """
+    @skip_if_cut_off_reached
+    @handle_none_parameters(excluded_parameters=['cqubit'])
+    def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
+                   user_operation=True):
+        if user_operation:
+            self._user_operation_order.append({"apply_gate": [gate, tqubit, cqubit, noise, conj, pg, draw]})
+
+        qubits = [tqubit] if cqubit is None else [tqubit, cqubit]
+
+        if noise and decoherence:
+            self._N_decoherence(qubits)
+
+        if type(gate) == SingleQubitGate:
+            noise = noise and not self.no_single_qubit_error
+            new_density_matrix = self._apply_1_qubit_gate(gate, tqubit, conj=conj, noise=noise, pg=pg)
+        elif type(gate) == TwoQubitGate:
+            new_density_matrix = self._apply_2_qubit_gate(gate, cqubit, tqubit, noise=noise, pg=pg)
+        else:
+            raise ValueError("Gate object was not recognised. Please create an gate object to apply this gate.")
+
+        self._set_density_matrix(tqubit, new_density_matrix)
+        self._increase_duration(gate.duration, qubits)
+
+        if draw:
+            self._add_draw_operation(gate, qubits, noise)
+
+    """
+        ---------------------------------------------------------------------------------------------------------
                                                 One-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
-    @handle_none_parameters
-    def apply_1_qubit_gate(self, gate, tqubit, conj=False, noise=None, pg=None, draw=True, decoherence=None,
-                           user_operation=True):
+    def _apply_1_qubit_gate(self, gate, tqubit, conj=False, noise=None, pg=None):
         """
             qc.apply_1_qubit_gate(gate, tqubit, noise=None, pg=None, draw=True)
 
@@ -1022,12 +1051,6 @@ class QuantumCircuit:
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
         """
-        if user_operation:
-            self._user_operation_order.append({"apply_1_qubit_gate": [gate, tqubit, noise, pg, draw]})
-
-        if noise and decoherence:
-            self._N_decoherence([tqubit])
-
         tqubit_density_matrix, _, relative_tqubit_index, relative_num_qubits = self._get_qubit_relative_objects(tqubit)
 
         one_qubit_gate = self._create_1_qubit_gate(gate,
@@ -1040,15 +1063,8 @@ class QuantumCircuit:
             new_density_matrix = self._N_depolarising_channel(pg, relative_tqubit_index, new_density_matrix,
                                                               relative_num_qubits)
 
-        self._set_density_matrix(tqubit, new_density_matrix)
+        return new_density_matrix
 
-        self._increase_duration(gate.duration, [tqubit])
-
-        if draw:
-            self._add_draw_operation(gate, tqubit, noise and not self.no_single_qubit_error)
-
-    @skip_if_cut_off_reached
-    @handle_none_parameters
     def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
@@ -1077,31 +1093,31 @@ class QuantumCircuit:
         """ Applies the pauli X gate to the specified target qubit. See apply_1_qubit_gate for more info """
 
         for _ in range(times):
-            self.apply_1_qubit_gate(X_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(X_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def Z(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli Z gate to the specified target qubit. See apply_1_qubit_gate for more info """
 
         for _ in range(times):
-            self.apply_1_qubit_gate(Z_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(Z_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def Y(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli Y gate to the specified target qubit. See apply_1_qubit_gate for more info """
 
         for _ in range(times):
-            self.apply_1_qubit_gate(Y_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(Y_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def H(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the Hadamard gate to the specified target qubit. See apply_1_qubit_gate for more info """
 
         for _ in range(times):
-            self.apply_1_qubit_gate(H_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(H_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def S(self, tqubit, conj=False, times=1, noise=None, pg=None, draw=True, user_operation=True):
 
         for _ in range(times):
-            self.apply_1_qubit_gate(S_gate, tqubit, conj=conj, noise=noise, pg=pg, draw=draw,
-                                    user_operation=user_operation)
+            self.apply_gate(S_gate, tqubit, conj=conj, noise=noise, pg=pg, draw=draw,
+                            user_operation=user_operation)
 
     def Rx(self, tqubit, theta, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies a rotation gate around the x-axis to the specified target qubit with the specified angle.
@@ -1117,7 +1133,7 @@ class QuantumCircuit:
                       "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
-            self.apply_1_qubit_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def Ry(self, tqubit, theta, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies a rotation gate around the y-axis to the specified target qubit with the specified angle.
@@ -1133,7 +1149,7 @@ class QuantumCircuit:
                       "Ry({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
-            self.apply_1_qubit_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def Rz(self, tqubit, theta, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies a rotation gate around the x axis to the specified target qubit with the specified angle.
@@ -1150,17 +1166,14 @@ class QuantumCircuit:
                       "Rz({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
-            self.apply_1_qubit_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+            self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     """
         ---------------------------------------------------------------------------------------------------------
                                                 Two-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
-    @skip_if_cut_off_reached
-    @handle_none_parameters
-    def apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, draw=True, decoherence=None,
-                           user_operation=True):
+    def _apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None):
         """
             Applies a two qubit gate according to the specified control and target qubits. This will update the density
             matrix of the system accordingly.
@@ -1189,12 +1202,6 @@ class QuantumCircuit:
                 True if the user has requested the method and (else) False if it was invoked by an internal
                 method.
         """
-        if user_operation:
-            self._user_operation_order.append({"apply_2_qubit_gate": [gate, cqubit, tqubit, noise, pg, draw]})
-
-        if noise and decoherence:
-            self._N_decoherence([cqubit, tqubit])
-
         cqubit_density_matrix, _ = self._qubit_density_matrix_lookup[cqubit]
         tqubit_density_matrix, _ = self._qubit_density_matrix_lookup[tqubit]
 
@@ -1215,13 +1222,10 @@ class QuantumCircuit:
         new_density_matrix = two_qubit_gate.dot(CT(density_matrix, two_qubit_gate))
 
         if noise:
-            new_density_matrix = self._N_two_qubit_gate(pg, rel_cqubit, rel_tqubit, new_density_matrix, num_qubits=rel_num_qubits)
-        if draw:
-            self._add_draw_operation(gate, (cqubit, tqubit), noise)
+            new_density_matrix = self._N_two_qubit_gate(pg, rel_cqubit, rel_tqubit, new_density_matrix,
+                                                        num_qubits=rel_num_qubits)
 
-        self._set_density_matrix(cqubit, new_density_matrix)
-
-        self._increase_duration(gate.duration, [cqubit, tqubit])
+        return new_density_matrix
 
     @handle_none_parameters
     def _create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
@@ -1268,28 +1272,28 @@ class QuantumCircuit:
     def CNOT(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CNOT gate to the specified target qubit. See apply_2_qubit_gate for more info """
 
-        self.apply_2_qubit_gate(CNOT_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+        self.apply_gate(CNOT_gate, tqubit, cqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def CZ(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the CZ gate to the specified target qubit. See apply_2_qubit_gate for more info """
 
-        self.apply_2_qubit_gate(CZ_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+        self.apply_gate(CZ_gate, tqubit, cqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     @skip_if_cut_off_reached
+    @handle_none_parameters
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
         if efficient:
             if user_operation:
-               self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
+                self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
 
-            self._operations.gate_operations.efficient_SWAP(self, cqubit, tqubit, noise, pg, draw, user_operation)
+            self._operations.gate_operations.efficient_SWAP(self, cqubit, tqubit, noise, pg, draw)
         else:
-            self.apply_2_qubit_gate(SWAP_gate, cqubit, tqubit, noise=noise, pg=pg, draw=draw,
-                                    user_operation=user_operation)
+            self.apply_gate(SWAP_gate, tqubit, cqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
     def two_qubit_gate_NV(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the two-qubit gate that is specific to the actual NV center"""
 
-        self.apply_2_qubit_gate(NV_two_qubit_gate, cqubit, tqubit, noise, pg, draw, user_operation=user_operation)
+        self.apply_gate(NV_two_qubit_gate, tqubit, cqubit, noise, pg, draw, user_operation=user_operation)
 
     def CNOT_NV(self, cqubit, tqubit, noise=None, pg=None, draw=True, user_operation=True):
 
@@ -1312,10 +1316,10 @@ class QuantumCircuit:
         success = False
         while not success:
             self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_1, bell_qubit_1 + 1, noise=noise, pg=pg,
-                                    user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_2, bell_qubit_2 + 1, noise=noise, pg=pg,
-                                    user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
+                            user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
+                            user_operation=user_operation)
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
@@ -1332,10 +1336,10 @@ class QuantumCircuit:
         success = False
         while not success:
             self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_1, bell_qubit_1 + next_qubit, noise=noise, pg=pg,
-                                    user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_2, bell_qubit_2 + next_qubit, noise=noise, pg=pg,
-                                    user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + next_qubit, noise=noise, pg=pg,
+                            user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + next_qubit, noise=noise, pg=pg,
+                            user_operation=user_operation)
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
@@ -1401,10 +1405,10 @@ class QuantumCircuit:
                                   user_operation=user_operation)
             self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
                                   user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_1, bell_qubit_1 + 1, noise=noise, pg=pg,
-                                    user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_2, bell_qubit_2 + 1, noise=noise, pg=pg,
-                                    user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
+                            user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
+                            user_operation=user_operation)
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
@@ -1420,6 +1424,7 @@ class QuantumCircuit:
                     if not success:
                         self.X(bell_qubit_2 + 1, noise=noise)
                         self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
+                    return success
             else:
                 return
 
@@ -1439,9 +1444,9 @@ class QuantumCircuit:
                                        pg=pg, user_operation=user_operation)
             self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-            self.apply_2_qubit_gate(operation, bell_qubit_1, bell_qubit_1 + 1, noise=noise, pg=pg,
+            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
                                     user_operation=user_operation)
-            self.apply_2_qubit_gate(operation, bell_qubit_2, bell_qubit_2 + 1, noise=noise, pg=pg,
+            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
                                     user_operation=user_operation)
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
@@ -1511,7 +1516,7 @@ class QuantumCircuit:
                 return
             success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
 
-            if draw_X_gate and self._sub_circuits:
+            if draw_X_gate and self._sub_circuits and not drawn:
                 self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
                 drawn = True
 

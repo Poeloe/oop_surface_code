@@ -301,7 +301,7 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
 
     def testTwoQubitGateFusion(self):
         qc = QC(10, 0)
-        qc.apply_2_qubit_gate(CNOT_gate, 0, 1)
+        qc.apply_gate(CNOT_gate, cqubit=0, tqubit=1)
 
         density_matrix_0, qubits_0 = qc._qubit_density_matrix_lookup[0]
         density_matrix_1, qubits_1 = qc._qubit_density_matrix_lookup[1]

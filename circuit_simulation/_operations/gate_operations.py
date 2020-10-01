@@ -170,13 +170,18 @@ def create_2_qubit_gate(self, gate, cqubit, tqubit, num_qubits=None):
     return full_gate
 
 
-def efficient_SWAP(self, qubit_1, qubit_2, noise, pg, draw, user_operation):
+def efficient_SWAP(self, qubit_1, qubit_2, noise, pg, draw):
     # TODO: Implement noise into this method
     if noise and self.decoherence:
         self._N_decoherence([qubit_1, qubit_2])
 
     density_matrix_1, qubits_1, rel_qubit_1, rel_num_qubits_1 = self._get_qubit_relative_objects(qubit_1)
     density_matrix_2, qubits_2, rel_qubit_2, rel_num_qubits_2 = self._get_qubit_relative_objects(qubit_2)
+
+    if noise:
+        for _ in range(3):
+            density_matrix_1 = self._N_depolarising_channel(pg, rel_qubit_1, density_matrix_1, rel_num_qubits_1)
+            density_matrix_2 = self._N_depolarising_channel(pg, rel_qubit_2, density_matrix_2, rel_num_qubits_2)
 
     qubits_1[rel_qubit_1] = qubit_2
     qubits_2[rel_qubit_2] = qubit_1
@@ -186,6 +191,9 @@ def efficient_SWAP(self, qubit_1, qubit_2, noise, pg, draw, user_operation):
 
     self._update_uninitialised_qubit_register([qubit_1, qubit_2], update_type="swap")
 
-    self._add_draw_operation(SWAP_gate, (qubit_1, qubit_2), noise)
+    self._increase_duration(SWAP_gate.duration, [qubit_1, qubit_2])
+
+    if draw:
+        self._add_draw_operation(SWAP_gate, (qubit_1, qubit_2), noise)
 
 

@@ -63,10 +63,8 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
                                           bell_state_type=parameters[5])
         if operation == "SWAP":
             qc_noiseless.SWAP(parameters[0], parameters[1])
-        elif operation == "apply_1_qubit_gate":
-            qc_noiseless.apply_1_qubit_gate(parameters[0], parameters[1])
-        elif operation == "apply_2_qubit_gate":
-            qc_noiseless.apply_2_qubit_gate(parameters[0], parameters[1], parameters[2])
+        elif operation == "apply_gate":
+            qc_noiseless.apply_gate(parameters[0], parameters[1])
         elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
             qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
@@ -94,9 +92,9 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
     """
     qc = self._return_QC_object(9, 2)
     qc.set_qubit_states({0: ket_p})
-    gate = Z_gate if proj_type == "Z" else X_gate
+    gate = CZ_gate if proj_type == "Z" else CNOT_gate
     for i in range(1, qc.num_qubits, 2):
-        qc.apply_2_qubit_gate(gate, 0, i)
+        qc.apply_gate(gate, cqubit=0, tqubit=i)
 
     qc.measure([0], outcome=0 if not measure_error else 1)
 

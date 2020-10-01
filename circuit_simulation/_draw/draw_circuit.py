@@ -53,7 +53,7 @@ def draw_gates(self, init, no_color):
 
         non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in range(self.num_qubits)]))
 
-        if type(qubits) == tuple:
+        if len(qubits) > 1:
             if type(gate) in [SingleQubitGate, TwoQubitGate]:
                 control = gate.control_repr if type(gate) == TwoQubitGate else "o"
                 gate = gate.representation
@@ -66,8 +66,8 @@ def draw_gates(self, init, no_color):
                 control = "~" + control if no_color else colored("~", 'red') + control
                 gate = "~" + gate if no_color else colored('~', 'red') + gate
 
-            cqubit = qubits[0]
-            tqubit = qubits[1]
+            cqubit = qubits[1]
+            tqubit = qubits[0]
 
             init = _correct_path_length(init, cqubit, tqubit)
 
@@ -84,10 +84,10 @@ def draw_gates(self, init, no_color):
                 gate = gate.representation
             if noise:
                 gate = "~" + gate if no_color else colored("~", 'red') + gate
-            init[qubits] += "---{}---".format(gate)
+            init[qubits[0]] += "---{}---".format(gate)
 
-            longest_item = ansi_escape.sub("", init[qubits])
-            current_qubits = list(set(self.get_node_qubits(qubits) + non_involved_qubits))
+            longest_item = ansi_escape.sub("", init[qubits[0]])
+            current_qubits = list(set(self.get_node_qubits(qubits[0]) + non_involved_qubits))
 
         partial_update = list(np.array(init)[current_qubits]) if current_qubits != [] else init
         for index, item in enumerate(partial_update):
@@ -166,7 +166,10 @@ def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circui
             MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
             MEASUREMENTS AND QUBIT ADDITIONS.
     """
-    if type(qubits) is tuple:
+    if type(qubits) == int:
+        qubits = [qubits]
+
+    if len(qubits) > 1:
 
         cqubit = qubits[0] + self._effective_measurements
         tqubit = qubits[1] + self._effective_measurements
@@ -178,7 +181,7 @@ def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circui
 
         qubits = (cqubit, tqubit)
     else:
-        qubits += int(self._effective_measurements)
+        qubits[0] += int(self._effective_measurements)
 
         if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
             qubits += len(self._measured_qubits)
