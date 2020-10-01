@@ -70,7 +70,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
         pbar.update(20)
 
     qc.start_sub_circuit("AC")
-    # Return success (even parity of measurement outcome). If False (uneven, X-gate must be drawn at second single dot)
+    # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single dot
     success_1 = qc.single_dot(CZ_gate, 10, 4, parity_check=False)
     success_2 = qc.single_dot(CZ_gate, 10, 4, parity_check=False)
 

@@ -146,5 +146,8 @@ def compose_parser():
                         help="loads values from a file instead of the command line",
                         type=open,
                         action=LoadFromFile)
-
+    parser.add_argument("--gate_duration_file",
+                        help="Specify the path to the file that contains the gate duration times.",
+                        type=str,
+                        required=False)
     return parser

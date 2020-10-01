@@ -4,7 +4,6 @@ sys.path.insert(1, os.path.abspath(os.getcwd()))
 from pprint import pprint
 from multiprocessing import Pool
 from tqdm import tqdm
-import random
 import threading
 import pickle
 import re
@@ -44,7 +43,6 @@ def _combine_multiple_csv_files(filenames, delete=False):
                         original_data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")] *= 2
                 if delete:
                     os.remove(os.path.join(csv_dir, file))
-                skip_first_written_to = False
 
         original_data_frame.to_csv(final_file_name, sep=';')
 
@@ -63,6 +61,7 @@ def _print_circuit_parameters(**kwargs):
     kwargs.update(lkt_1q=lkt_1q, lkt_2q=lkt_2q)
     kwargs.pop('i')
     kwargs.pop('pbar')
+    kwargs['gate_duration_file'] = gate_duration_file
 
     protocol = protocol.lower()
     fn_text = ""
@@ -137,6 +136,7 @@ if __name__ == "__main__":
     draw = args.pop('draw_circuit')
     to_console = args.pop('to_console')
     swap = args.pop('use_swap_gates')
+    gate_duration_file = args.pop('gate_duration_file')
 
     file_dir = os.path.dirname(__file__)
     # THIS IS NOT GENERIC, will error when directories are moved or renamed
@@ -156,6 +156,11 @@ if __name__ == "__main__":
     if lkt_2q is not None:
         with open(os.path.join(look_up_table_dir, lkt_2q), "rb") as obj2:
             lkt_2q = pickle.load(obj2)
+
+    if os.path.exists(gate_duration_file):
+        set_gate_durations_from_file(gate_duration_file)
+    else:
+        raise ValueError("Cannot find file to ste gate durations with. File path: {}".format(gate_duration_file))
 
     pbar = tqdm(total=100)
 
