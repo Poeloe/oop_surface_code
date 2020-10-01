@@ -4,10 +4,10 @@ from .gate import TwoQubitGate, SingleQubitGate
 """
     SINGLE QUBIT GATES
 """
-X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X")
-Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y")
-Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z")
-I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I")
+X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X", duration=1e-3)
+Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y", duration=1e-3)
+Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z", duration=10e-6)
+I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I", duration=0)
 H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H")
 S_gate = SingleQubitGate("Phase", np.array([[1, 0], [0, 1j]]), "S")
 
@@ -20,14 +20,14 @@ CNOT_gate = TwoQubitGate("CNOT",
                                    [0, 0, 0, 1],
                                    [0, 0, 1, 0]]),
                          "X",
-                         1)
+                         duration=25e-3)
 CZ_gate = TwoQubitGate("CPhase",
                        np.array([[1, 0, 0, 0],
                                  [0, 1, 0, 0],
                                  [0, 0, 1, 0],
                                  [0, 0, 0, -1]]),
                        "Z",
-                       1)
+                       duration=25e-3)
 NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                  np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
                                            [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],
