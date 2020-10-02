@@ -273,7 +273,7 @@ class Superoperator:
 
 class SuperoperatorElement:
 
-    def __init__(self, p, lie, error_array):
+    def __init__(self, p, lie, error_array, error_density_matrix=None, fused_configs=None):
         """
             SuperoperatorElement(p, lie, error_array)
 
@@ -293,6 +293,9 @@ class SuperoperatorElement:
         self.p = p
         self.lie = lie
         self.error_array = error_array
+        self.error_density_matrix = error_density_matrix
+        self.fused_configs = fused_configs if fused_configs is not None else {"".join(error_array):
+                                                                              error_density_matrix}
         self.id = str(p) + str(lie) + str(error_array)
 
     def __repr__(self):
@@ -351,3 +354,21 @@ class SuperoperatorElement:
 
     def probability_lie_equals(self, other, rnd=8):
         return round(self.p, rnd) == round(other.p, rnd) and self.lie == other.lie
+
+    def error_density_matrix_equals(self, other):
+        if type(other) != SuperoperatorElement:
+            raise ValueError("Compared value should be of type SuperoperatorElement")
+        return self._csr_matrix_equal(self.error_density_matrix, other.error_density_matrix)
+
+    def any_error_density_matrix_equals(self, other):
+        if type(other) != SuperoperatorElement:
+            raise ValueError("Compared value should be of type SuperoperatorElement")
+        return any([self._csr_matrix_equal(self.error_density_matrix, other_dens) for other_dens in
+                    other.fused_configs.values()])
+
+    @staticmethod
+    def _csr_matrix_equal(a1, a2):
+        return (np.array_equal(a1.indptr, a2.indptr) and
+                np.array_equal(a1.indices, a2.indices) and
+                np.array_equal(a1.data, a2.data))
+

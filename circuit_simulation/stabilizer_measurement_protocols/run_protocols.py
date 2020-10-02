@@ -160,7 +160,7 @@ if __name__ == "__main__":
     if os.path.exists(gate_duration_file):
         set_gate_durations_from_file(gate_duration_file)
     else:
-        raise ValueError("Cannot find file to ste gate durations with. File path: {}".format(gate_duration_file))
+        raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
 
     pbar = tqdm(total=100)
 

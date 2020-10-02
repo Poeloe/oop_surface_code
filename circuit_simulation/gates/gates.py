@@ -60,9 +60,11 @@ def set_gate_durations_from_file(filename):
     with open(filename, 'r') as gate_durations:
         lines = gate_durations.read().split('\n')
         for line in lines:
-            splitted_line = line.split("=")
-            gate_name = splitted_line[0]
-            gate_duration = float(splitted_line[1])
-            gates_dict[gate_name] = gate_duration
+            line.replace(" ", "")
+            if line:
+                splitted_line = line.split("=")
+                gate_name = splitted_line[0]
+                gate_duration = float(splitted_line[1])
+                gates_dict[gate_name] = gate_duration
 
     set_duration_of_known_gates(gates_dict)

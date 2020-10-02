@@ -21,12 +21,8 @@ def N_decoherence(self, qubits, sub_circuit=None, sub_circuit_concurrent=False):
             self._add_draw_operation("{:1.1e}xD[{}]".format(waiting_time_idle, 'i'), qubit, noise=True,
                                      sub_circuit=sub_circuit, sub_circuit_concurrent=sub_circuit_concurrent)
         if waiting_time_lde > 0:
-            # TODO: create an 'a' value that corresponds to the idle + LDE case. In the case of LDE also T1 should
+            # TODO: create an 'a' value that corresponds to the LDE case. In the case of LDE also T1 should
             #  be taken into account (should be adaptable by the user)
-            # When lde waiting time is registered for a qubit, it will also always experience 'idle' decoherence. For
-            # which in our case only T2 is relevant
-            density_matrix = self._N_phase_damping_channel(rel_qubit, density_matrix, rel_num_qubits,
-                                                               waiting_time_idle, T2_idle)
             # Nuclear qubits will only actually experience the T1_lde and T2_lde. This is namely the decoherence time
             # for the qubits in the nodes not participating in the lde attempt
             if qubit_type == 'n':

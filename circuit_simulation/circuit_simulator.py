@@ -1950,9 +1950,9 @@ class QuantumCircuit:
         superoperator = []
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
-        total_density_matrix = self.get_combined_density_matrix(qubits)[0]
-        num_qubits = int(math.log(total_density_matrix.shape[0])/math.log(2))
-        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits, num_qubits=num_qubits)
+        total_density_matrix, qubits_matrix = self.get_combined_density_matrix(qubits)
+        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits, qubits_matrix,
+                                                                          num_qubits=len(qubits_matrix))
 
         for combination in all_gate_combinations:
             total_error_gate = None
@@ -1971,17 +1971,19 @@ class QuantumCircuit:
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
 
-            if fid_me != 0:
-                superoperator.append(SuperoperatorElement(fid_me, True, operators))
+            if operators == ["I", "I", "X", "I"]:
+                print("Alloha")
+
+            if fid_me != 0 and not self.cut_off_time_reached:
+                superoperator.append(SuperoperatorElement(fid_me, True, operators, me_error_density_matrix))
             if fid_no_me != 0:
-                superoperator.append(SuperoperatorElement(fid_no_me, False, operators))
+                superoperator.append(SuperoperatorElement(fid_no_me, False, operators, error_density_matrix))
 
         # Possible post-processing options for the superoperator
-        if not self.cut_off_time_reached:
-            if combine:
-                superoperator = self._fuse_equal_config_up_to_permutation(superoperator, proj_type)
-            if combine and most_likely:
-                superoperator = self._remove_not_likely_configurations(superoperator)
+        if combine:
+            superoperator = self._fuse_equal_config_up_to_permutation(superoperator)
+        if combine and most_likely:
+            superoperator = self._remove_not_likely_configurations(superoperator)
 
         if to_csv:
             self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name, use_exact_path=use_exact_path)
@@ -2100,7 +2102,7 @@ class QuantumCircuit:
 
         return file_path
 
-    def _all_single_qubit_gate_possibilities(self, qubits, num_qubits):
+    def _all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
         """
             Method returns a list containing all the possible combinations of Pauli matrix gates
             that can be applied to the specified qubits.
@@ -2124,9 +2126,10 @@ class QuantumCircuit:
 
             in which, in general, A -> {"A": single_qubit_A_gate_object} where A in {X, Y, Z, I}.
         """
-        return self._superoperator.superoperator_methods.all_single_qubit_gate_possibilities(self, qubits, num_qubits)
+        return self._superoperator.superoperator_methods.all_single_qubit_gate_possibilities(self, qubits,
+                                                                                             qubits_matrix, num_qubits)
 
-    def _fuse_equal_config_up_to_permutation(self, superoperator, proj_type):
+    def _fuse_equal_config_up_to_permutation(self, superoperator):
         """
             Post-processing method for the superoperator which fuses similar Pauli-error configurations inside the
             superoperator up to permutation. This is done by sorting the error configurations and comparing them after.
@@ -2157,7 +2160,10 @@ class QuantumCircuit:
             eventually end up making one entry, namely [I,I,I,X], in the returned new superoperator. The according
             probability will be equal to the sum of the probabilities of the 4 configurations.
         """
-        return self._superoperator.superoperator_methods.fuse_equal_config_up_to_permutation(superoperator, proj_type)
+        return self._superoperator.superoperator_methods.fuse_equal_config_up_to_permutation(superoperator)
+
+    def _fuse_config_cut_off_time_reached(self, superoperator):
+        return self._superoperator.superoperator_methods.fuse_config_cut_off_time_reached(superoperator)
 
     def _remove_not_likely_configurations(self, superoperator):
         """

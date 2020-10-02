@@ -39,6 +39,10 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         noiseless_density_matrix : sparse matrix
             The density matrix of the current system, but without noise
     """
+    if self.cut_off_time_reached:
+        qc = self._return_QC_object(8, 2)
+        qc.draw_circuit()
+        return qc.get_combined_density_matrix([7, 5, 3, 1])[0]
     if stabilizer_protocol:
         return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error)
     if file_name is None:
@@ -64,7 +68,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         if operation == "SWAP":
             qc_noiseless.SWAP(parameters[0], parameters[1])
         elif operation == "apply_gate":
-            qc_noiseless.apply_gate(parameters[0], parameters[1])
+            qc_noiseless.apply_gate(parameters[0], parameters[1], parameters[2])
         elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
             qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
@@ -101,7 +105,7 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
     return qc.get_combined_density_matrix([1])[0]
 
 
-def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
+def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
     """
         Method returns a list containing all the possible combinations of Pauli matrix gates
         that can be applied to the specified qubits.
@@ -129,7 +133,7 @@ def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
     gate_combinations = []
 
     for qubit in qubits:
-        _, _, rel_qubit, _ = self._get_qubit_relative_objects(qubit)
+        rel_qubit = qubits_matrix.index(qubit)
         gates = []
         for operation in operations:
             gates.append({operation.representation: self._create_1_qubit_gate(operation, rel_qubit,
@@ -139,7 +143,7 @@ def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
     return list(product(*gate_combinations))
 
 
-def fuse_equal_config_up_to_permutation(superoperator, proj_type):
+def fuse_equal_config_up_to_permutation(superoperator):
     """
         Post-processing method for the superoperator which fuses similar Pauli-error configurations inside the
         superoperator up to permutation. This is done by sorting the error configurations and comparing them after.
@@ -186,10 +190,20 @@ def fuse_equal_config_up_to_permutation(superoperator, proj_type):
         lie = equal_supop_el[0].lie
         error_array = sorted(equal_supop_el[0].error_array)
         p = sum([el.p for el in equal_supop_el])
-        # say 'Z' is the proj_type, then IIZZ with ZZII and ZIIZ with IZZI are degenerate. Sum is halved
-        if error_array.count("I") == error_array.count(proj_type):
-            p = sum([el.p for el in equal_supop_el]) / 2
-        sorted_superoperator.append(SuperoperatorElement(p, lie, error_array))
+        error_density_matrix = [el.error_density_matrix for el in equal_supop_el if el.error_array == error_array]
+        error_density_matrix = error_density_matrix[0] if len(error_density_matrix) > 1 \
+            else equal_supop_el[0].error_density_matrix
+        degenerate_configurations = {"".join(el.error_array): el.error_density_matrix for el in equal_supop_el}
+
+        # If permutations are degenerate, like IIZZ with ZZII and ZIIZ with IZZI this should be taken into account.
+        # Sum is halved (considering degenerate pairs)
+        amount_degenerate = [el1.error_density_matrix_equals(el2) for el1, el2 in combinations(equal_supop_el,
+                                                                                               2)].count(True)
+        if amount_degenerate > 0:
+            p /= 2 if amount_degenerate == int(len(equal_supop_el)/2) else len(equal_supop_el)
+
+        sorted_superoperator.append(SuperoperatorElement(p, lie, error_array, error_density_matrix,
+                                                         degenerate_configurations))
 
     return sorted_superoperator
 
@@ -222,13 +236,16 @@ def remove_not_likely_configurations(superoperator):
     """
 
     for supop_el_a, supop_el_b in combinations(superoperator, 2):
-        if supop_el_a.probability_lie_equals(supop_el_b):
-            if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") \
-                    and supop_el_b in superoperator:
+        if supop_el_a.any_error_density_matrix_equals(supop_el_b):
+            if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") and supop_el_b in superoperator:
+                supop_el_a.fused_configs.update(supop_el_b.fused_configs)
                 superoperator.remove(supop_el_b)
-            elif supop_el_a.error_array.count("I") < supop_el_b.error_array.count("I") \
-                    and supop_el_a in superoperator:
+            elif supop_el_a.error_array.count("I") < supop_el_b.error_array.count("I") and supop_el_a in superoperator:
+                supop_el_b.fused_configs.update(supop_el_a.fused_configs)
                 superoperator.remove(supop_el_a)
+            elif supop_el_a in superoperator and supop_el_b in superoperator:
+                supop_el_b.p /= 2
+                supop_el_a.p /= 2
 
     return superoperator
 
