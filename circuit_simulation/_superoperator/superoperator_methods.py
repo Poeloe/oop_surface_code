@@ -41,7 +41,6 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
     """
     if self.cut_off_time_reached:
         qc = self._return_QC_object(8, 2)
-        qc.draw_circuit()
         return qc.get_combined_density_matrix([7, 5, 3, 1])[0]
     if stabilizer_protocol:
         return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error)
@@ -302,8 +301,10 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
     if file_name is None:
         self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
     elif use_exact_path:
+        file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
         path_to_file = file_name + ".csv"
     else:
+        file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
         path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
         self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
 

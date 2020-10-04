@@ -37,7 +37,8 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
-                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2,
+                        cut_off_time=100)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)

@@ -203,6 +203,8 @@ class QuantumCircuit:
         elif init_type == 2:
             self.density_matrices = self._init_density_matrix_bell_pair_state()
         elif init_type == 3:
+            self.density_matrices = self._init_density_matrix_bell_pair_state(bell_type=2)
+        elif init_type == 4:
             self.density_matrices = self._init_density_matrix_ket_p_and_CNOTS()
 
         self._init_parameters = self._init_parameters_to_dict()
@@ -227,10 +229,11 @@ class QuantumCircuit:
 
         return self._quantum_circuit_init.quantum_circuit_init.init_density_matrix_first_qubit_ket_p(self)
 
-    def _init_density_matrix_bell_pair_state(self, amount_qubits=8, draw=True):
+    def _init_density_matrix_bell_pair_state(self, bell_type=1, amount_qubits=8, draw=True):
         """ Realises init_type option 2. See class description for more info. """
 
         return self._quantum_circuit_init.quantum_circuit_init.init_density_matrix_bell_pair_state(self,
+                                                                                                   bell_type,
                                                                                                    amount_qubits,
                                                                                                    draw)
 
@@ -643,13 +646,10 @@ class QuantumCircuit:
         if self.total_duration + sub_circuit_duration > self.cut_off_time:
             if self._current_sub_circuit is not None:
                 if self._current_sub_circuit.all_ran:
-                    print("Total circuit reached cut-off")
                     self.cut_off_time_reached = True
                 else:
-                    print("Sub circuit reached cut-off")
                     self._current_sub_circuit.set_cut_off_time_reached()
             if self.total_duration > self.cut_off_time:
-                print("Total circuit reached cut-off")
                 self.cut_off_time_reached = True
 
     def _increase_qubit_duration(self, amount, excluded_qubits, included_qubits, kind):
@@ -1970,9 +1970,6 @@ class QuantumCircuit:
             fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
-
-            if operators == ["I", "I", "X", "I"]:
-                print("Alloha")
 
             if fid_me != 0 and not self.cut_off_time_reached:
                 superoperator.append(SuperoperatorElement(fid_me, True, operators, me_error_density_matrix))

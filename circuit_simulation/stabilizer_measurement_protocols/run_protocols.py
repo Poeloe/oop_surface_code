@@ -21,12 +21,14 @@ def _init_random_seed(timestamp=None, worker=0, iteration=0):
     return seed
 
 
-def _combine_multiple_csv_files(filenames, delete=False):
+def _combine_multiple_csv_files(filenames, cut_off=False, delete=False):
     for filename in filenames:
         csv_dir = os.path.dirname(os.path.abspath(filename))
         original_data_frame = None
         plain_file_name = os.path.split(filename)[1]
-        regex_pattern = re.compile('^' + plain_file_name + '_.*')
+        handle_failed = "(?<!failed)" if not cut_off else "(?<=failed)"
+        regex_pattern = re.compile('^' + plain_file_name + '_.*' + handle_failed + "\.csv$")
+        plain_file_name = plain_file_name if not cut_off else plain_file_name + "_failed"
         final_file_name = os.path.join(csv_dir, "combined_" + plain_file_name + ".csv")
         if os.path.exists(final_file_name):
             original_data_frame = pd.read_csv(final_file_name, sep=';', index_col=[0, 1])
@@ -44,7 +46,8 @@ def _combine_multiple_csv_files(filenames, delete=False):
                 if delete:
                     os.remove(os.path.join(csv_dir, file))
 
-        original_data_frame.to_csv(final_file_name, sep=';')
+        if original_data_frame is not None:
+            original_data_frame.to_csv(final_file_name, sep=';')
 
 
 def _print_circuit_parameters(**kwargs):
@@ -61,7 +64,6 @@ def _print_circuit_parameters(**kwargs):
     kwargs.update(lkt_1q=lkt_1q, lkt_2q=lkt_2q)
     kwargs.pop('i')
     kwargs.pop('pbar')
-    kwargs['gate_duration_file'] = gate_duration_file
 
     protocol = protocol.lower()
     fn_text = ""
@@ -77,7 +79,8 @@ def _print_circuit_parameters(**kwargs):
 
 
 def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell, bell_dur, meas_dur, time_step,
-         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, threaded=False, pbar=None):
+         lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, threaded=False, gate_duration_file=None,
+         pbar=None):
 
     if i == 0:
         _print_circuit_parameters(**locals())
@@ -157,10 +160,11 @@ if __name__ == "__main__":
         with open(os.path.join(look_up_table_dir, lkt_2q), "rb") as obj2:
             lkt_2q = pickle.load(obj2)
 
-    if os.path.exists(gate_duration_file):
-        set_gate_durations_from_file(gate_duration_file)
-    else:
-        raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
+    if gate_duration_file is not None:
+        if os.path.exists(gate_duration_file):
+            set_gate_durations_from_file(gate_duration_file)
+        else:
+            raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
 
     pbar = tqdm(total=100)
 
@@ -186,11 +190,12 @@ if __name__ == "__main__":
                                            apply_async(main,
                                                        (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
                                                         dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
-                                                        prb, fn, print_mode, draw, to_console, swap, threaded)))
+                                                        prb, fn, print_mode, draw, to_console, swap, threaded,
+                                                        gate_duration_file)))
                         else:
                             print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell,
                                         bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
-                                        to_console, swap, pbar=pbar))
+                                        to_console, swap, gate_duration_file=gate_duration_file, pbar=pbar))
                             print("\nFinished iteration {} of the {}\n".format(i+1, it))
                             pbar.reset()
                         filename_count += 1
@@ -202,6 +207,7 @@ if __name__ == "__main__":
             pbar.update(1)
         if filenames:
             _combine_multiple_csv_files(filenames, delete=True)
+            _combine_multiple_csv_files(filenames, cut_off=True, delete=True)
 
         print(*print_results)
         thread_pool.close()
