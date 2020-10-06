@@ -405,7 +405,7 @@ class QuantumCircuit:
                                                 SubQuantumCircuit Methods
         ---------------------------------------------------------------------------------------------------------
     """
-    def define_sub_circuit(self, name, qubits, waiting_qubits=None, concurrent_sub_circuits=None):
+    def define_sub_circuit(self, name, qubits, waiting_qubits=None, concurrent_sub_circuits=None, involved_nodes=None):
         """
             Define a sub circuit for the QuantumCircuit object. Sub circuits can be used to emulate concurrent
             circuits. This can be useful when working with decoherence or to obtain the concurrent circuit drawing
@@ -421,9 +421,13 @@ class QuantumCircuit:
             waiting_qubits : list, optional, default=None
                 List of qubit indices that are waiting whenever the other concurrent sub circuit takes longer to
                 calculate (useful when working with decoherence)
-            concurrent_sub_circuits : List, optional, default=None
+            concurrent_sub_circuits : list, optional, default=None
                 List containing the concurrent SubQuantumCircuit objects. Please only specify this parameter for the
                 last concurrent sub circuit object created, since otherwise the others cannot be found.
+            involved_nodes : list
+                list of str containing the names of the nodes that are involved in the sub-circuit. if not provided,
+                this is deduced from the name of the sub_circuit (example: sub circuit name "AB" will translate to
+                involved nodes "A" and "B".)
         """
         concurrent_sub_circuit_objects = []
         if waiting_qubits is None:
@@ -432,8 +436,14 @@ class QuantumCircuit:
             if type(concurrent_sub_circuits) in [str, int]:
                 concurrent_sub_circuits = [concurrent_sub_circuits]
             concurrent_sub_circuit_objects = [self._sub_circuits[sub_name] for sub_name in concurrent_sub_circuits]
+        if involved_nodes is None:
+            involved_nodes = list(name)
+        if not all(node_name in self.nodes for node_name in involved_nodes):
+            raise ValueError("involved_nodes either contains nodes that do not exist or it could not be derived from "
+                             "the name of the sub cirucit. involved_nodes list for sub circuit '{}' contained: {}"
+                             .format(name, involved_nodes))
 
-        sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects)
+        sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects, involved_nodes)
 
         if concurrent_sub_circuit_objects is not None:
             for sub_circuit_object in concurrent_sub_circuit_objects:
@@ -624,8 +634,8 @@ class QuantumCircuit:
             # If excluded qubits are in the same node it is a local operation, then time must be divided by the amount
             # of concurrent circuits (those local operations will also be added and together it will make up the total)
             if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits) and \
-                    len(excluded_qubits) > 0 and current_sub_circuit.name not in self.nodes:
-                current_sub_circuit.increase_duration(amount / current_sub_circuit.amount_concurrent_sub_circuits)
+                    len(excluded_qubits) > 0:
+                current_sub_circuit.increase_duration(amount / current_sub_circuit.amount_involved_nodes)
             else:
                 current_sub_circuit.increase_duration(amount)
 

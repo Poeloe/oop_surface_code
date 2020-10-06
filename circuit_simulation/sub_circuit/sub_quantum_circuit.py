@@ -3,12 +3,13 @@ from copy import copy
 
 class SubQuantumCircuit:
 
-    def __init__(self, name, qubits, waiting_qubits, concurrent_sub_circuits=None):
+    def __init__(self, name, qubits, waiting_qubits, concurrent_sub_circuits=None, involved_nodes=None):
         self._name = name
         self._qubits = qubits
         self._waiting_qubits = waiting_qubits
         self._total_duration = 0
         self._concurrent_sub_circuits = concurrent_sub_circuits if concurrent_sub_circuits is not None else []
+        self._involved_nodes = involved_nodes if involved_nodes is not None else []
         self._cut_off_time_reached = False
         self._ran = False
 
@@ -31,6 +32,14 @@ class SubQuantumCircuit:
     @property
     def concurrent_sub_circuits(self):
         return self._concurrent_sub_circuits
+
+    @property
+    def involved_nodes(self):
+        return self._involved_nodes
+
+    @property
+    def amount_involved_nodes(self):
+        return len(self._involved_nodes)
 
     @property
     def amount_concurrent_sub_circuits(self):
