@@ -9,14 +9,13 @@ import re
 import pandas as pd
 from circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_protocols import *
 from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
-from decimal import Decimal as dec
 
 
 def _init_random_seed(timestamp=None, worker=0, iteration=0):
     if timestamp is None:
         timestamp = time.time()
     seed = int("{:.0f}".format(timestamp * 10 ** 7) + str(worker) + str(iteration))
-    random.seed(dec(seed))
+    random.seed(float(seed))
     return seed
 
 
