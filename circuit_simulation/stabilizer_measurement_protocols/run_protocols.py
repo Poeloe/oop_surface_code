@@ -202,7 +202,8 @@ if __name__ == "__main__":
                                         bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
                                         to_console, swap, gate_duration_file=gate_duration_file, pbar=pbar))
                             print("\nFinished iteration {} of the {}\n".format(i+1, it))
-                            pbar.reset()
+                            if progress_bar:
+                                pbar.reset()
                         filename_count += 1
 
     if threaded:

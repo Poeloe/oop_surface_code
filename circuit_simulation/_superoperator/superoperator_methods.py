@@ -2,7 +2,7 @@ import os
 import scipy.sparse as sp
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
-from oopsc.superoperator.superoperator import SuperoperatorElement
+from circuit_simulation._superoperator.superoperator import SuperoperatorElement
 from itertools import combinations, product, combinations_with_replacement
 from circuit_simulation.termcolor.termcolor import colored
 import pandas as pd
