@@ -212,8 +212,8 @@ if __name__ == "__main__":
             if pbar is not None:
                 pbar.update(1)
         if filenames:
-            _combine_multiple_csv_files(filenames, delete=False)
-            _combine_multiple_csv_files(filenames, cut_off=True, delete=False)
+            _combine_multiple_csv_files(filenames, delete=True)
+            _combine_multiple_csv_files(filenames, cut_off=True, delete=True)
 
         print(*print_results)
         thread_pool.close()
