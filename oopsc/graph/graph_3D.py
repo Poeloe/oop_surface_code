@@ -170,16 +170,16 @@ class toric(go.toric):
         self.set_qubit_states_to_state_previous_layer(z=self.decode_layer)
         self.measure_stab(z=self.decode_layer)
 
-        if self.gl_plot:
-            for z in range(self.cycles):
-                self.gl_plot.plot_erasures(z, draw=False)
-            self.gl_plot.draw_plot()
-            for z in range(self.cycles):
-                self.gl_plot.plot_errors(z, draw=False)
-            self.gl_plot.draw_plot()
-            for z in range(self.cycles):
-                self.gl_plot.plot_syndrome(z)
-                self.gl_plot.draw_plot()
+        # if self.gl_plot:
+        #     for z in range(self.cycles):
+        #         self.gl_plot.plot_erasures(z, draw=False)
+        #     self.gl_plot.draw_plot()
+        #     for z in range(self.cycles):
+        #         self.gl_plot.plot_errors(z, draw=False)
+        #     self.gl_plot.draw_plot()
+        #     for z in range(self.cycles):
+        #         self.gl_plot.plot_syndrome(z)
+        #         self.gl_plot.draw_plot()
 
     def post_process_failed_stabilizers(self):
         if self.size < 4:

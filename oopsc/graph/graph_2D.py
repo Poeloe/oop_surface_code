@@ -156,7 +156,7 @@ class toric(object):
                     qubit.E[0].state = 1
                     qubit.E[1].state = 1
 
-        if self.gl_plot: self.gl_plot.plot_erasures()
+        # if self.gl_plot: self.gl_plot.plot_erasures()
 
 
     def init_pauli(self, pX=0, pZ=0, **kwargs):
@@ -169,7 +169,7 @@ class toric(object):
             if pZ != 0 and random.random() < pZ:
                 qubit.E[1].state = 1
 
-        if self.gl_plot: self.gl_plot.plot_errors()
+        # if self.gl_plot: self.gl_plot.plot_errors()
 
     def measure_stab(self, **kwargs):
         """
@@ -187,14 +187,14 @@ class toric(object):
                         stab.parity = 1 - stab.parity
                     stab.state = stab.parity
 
-        if self.gl_plot: self.gl_plot.plot_syndrome()
+        # if self.gl_plot: self.gl_plot.plot_syndrome()
 
 
     def logical_error(self, z=0):
         """
         Finds whether there are any logical errors on the lattice/self. The logical error is returned as [Xvertical, Xhorizontal, Zvertical, Zhorizontal], where each item represents a homological Loop
         """
-        if self.gl_plot: self.gl_plot.plot_final()
+        # if self.gl_plot: self.gl_plot.plot_final()
 
         logical_error = [0, 0, 0, 0]
 
@@ -433,7 +433,7 @@ class toric(object):
                     elif random_error_array[i] == "Z":
                         edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
 
-        if self.gl_plot: self.gl_plot.plot_errors()
+        # if self.gl_plot: self.gl_plot.plot_errors()
 
         return measurement_errors, qubit_errors
 
@@ -565,7 +565,7 @@ class planar(toric):
         Finds whether there are any logical errors on the lattice/self. The logical error is returned as [Xhorizontal, Zvertical], where each item represents a homological Loop
         """
 
-        if self.gl_plot: self.gl_plot.plot_final()
+        # if self.gl_plot: self.gl_plot.plot_final()
 
         logical_error = [0, 0]
 
