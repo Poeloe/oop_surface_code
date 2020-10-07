@@ -24,9 +24,8 @@ The 3D graph (toric/planar) is a cubic lattice with many layer of these unit cel
 '''
 
 from . import graph_2D as go
-from ..plot import plot_graph_lattice as pgl
-from ..plot import plot_unionfind as puf
 import random
+
 
 class toric(go.toric):
     '''
@@ -77,12 +76,12 @@ class toric(go.toric):
             setattr(self, key, value)
         self.plot2D = plot2D
         self.plot_config = plot_config
-        self.gl_plot = pgl.plot_3D(self, **plot_config) if self.plot3D else None
+        # self.gl_plot = pgl.plot_3D(self, **plot_config) if self.plot3D else None
 
 
-    def init_uf_plot(self):
-        self.uf_plot = puf.plot_3D(self, **self.plot_config)
-        return self.uf_plot
+    # def init_uf_plot(self):
+    #     self.uf_plot = puf.plot_3D(self, **self.plot_config)
+    #     return self.uf_plot
 
 
     def __repr__(self):
@@ -324,7 +323,7 @@ class toric(go.toric):
         Applies logical_error() method of parent graph_2D object on the last layer.
         '''
         if self.plot2D:
-            self.gl2_plot = pgl.plot_2D(self, z=self.decode_layer, from3D=1, **self.plot_config)
+            # self.gl2_plot = pgl.plot_2D(self, z=self.decode_layer, from3D=1, **self.plot_config)
             self.gl2_plot.new_iter("Final layer errors")
             self.gl2_plot.plot_errors(z=self.decode_layer, draw=1)
         # 22-07-2020: Fixed bug that caused program to evaluate the wrong layer for logical errors

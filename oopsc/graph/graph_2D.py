@@ -20,8 +20,6 @@ Qubits: qID (td, y, x)          Stabilizers: sID (ertype, y, x)
 
 The 2D graph (toric/planar) is a square lattice with 1 layer of these unit cells.
 '''
-from ..plot import plot_graph_lattice as pgl
-from ..plot import plot_unionfind as puf
 import random
 import numpy as np
 from ..superoperator import superoperator as so
@@ -63,19 +61,19 @@ class toric(object):
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.plot_config = plot_config
-        self.gl_plot = pgl.plot_2D(self, **plot_config) if self.plot2D else None
+        # self.gl_plot = pgl.plot_2D(self, **plot_config) if self.plot2D else None
 
         self.superoperator = None
 
     def __repr__(self):
         return f"2D {self.__class__.__name__} graph object with"
 
-    def init_uf_plot(self):
-        '''
-        Initializes plot of unionfind decoder.
-        '''
-        self.uf_plot = puf.plot_2D(self, **self.plot_config)
-        return self.uf_plot
+    # def init_uf_plot(self):
+    #     '''
+    #     Initializes plot of unionfind decoder.
+    #     '''
+    #     self.uf_plot = puf.plot_2D(self, **self.plot_config)
+    #     return self.uf_plot
 
 
     def count_matching_weight(self, z=0):
