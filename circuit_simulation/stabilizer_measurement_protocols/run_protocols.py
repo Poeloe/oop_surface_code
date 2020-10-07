@@ -86,7 +86,7 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_b
 
     if threaded and fn:
         fn += ("_" + str(threading.get_ident()))
-        _init_random_seed(threading.get_ident(), iteration=it)
+        _init_random_seed(worker=threading.get_ident(), iteration=it)
 
     if print_mode:
         return []
