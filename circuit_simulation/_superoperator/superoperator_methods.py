@@ -376,8 +376,7 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]
 
-    with open(path_to_file, 'a'):
-        data.to_csv(path_to_file, sep=';')
+    data.to_csv(path_to_file, sep=';')
 
     if not self._thread_safe_printing:
         self.print()
