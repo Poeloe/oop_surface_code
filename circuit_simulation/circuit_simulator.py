@@ -440,7 +440,7 @@ class QuantumCircuit:
             involved_nodes = list(name)
         if not all(node_name in self.nodes for node_name in involved_nodes):
             raise ValueError("involved_nodes either contains nodes that do not exist or it could not be derived from "
-                             "the name of the sub cirucit. involved_nodes list for sub circuit '{}' contained: {}"
+                             "the name of the sub circuit. involved_nodes list for sub circuit '{}' contained: {}"
                              .format(name, involved_nodes))
 
         sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects, involved_nodes)
