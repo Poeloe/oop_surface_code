@@ -1,6 +1,6 @@
 import scipy.sparse as sp
 import math
-from termcolor import colored
+from circuit_simulation.termcolor.termcolor import colored
 from circuit_simulation.gates.gates import *
 from circuit_simulation.states.states import *
 from circuit_simulation.basic_operations.basic_operations import CT

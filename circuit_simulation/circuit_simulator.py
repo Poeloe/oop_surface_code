@@ -12,7 +12,7 @@ from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
 from scipy import sparse as sp
 import hashlib
 from oopsc.superoperator.superoperator import SuperoperatorElement
-from termcolor import colored
+from circuit_simulation.termcolor.termcolor import colored
 from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math

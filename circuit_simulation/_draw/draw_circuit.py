@@ -1,5 +1,5 @@
 import re
-from termcolor import colored, COLORS
+from circuit_simulation.termcolor.termcolor import colored, COLORS
 from circuit_simulation.gates.gate import SingleQubitGate, TwoQubitGate
 from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
 import numpy as np
