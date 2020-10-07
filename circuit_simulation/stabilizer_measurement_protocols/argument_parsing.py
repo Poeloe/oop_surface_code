@@ -150,4 +150,7 @@ def compose_parser():
                         help="Specify the path to the file that contains the gate duration times.",
                         type=str,
                         required=False)
+    parser.add_argument("--no_progress_bar",
+                        help="Displays no progress bar for simulation.",
+                        action='store_false')
     return parser

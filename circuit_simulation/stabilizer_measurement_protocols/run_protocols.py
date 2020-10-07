@@ -2,8 +2,7 @@ import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from pprint import pprint
-from multiprocessing import Pool
-from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
 import threading
 import pickle
 import re
@@ -140,6 +139,7 @@ if __name__ == "__main__":
     to_console = args.pop('to_console')
     swap = args.pop('use_swap_gates')
     gate_duration_file = args.pop('gate_duration_file')
+    progress_bar = args.pop('no_progress_bar')
 
     file_dir = os.path.dirname(__file__)
     # THIS IS NOT GENERIC, will error when directories are moved or renamed
@@ -166,13 +166,18 @@ if __name__ == "__main__":
         else:
             raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
 
-    pbar = tqdm(total=100)
+    if progress_bar:
+        from tqdm import tqdm
+        pbar = tqdm(total=100)
+    else:
+        pbar = None
 
     if threaded:
-        workers = it if 1 < it < 17 else 16
+        workers = it if 1 < it < cpu_count() else cpu_count()
         thread_pool = Pool(workers)
         results = []
-        pbar = tqdm(total=it)
+        if progress_bar:
+            pbar = tqdm(total=it)
 
     for i in range(it):
         filename_count = 0
@@ -204,7 +209,8 @@ if __name__ == "__main__":
         print_results = []
         for res in results:
             print_results.extend(res.get())
-            pbar.update(1)
+            if pbar is not None:
+                pbar.update(1)
         if filenames:
             _combine_multiple_csv_files(filenames, delete=True)
             _combine_multiple_csv_files(filenames, cut_off=True, delete=True)
