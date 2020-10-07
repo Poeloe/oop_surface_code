@@ -10,7 +10,6 @@ One can choose to run a simulated lattice for a single, multiple or many (multit
 
 '''
 
-from progiter import ProgIter
 import multiprocessing as mp
 from decimal import Decimal as decimal
 from collections import defaultdict as dd
@@ -200,7 +199,7 @@ def multiple(
         debug=debug,
     )
 
-    zipped = zip(ProgIter(range(iters)), seeds) if progressbar else zip(range(iters), seeds)
+    zipped = zip(range(iters), seeds)
     result = [single(size, config, iter=iter, seed=seed, **options, **kwargs) for iter, seed in zipped]
 
     if called:
