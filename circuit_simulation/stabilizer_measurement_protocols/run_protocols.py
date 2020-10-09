@@ -76,7 +76,7 @@ def _print_circuit_parameters(**kwargs):
     print('\n-----------------------\n')
 
 
-def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell, bell_dur, meas_dur, time_step,
+def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell, bell_dur, meas_dur, pulse_duration,
          lkt_1q, lkt_2q, prb, fn, print_mode, draw, to_console, swap, threaded=False, gate_duration_file=None,
          pbar=None):
 
@@ -93,19 +93,19 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_b
     gate = CZ_gate if stab_type == "Z" else CNOT_gate
 
     if protocol == "monolithic":
-        return monolithic(gate, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, ltsv, sv, fn, pbar,
+        return monolithic(gate, pg, pm, pm_1, color, bell_dur, meas_dur, pulse_duration, lkt_1q, lkt_2q, ltsv, sv, fn, pbar,
                           draw, to_console)
     elif protocol == "expedient":
         if swap:
-            return expedient_swap(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb,
+            return expedient_swap(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb,
                                   lkt_1q, lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
-        return expedient(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+        return expedient(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
     elif protocol == "stringent":
         if swap:
-            return stringent_swap(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb,
+            return stringent_swap(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb,
                                   lkt_1q, lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
-        return stringent(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+        return stringent(gate, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q,
                          lkt_2q, ltsv, sv, fn, pbar, draw, to_console)
 
 
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     stab_type = args.pop('stabilizer_type')
     color = args.pop('color')
     dec = args.pop('decoherence')
-    time_step = args.pop('time_step')
+    pulse_duration = args.pop('pulse_duration')
     meas_errors = args.pop('measurement_error_probability')
     meas_1_errors = args.pop('measurement_error_probability_one_state')
     meas_eq_gate = args.pop('pm_equals_pg')
@@ -193,12 +193,12 @@ if __name__ == "__main__":
                             results.append(thread_pool.
                                            apply_async(main,
                                                        (i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn,
-                                                        dec, p_bell, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
+                                                        dec, p_bell, bell_dur, meas_dur, pulse_duration, lkt_1q, lkt_2q,
                                                         prb, fn, print_mode, draw, to_console, swap, threaded,
                                                         gate_duration_file)))
                         else:
                             print(*main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_bell,
-                                        bell_dur, meas_dur, time_step, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
+                                        bell_dur, meas_dur, pulse_duration, lkt_1q, lkt_2q, prb, fn, print_mode, draw,
                                         to_console, swap, gate_duration_file=gate_duration_file, pbar=pbar))
                             print("\nFinished iteration {} of the {}\n".format(i+1, it))
                             if progress_bar:

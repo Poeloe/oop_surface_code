@@ -2,11 +2,11 @@ from circuit_simulation.circuit_simulator import *
 import time
 
 
-def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lkt_1q, lkt_2q,
+def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, pulse_duration, lkt_1q, lkt_2q,
                save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, pm_1=pm_1, basis_transformation_noise=True,
                         thread_safe_printing=True, bell_creation_duration=bell_dur, measurement_duration=meas_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
+                        pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
     qc.set_qubit_states({0: ket_p})
     qc.apply_gate(operation, cqubit=0, tqubit=1)
     qc.apply_gate(operation, cqubit=0, tqubit=3)
@@ -30,13 +30,13 @@ def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, time_step, lk
     return qc._print_lines
 
 
-def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
+def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q, lkt_2q,
               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2,
                         cut_off_time=100)
 
@@ -133,13 +133,13 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     return qc._print_lines
 
 
-def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q, lkt_2q,
+def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q, lkt_2q,
               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
@@ -240,13 +240,13 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     return qc._print_lines
 
 
-def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q,
                    lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9)
@@ -348,13 +348,13 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     return qc._print_lines
 
 
-def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, time_step, prb, lkt_1q,
+def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q,
                    lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
-                        time_step=time_step, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
+                        pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9)

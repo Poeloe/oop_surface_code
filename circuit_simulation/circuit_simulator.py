@@ -602,8 +602,8 @@ class QuantumCircuit:
                                     sub_circuit_concurrent=True)
                 self._check_if_cut_off_time_is_reached()
 
-    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None, kind='idle',
-                           skip_check=False):
+    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None, wait_swap=False,
+                           kind='idle', skip_check=False):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -628,15 +628,20 @@ class QuantumCircuit:
             self.total_duration += amount
 
         # At this point in time, if sub_circuit parameter is specified the method is invoked by the
-        # 'apply_decoherence_to_fastest_sub_circuit' method an no time increase is needed for the sub circuit
+        # 'apply_decoherence_to_fastest_sub_circuit' method and no time increase is needed for the sub circuit
         elif sub_circuit is None:
             current_sub_circuit = self._current_sub_circuit
-            # If excluded qubits are in the same node it is a local operation, then time must be divided by the amount
-            # of concurrent circuits (those local operations will also be added and together it will make up the total)
-            if all(ex_qubit in self.get_node_qubits(excluded_qubits[0]) for ex_qubit in excluded_qubits) and \
-                    len(excluded_qubits) > 0:
-                current_sub_circuit.increase_duration(amount / current_sub_circuit.amount_involved_nodes)
-            else:
+            # If excluded qubits are in the same node it is a local operation, then it must be checked if all
+            # concurrent local operations have been applied before increasing the total duration of the sub circuit
+            if not wait_swap and (len(excluded_qubits) > 0 and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
+                                                                   for ex_qubit in excluded_qubits)):
+                current_sub_circuit.increase_amount_concurrent_operations_applied()
+            if wait_swap:
+                current_sub_circuit.increase_amount_concurrent_swap_wait()
+
+            if ((current_sub_circuit.all_concurrent_operations_applied and not wait_swap) or
+               (current_sub_circuit.all_concurrent_swap_wait_applied and wait_swap)):
+
                 current_sub_circuit.increase_duration(amount)
 
         if self.qubits is not None:
@@ -679,7 +684,7 @@ class QuantumCircuit:
             kind : str
                 String indicating the kind of waiting time that is supposed to be added (options are 'idle' or 'LDE')
         """
-        if included_qubits is None:
+        if not included_qubits:
             if self._current_sub_circuit is not None:
                 # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
                 if excluded_qubits and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
@@ -925,16 +930,15 @@ class QuantumCircuit:
                                                   qubit2: (new_density_matrix, qubits)})
 
         self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
-        lde_time, idle_time = self._split_total_duration_lde(times, bell_creation_duration=bell_creation_duration,
-                                                             probabilistic=probabilistic)
+        lde_time = self._calculate_duration_bell_pair_creation(times, bell_creation_duration=bell_creation_duration)
+
         self._increase_duration(lde_time, [qubit1, qubit2], kind='LDE')
-        self._increase_duration(idle_time, [], kind='idle')
 
         self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
 
     @handle_none_parameters
-    def _split_total_duration_lde(self, attempts_till_success, fixed_lde_attempts=None, bell_creation_duration=None,
-                                  probabilistic=None, pulse_duration=None):
+    def _split_total_duration_lde_old(self, attempts_till_success, fixed_lde_attempts=None, bell_creation_duration=None,
+                                      probabilistic=None, pulse_duration=None):
         if not probabilistic:
             return bell_creation_duration, 0
         n_pulses_before_success = math.floor(1 + (attempts_till_success-fixed_lde_attempts)/(2*fixed_lde_attempts))
@@ -946,6 +950,12 @@ class QuantumCircuit:
                      + n_pulses_after_success * pulse_duration)
 
         return lde_time, idle_time
+
+    @handle_none_parameters
+    def _calculate_duration_bell_pair_creation(self, attempts_till_success, fixed_lde_attempts=None,
+                                               bell_creation_duration=None, pulse_duration=None):
+        n_pulses_before_success = math.floor(1+(attempts_till_success - fixed_lde_attempts)/(2*fixed_lde_attempts))
+        return attempts_till_success * bell_creation_duration + n_pulses_before_success * pulse_duration
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -1292,6 +1302,15 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
+        # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
+        if self.pulse_duration > 0:
+            duration = self._current_sub_circuit.total_duration if self._current_sub_circuit is not None \
+                                                                else self.total_duration
+            sequence_dur = (2*self.fixed_lde_attempts*self.bell_creation_duration+self.pulse_duration)
+            time_till_swap = sequence_dur - (duration % sequence_dur)
+            included_qubits = list(set(self.get_node_qubits(cqubit)).difference(self._uninitialised_qubits))
+            self._increase_duration(time_till_swap, [], included_qubits=included_qubits, wait_swap=True)
+
         if efficient:
             if user_operation:
                 self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})

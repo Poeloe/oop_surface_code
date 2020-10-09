@@ -84,11 +84,12 @@ def compose_parser():
                         help='Specifies the duration of a measurement operation.',
                         type=float,
                         default=0.)
-    parser.add_argument('-ts',
-                        '--time_step',
-                        help='Specifies the duration of a measurement operation.',
+    parser.add_argument('-pulse_dur',
+                        '--pulse_duration',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
                         type=float,
-                        default=1)
+                        default=0)
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',
