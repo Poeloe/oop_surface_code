@@ -44,7 +44,10 @@ if __name__ == "__main__":
         ["-GHZ", "--GHZ_successes", "store", "specify the percentage of GHZ states that are successfully created"
                                              " (works only with superoperator) - float [0-1]",
          dict(type=float, nargs='*', metavar="", default=[1.1])],
-        ["-c", "--cycles", "store", "Amount of stabilizer cycles (default=l)", dict(type=int, metavar="", default=None)]
+        ["-c", "--cycles", "store", "Amount of stabilizer cycles (default=l)", dict(type=int, metavar="",
+                                                                                    default=None)],
+        ["-cf", "--copy_file", "store", "path to file where copy of csv file should go - str", dict(type=str, metavar=""
+                                                                                                    , required=True)]
     ]
 
     add_args(parser, arguments)

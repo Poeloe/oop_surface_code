@@ -63,6 +63,7 @@ def sim_thresholds(
         P_store=1000,
         debug=False,
         cycles=None,
+        copy_file=None,
         **kwargs
         ):
     '''
@@ -165,6 +166,8 @@ def sim_thresholds(
             data = data.sort_index()
             if save_result:
                 data.to_csv(file_path)
+                if copy_file is not None:
+                    os.system('cp -rv {} {}'.format(file_path, copy_file))
 
     print(data.to_string())
 
