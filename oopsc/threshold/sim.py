@@ -167,7 +167,8 @@ def sim_thresholds(
             if save_result:
                 data.to_csv(file_path)
                 if copy_file is not None:
-                    os.system('cp -rv {} {}'.format(file_path, copy_file))
+                    target_dir_file = os.path.dirname(file_path) if os.path.dirname(file_path) != "." else file_path
+                    os.system('cp -rv {} {}'.format(target_dir_file, copy_file))
 
     print(data.to_string())
 
