@@ -39,21 +39,26 @@ def draw_gates(self, init, no_color):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     for draw_item in self._draw_order:
+        # A level item sets the length of al qubit paths the same. This is usually used for points where a sub
+        # circuit waits on another sub circuit to finish before continuing with the rest of the circuit
         if draw_item == "LEVEL":
             init = _level_qubit_paths(init)
             continue
         gate = draw_item[0]
         qubits = draw_item[1]
         noise = draw_item[2]
+        sub_circuit = draw_item[3]
         sub_circuit_concurrent = draw_item[4]
         if sub_circuit_concurrent:
-            concurrent_qubits = draw_item[3].qubits if draw_item[3] is not None else []
+            concurrent_qubits = sub_circuit.qubits if sub_circuit is not None else []
         else:
-            concurrent_qubits = draw_item[3].get_all_concurrent_qubits if draw_item[3] is not None else []
+            concurrent_qubits = sub_circuit.get_all_concurrent_qubits if sub_circuit is not None else []
 
+        # Find qubits that are not involved in the current sub circuit
         non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in range(self.num_qubits)]))
 
-        if len(qubits) > 1:
+        # Draw 2 qubit operations
+        if len(qubits) == 2:
             if type(gate) in [SingleQubitGate, TwoQubitGate]:
                 control = gate.control_repr if type(gate) == TwoQubitGate else "o"
                 gate = gate.representation

@@ -318,7 +318,7 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
         columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts', 'total_duration']
+                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration']
         data = pd.DataFrame(0., index=index, columns=columns)
         data.iloc[0, data.columns.get_loc('pg')] = self.pg
         data.iloc[0, data.columns.get_loc('pm')] = self.pm
@@ -329,49 +329,59 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
         data.iloc[0, data.columns.get_loc('lde_attempts')] = self._total_lde_attempts
         data.iloc[0, data.columns.get_loc('total_duration')] = self.total_duration
+        data.iloc[0, data.columns.get_loc('avg_lde')] = self._total_lde_attempts
+        data.iloc[0, data.columns.get_loc('avg_duration')] = self.total_duration
+        data.iloc[0, data.columns.get_loc("written_to")] = 0
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
+    written_to = data.iloc[0, data.columns.get_loc("written_to")]
 
     for supop_el in superoperator:
-        error_array = "".join(sorted(supop_el.error_array))
-        current_index = (error_array, supop_el.lie)
-        if current_index in data.index:
-            current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
-            new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
-            data.at[current_index, stab_type] = new_value_stab
-        else:
-            data.loc[current_index, stab_type] = supop_el.p
-
         # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
         # error_array
-        error_array = "".join(sorted(error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))
-        current_index_opp = (error_array, supop_el.lie)
-        if current_index_opp in data.index:
-            current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
-            new_value_opp_stab = (current_value_opp_stab + supop_el.p) / 2 if current_value_opp_stab != 0. \
-                else supop_el.p
-            data.at[current_index_opp, opp_stab] = new_value_opp_stab
-        else:
-            data.loc[current_index_opp, opp_stab] = supop_el.p
+        error_array_str = "".join(sorted(supop_el.error_array))
+        zipped_items = zip([error_array_str,
+                            "".join(sorted(error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))],
+                           [stab_type, opp_stab])
+        for error_array, current_stab_type in zipped_items:
+            current_index = (error_array, supop_el.lie)
+            if current_index in data.index:
+                current_value_stab = data.at[(error_array, supop_el.lie), current_stab_type]
+                new_value_stab = (current_value_stab * written_to + supop_el.p) / (written_to + 1) if \
+                    current_value_stab != 0. else supop_el.p / (written_to + 1)
+                data.at[current_index, current_stab_type] = new_value_stab
+            else:
+                data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
 
-    if 'total_duration' in data:
-        data.iloc[0, data.columns.get_loc("total_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] +
-                                                                self.total_duration) / 2
-    else:
-        data['total_duration'] = 0
-        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
-    if 'lde_attempts' in data:
-        data.iloc[0, data.columns.get_loc("lde_attempts")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] +
-                                                              self._total_lde_attempts) / 2
-    else:
-        data['lde_attempts'] = 0
-        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
+    # Raise 'written_to' first, such that it can be used to calculate averages
     if 'written_to' in data:
         data.iloc[0, data.columns.get_loc("written_to")] += 1.0
     else:
         data['written_to'] = 0
         data.iloc[0, data.columns.get_loc("written_to")] = 1
+
+    if 'total_duration' in data:
+        data.iloc[0, data.columns.get_loc("total_duration")] += self.total_duration
+    else:
+        data['total_duration'] = 0
+        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
+
+    if 'avg_duration' in data:
+        data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
+                                                              data.iloc[0, data.columns.get_loc("written_to")])
+    else:
+        data['total_duration'] = 0
+        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
+    if 'lde_attempts' in data:
+        data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
+    else:
+        data['lde_attempts'] = 0
+        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
+
+    if 'avg_lde' in data:
+        data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
+                                                         data.iloc[0, data.columns.get_loc("written_to")])
 
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]

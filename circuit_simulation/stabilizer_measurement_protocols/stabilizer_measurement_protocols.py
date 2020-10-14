@@ -37,13 +37,12 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
-                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2,
-                        cut_off_time=100)
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
-    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
-    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
-    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5)
-    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2)
+    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11, data_qubits=18)
+    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8, data_qubits=16)
+    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5, data_qubits=14)
+    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2, data_qubits=12)
 
     qc.define_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[10, 7, 18, 16])
     qc.define_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12], concurrent_sub_circuits="AB")
@@ -54,36 +53,53 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     qc.define_sub_circuit("C", [14, 5, 4, 3])
     qc.define_sub_circuit("D", [12, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
 
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(11, 8)
-    qc.double_selection(CZ_gate, 10, 7)
-    qc.double_selection(CNOT_gate, 10, 7)
+    ghz_success = False
+    while not ghz_success:
+        if pbar is not None:
+            pbar.reset()
+        qc.start_sub_circuit("AB")
+        success_ab = False
+        while not success_ab:
+            qc.create_bell_pair(11, 8)
+            success_ab = qc.double_selection(CZ_gate, 10, 7, retry=False)
+            if not success_ab:
+                continue
+            success_ab = qc.double_selection(CNOT_gate, 10, 7, retry=False)
 
-    if pbar is not None:
-        pbar.update(20)
+        if pbar is not None:
+            pbar.update(20)
 
-    qc.start_sub_circuit("CD")
-    qc.create_bell_pair(5, 2)
-    qc.double_selection(CZ_gate, 4, 1)
-    qc.double_selection(CNOT_gate, 4, 1)
+        qc.start_sub_circuit("CD")
+        success_cd = False
+        while not success_cd:
+            qc.create_bell_pair(5, 2)
+            success_cd = qc.double_selection(CZ_gate, 4, 1, retry=False)
+            if not success_cd:
+                continue
+            success_cd = qc.double_selection(CNOT_gate, 4, 1, retry=False)
 
-    if pbar is not None:
-        pbar.update(20)
+        if pbar is not None:
+            pbar.update(20)
 
-    qc.start_sub_circuit("AC")
-    # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single dot
-    success_1 = qc.single_dot(CZ_gate, 10, 4, parity_check=False)
-    success_2 = qc.single_dot(CZ_gate, 10, 4, parity_check=False)
+        qc.start_sub_circuit("AC")
+        # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single
+        # dot
+        success_1 = qc.single_dot(CZ_gate, 10, 4, parity_check=False)
+        qc.start_sub_circuit("BD")
+        ghz_success = qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_1, retry=False)
+        if not ghz_success:
+            continue
 
-    if pbar is not None:
-        pbar.update(20)
+        qc.start_sub_circuit("AC", forced_level=True)
+        ghz_success_1 = qc.single_dot(CZ_gate, 10, 4, retry=False)
+        qc.start_sub_circuit("BD")
+        ghz_success_2 = qc.single_dot(CZ_gate, 7, 1, retry=False)
+        if any([not ghz_success_1, not ghz_success_2]):
+            qc.correct_for_failed_ghz_check({"AC": ghz_success_1, "BD": ghz_success_2})
+            continue
 
-    qc.start_sub_circuit("BD")
-    qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_1)
-    qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_2)
-
-    if pbar is not None:
-        pbar.update(20)
+        if pbar is not None:
+            pbar.update(20)
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")

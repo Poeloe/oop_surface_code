@@ -37,10 +37,23 @@ def _combine_multiple_csv_files(filenames, cut_off=False, delete=False):
                 if original_data_frame is None:
                     original_data_frame = data_frame
                 else:
-                    original_data_frame = original_data_frame.add(data_frame, axis=0, fill_value=0)
-                    original_data_frame = original_data_frame.div(2, axis=0)
-                    if 'written_to' in original_data_frame:
-                        original_data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")] *= 2
+                    # Correct 'written_to' for fusion and use in
+                    written_to_original = original_data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")]
+                    written_to_new = data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")]
+                    corrected_written_to = written_to_new + written_to_original
+                    original_data_frame.iloc[0, original_data_frame.columns.get_loc("written_to")] = \
+                        corrected_written_to
+
+                    original_data_frame['s'] = (original_data_frame['s'] * written_to_original + data_frame['s'] *
+                                                written_to_new)/corrected_written_to
+                    original_data_frame['p'] = (original_data_frame['p'] * written_to_original + data_frame['p'] *
+                                                written_to_new)/corrected_written_to
+                    original_data_frame['total_duration'] = (original_data_frame['total_duration'] +
+                                                             data_frame['total_duration'])
+                    original_data_frame['lde_attempts'] = (original_data_frame['lde_attempts'] + data_frame[
+                                                           'lde_attempts'])
+                    original_data_frame['avg_lde'] = original_data_frame['lde_attempets'] / corrected_written_to
+                    original_data_frame['avg_duration'] = original_data_frame['total_duration'] / corrected_written_to
                 if delete:
                     os.remove(os.path.join(csv_dir, file))
 
