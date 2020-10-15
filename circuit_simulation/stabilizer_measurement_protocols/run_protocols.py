@@ -97,7 +97,7 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_b
         _print_circuit_parameters(**locals())
 
     if threaded and fn:
-        fn += ("_" + str(threading.get_ident()))
+        fn += ("_" + str(threading.current_thread().native_id) + str(hash(threading.current_thread())))
         _init_random_seed(worker=threading.get_ident(), iteration=it)
 
     if print_mode:
@@ -185,7 +185,7 @@ if __name__ == "__main__":
         pbar = None
 
     if threaded:
-        workers = it if 1 < it < cpu_count() else cpu_count()
+        workers = it if 0 < it < cpu_count() else cpu_count()
         thread_pool = Pool(workers)
         results = []
         if progress_bar:

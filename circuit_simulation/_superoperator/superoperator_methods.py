@@ -352,7 +352,7 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
                     current_value_stab != 0. else supop_el.p / (written_to + 1)
                 data.at[current_index, current_stab_type] = new_value_stab
             else:
-                data.at[current_index, current_stab_type] = supop_el.p / (written_to + 1)
+                data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
 
     # Raise 'written_to' first, such that it can be used to calculate averages
     if 'written_to' in data:
