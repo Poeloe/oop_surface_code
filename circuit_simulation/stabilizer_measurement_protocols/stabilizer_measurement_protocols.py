@@ -37,7 +37,8 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
                         network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
                         p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
-                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2,
+                        no_single_qubit_error=True)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11, data_qubits=18)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8, data_qubits=16)
@@ -96,6 +97,7 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
         ghz_success_2 = qc.single_dot(CZ_gate, 7, 1, retry=False)
         if any([not ghz_success_1, not ghz_success_2]):
             qc.correct_for_failed_ghz_check({"AC": ghz_success_1, "BD": ghz_success_2})
+            ghz_success = False
             continue
 
         if pbar is not None:

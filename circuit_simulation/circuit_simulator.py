@@ -1386,7 +1386,7 @@ class QuantumCircuit:
                                                     user_operation=user_operation)
                 if measurement_outcomes is None:
                     return
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = measurement_outcomes[0] == measurement_outcomes[1]
                 if not retry:
                     return success
             else:
@@ -1408,7 +1408,7 @@ class QuantumCircuit:
                                                     user_operation=user_operation)
                 if measurement_outcomes is None:
                     return
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = measurement_outcomes[0] == measurement_outcomes[1]
             else:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
@@ -1455,7 +1455,7 @@ class QuantumCircuit:
                 # able to get out of the while loop
                 if measurement_outcomes is None:
                     return
-                parity.append(True if measurement_outcomes[0] == measurement_outcomes[1] else False)
+                parity.append(measurement_outcomes[0] == measurement_outcomes[1])
             success = all(parity)
 
     @skip_if_cut_off_reached
@@ -1485,7 +1485,7 @@ class QuantumCircuit:
                                                     user_operation=user_operation)
                 if measurement_outcomes is None:
                     return
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = measurement_outcomes[0] == measurement_outcomes[1]
 
                 if draw_X_gate and self._sub_circuits and not drawn:
                     self._add_draw_operation(X_gate, bell_qubit_2 + 1,
@@ -1518,15 +1518,15 @@ class QuantumCircuit:
             self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
             self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
-                                    user_operation=user_operation)
+                            user_operation=user_operation)
             self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
-                                    user_operation=user_operation)
+                            user_operation=user_operation)
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
                 if measurement_outcomes is None:
                     return
-                success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+                success = measurement_outcomes[0] == measurement_outcomes[1]
 
                 if draw_X_gate and self._sub_circuits and not drawn:
                     self._add_draw_operation(X_gate, bell_qubit_2 + 1,
@@ -1558,7 +1558,7 @@ class QuantumCircuit:
                                                 user_operation=user_operation)
             if measurement_outcomes is None:
                 return
-            success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+            success = measurement_outcomes[0] == measurement_outcomes[1]
 
             if draw_X_gate and self._sub_circuits and not drawn:
                 self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
@@ -1587,7 +1587,7 @@ class QuantumCircuit:
                                                 user_operation=user_operation)
             if measurement_outcomes is None:
                 return
-            success = True if measurement_outcomes[0] == measurement_outcomes[1] else False
+            success = measurement_outcomes[0] == measurement_outcomes[1]
 
             if draw_X_gate and self._sub_circuits and not drawn:
                 self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)

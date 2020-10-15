@@ -327,10 +327,10 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
         data.iloc[0, data.columns.get_loc('p_bell')] = self.p_bell_success
         data.iloc[0, data.columns.get_loc('bell_dur')] = self.bell_creation_duration
         data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
-        data.iloc[0, data.columns.get_loc('lde_attempts')] = self._total_lde_attempts
-        data.iloc[0, data.columns.get_loc('total_duration')] = self.total_duration
-        data.iloc[0, data.columns.get_loc('avg_lde')] = self._total_lde_attempts
-        data.iloc[0, data.columns.get_loc('avg_duration')] = self.total_duration
+        data.iloc[0, data.columns.get_loc('lde_attempts')] = 0
+        data.iloc[0, data.columns.get_loc('total_duration')] = 0
+        data.iloc[0, data.columns.get_loc('avg_lde')] = 0
+        data.iloc[0, data.columns.get_loc('avg_duration')] = 0
         data.iloc[0, data.columns.get_loc("written_to")] = 0
 
     stab_type = 'p' if proj_type == "Z" else 's'
@@ -370,9 +370,7 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
     if 'avg_duration' in data:
         data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
                                                               data.iloc[0, data.columns.get_loc("written_to")])
-    else:
-        data['total_duration'] = 0
-        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
+
     if 'lde_attempts' in data:
         data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
     else:
