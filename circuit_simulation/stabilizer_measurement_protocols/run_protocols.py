@@ -97,7 +97,7 @@ def main(i, it, protocol, stab_type, color, ltsv, sv, pg, pm, pm_1, pn, dec, p_b
         _print_circuit_parameters(**locals())
 
     if threaded and fn:
-        fn += ("_" + str(threading.current_thread().native_id) + str(hash(threading.current_thread())))
+        fn += ("_" + str(hash(threading.current_thread())))
         _init_random_seed(worker=threading.get_ident(), iteration=it)
 
     if print_mode:
