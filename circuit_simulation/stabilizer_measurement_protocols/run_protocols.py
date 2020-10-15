@@ -52,7 +52,7 @@ def _combine_multiple_csv_files(filenames, cut_off=False, delete=False):
                                                              data_frame['total_duration'])
                     original_data_frame['lde_attempts'] = (original_data_frame['lde_attempts'] + data_frame[
                                                            'lde_attempts'])
-                    original_data_frame['avg_lde'] = original_data_frame['lde_attempets'] / corrected_written_to
+                    original_data_frame['avg_lde'] = original_data_frame['lde_attempts'] / corrected_written_to
                     original_data_frame['avg_duration'] = original_data_frame['total_duration'] / corrected_written_to
                 if delete:
                     os.remove(os.path.join(csv_dir, file))
