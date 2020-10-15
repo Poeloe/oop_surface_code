@@ -220,10 +220,15 @@ if __name__ == "__main__":
 
     if threaded:
         print_results = []
+        count = 0
         for res in results:
             print_results.extend(res.get())
             if pbar is not None:
                 pbar.update(1)
+            else:
+                count += 1
+                if count % 100 == 0:
+                    print("Completed {} iterations at {}".format(count, time.time()))
         if filenames:
             _combine_multiple_csv_files(filenames, delete=True)
             _combine_multiple_csv_files(filenames, cut_off=True, delete=True)
