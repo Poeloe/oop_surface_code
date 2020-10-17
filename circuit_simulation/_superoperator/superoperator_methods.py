@@ -279,7 +279,7 @@ def print_superoperator(self, superoperator, no_color):
         self.print()
 
 
-def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -297,26 +297,23 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
             User specified file name that should be used to save the csv file with. The file will always be stored
             in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
     """
-    path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
-    if file_name is None:
-        self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
-    elif use_exact_path:
-        file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
-        path_to_file = file_name + ".csv"
-    else:
-        file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
-        path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
-        self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
+    if file_name:
+        if use_exact_path:
+            file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
+            path_to_file = file_name + ".csv"
+        else:
+            path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
+            file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
+            path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
 
-    error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
-    error_index.extend(error_index)
-    lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
-
-    index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
-
-    if os.path.exists(path_to_file):
+    if file_name and os.path.exists(path_to_file):
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
+        error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
+        error_index.extend(error_index)
+        lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
+
+        index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
         columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
                    'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration']
         data = pd.DataFrame(0., index=index, columns=columns)
@@ -354,7 +351,6 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
             else:
                 data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
 
-    # Raise 'written_to' first, such that it can be used to calculate averages
     if 'written_to' in data:
         data.iloc[0, data.columns.get_loc("written_to")] += 1.0
     else:
@@ -380,11 +376,14 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
     if 'avg_lde' in data:
         data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
                                                          data.iloc[0, data.columns.get_loc("written_to")])
-
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]
 
-    data.to_csv(path_to_file, sep=';')
+    if file_name:
+        data.to_csv(path_to_file, sep=';')
+        self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
 
     if not self._thread_safe_printing:
         self.print()
+
+    return data

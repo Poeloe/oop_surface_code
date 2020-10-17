@@ -2,11 +2,12 @@ from circuit_simulation.circuit_simulator import *
 import time
 
 
-def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, pulse_duration, lkt_1q, lkt_2q,
-               save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+def monolithic(*, operation, pg, pm, pm_1, color, bell_pair_creation_duration, measurement_duration, pulse_duration,
+               lkt_1q, lkt_2q, save_latex_pdf, pbar, draw_circuit, to_console, decoherence, **kwargs):
     qc = QuantumCircuit(9, 2, noise=True, pg=pg, pm=pm, pm_1=pm_1, basis_transformation_noise=True,
-                        thread_safe_printing=True, bell_creation_duration=bell_dur, measurement_duration=meas_dur,
-                        pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q)
+                        thread_safe_printing=True, bell_creation_duration=bell_pair_creation_duration,
+                        measurement_duration=measurement_duration, single_qubit_gate_lookup=lkt_1q,
+                        two_qubit_gate_lookup=lkt_2q, decoherence=decoherence, pulse_duration=pulse_duration,)
     qc.set_qubit_states({0: ket_p})
     qc.apply_gate(operation, cqubit=0, tqubit=1)
     qc.apply_gate(operation, cqubit=0, tqubit=3)
@@ -17,28 +18,29 @@ def monolithic(operation, pg, pm, pm_1, color, bell_dur, meas_dur, pulse_duratio
     if pbar is not None:
         pbar.update(50)
 
-    if draw:
+    if draw_circuit:
         qc.draw_circuit(not color)
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    qc.get_superoperator([1, 3, 5, 7], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+    _, dataframe = qc.get_superoperator([1, 3, 5, 7], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console)
     if pbar is not None:
         pbar.update(50)
 
-    return qc._print_lines
+    return (dataframe, qc.cut_off_time_reached), qc.print_lines
 
 
-def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q, lkt_2q,
-              save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+def expedient(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_creation_success, measurement_duration,
+              bell_pair_creation_duration, pulse_duration, probabilistic, lkt_1q, lkt_2q, save_latex_pdf, pbar,
+              draw_circuit, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
-                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
+                        decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5*60), T2_idle=10,
+                        measurement_duration=measurement_duration, bell_creation_duration=bell_pair_creation_duration,
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
-                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2,
-                        no_single_qubit_error=True)
+                        T1_idle_electron=100, T2_idle_electron=1, T2_lde=2, no_single_qubit_error=True)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11, data_qubits=18)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8, data_qubits=16)
@@ -91,6 +93,9 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
         if not ghz_success:
             continue
 
+        if pbar is not None:
+            pbar.update(20)
+
         qc.start_sub_circuit("AC", forced_level=True)
         ghz_success_1 = qc.single_dot(CZ_gate, 10, 4, retry=False)
         qc.start_sub_circuit("BD")
@@ -127,38 +132,39 @@ def expedient(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     if pbar is not None:
         pbar.update(10)
 
-    if draw:
+    if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
 
     start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console,
-                         use_exact_path=True)
+    _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
     end_superoperator = time.time()
 
     if pbar is not None:
         pbar.update(10)
 
-    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                    start_superoperator))
-    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
+    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                   start_superoperator))
+    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
 
-    return qc._print_lines
+    return (dataframe, qc.cut_off_time_reached), qc.print_lines
 
 
-def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q, lkt_2q,
-              save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_creation_success, probabilistic, lkt_1q,
+              bell_pair_creation_duration, measurement_duration, pulse_duration, lkt_2q, save_latex_pdf, pbar,
+              draw_circuit, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
-                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic,
+                        decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_lde=2, T2_lde=2,
+                        measurement_duration=measurement_duration, bell_creation_duration=bell_pair_creation_duration,
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
-                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
@@ -174,41 +180,72 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     qc.define_sub_circuit("C", [14, 5, 4, 3])
     qc.define_sub_circuit("D", [12, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
 
-    qc.start_sub_circuit("AB")
+    ghz_success = False
+    while not ghz_success:
+        if pbar is not None:
+            pbar.reset()
 
-    qc.create_bell_pair(11, 8)
-    qc.double_selection(CZ_gate, 10, 7)
-    qc.double_selection(CNOT_gate, 10, 7)
-    qc.double_dot(CZ_gate, 10, 7)
-    qc.double_dot(CNOT_gate, 10, 7)
+        success_ab = False
+        while not success_ab:
+            qc.start_sub_circuit("AB")
+            qc.create_bell_pair(11, 8)
+            success_ab = qc.double_selection(CZ_gate, 10, 7, retry=False)
+            if not success_ab:
+                continue
+            success_ab = qc.double_selection(CNOT_gate, 10, 7, retry=False)
 
-    if pbar is not None:
-        pbar.update(20)
+        ghz_success = qc.double_dot(CZ_gate, 10, 7, retry=False)
+        if not ghz_success:
+            continue
+        ghz_success = qc.double_dot(CNOT_gate, 10, 7, retry=False)
+        if not ghz_success:
+            continue
 
-    qc.start_sub_circuit("CD")
+        if pbar is not None:
+            pbar.update(20)
 
-    qc.create_bell_pair(5, 2)
-    qc.double_selection(CZ_gate, 4, 1)
-    qc.double_selection(CNOT_gate, 4, 1)
-    qc.double_dot(CZ_gate, 4, 1)
-    qc.double_dot(CNOT_gate, 4, 1)
+        success_ab = False
+        while not success_ab:
+            qc.start_sub_circuit("CD")
+            qc.create_bell_pair(5, 2)
+            success_ab = qc.double_selection(CZ_gate, 4, 1, retry=False)
+            if not success_ab:
+                continue
+            success_ab = qc.double_selection(CNOT_gate, 4, 1, retry=False)
 
-    if pbar is not None:
-        pbar.update(20)
+        ghz_success = qc.double_dot(CZ_gate, 4, 1, retry=False)
+        if not ghz_success:
+            continue
+        ghz_success = qc.double_dot(CNOT_gate, 4, 1, retry=False)
+        if not ghz_success:
+            continue
 
-    qc.start_sub_circuit("AC")
-    success_1 = qc.double_dot(CZ_gate, 10, 4, parity_check=False)
-    success_2 = qc.double_dot(CZ_gate, 10, 4, parity_check=False)
+        if pbar is not None:
+            pbar.update(20)
 
-    if pbar is not None:
-        pbar.update(20)
+        qc.start_sub_circuit("AC")
+        # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single
+        # dot
+        success_1 = qc.double_dot(CZ_gate, 10, 4, parity_check=False)
+        qc.start_sub_circuit("BD")
+        ghz_success = qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_1, retry=False)
+        if not ghz_success:
+            continue
 
-    qc.start_sub_circuit("BD")
-    qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_1)
-    qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_2)
+        if pbar is not None:
+            pbar.update(20)
 
-    if pbar is not None:
-        pbar.update(20)
+        qc.start_sub_circuit("AC", forced_level=True)
+        ghz_success_1 = qc.double_dot(CZ_gate, 10, 4, retry=False)
+        qc.start_sub_circuit("BD")
+        ghz_success_2 = qc.double_dot(CZ_gate, 7, 1, retry=False)
+        if any([not ghz_success_1, not ghz_success_2]):
+            qc.correct_for_failed_ghz_check({"AC": ghz_success_1, "BD": ghz_success_2})
+            ghz_success = False
+            continue
+
+        if pbar is not None:
+            pbar.update(20)
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -234,7 +271,7 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
     if pbar is not None:
         pbar.update(10)
 
-    if draw:
+    if draw_circuit:
         qc.draw_circuit(no_color=not color)
 
     if save_latex_pdf:
@@ -242,30 +279,32 @@ def stringent(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_du
 
     stab_rep = "Z" if operation == CZ_gate else "X"
     start_superoperator = time.time()
-    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+    _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console)
     end_superoperator = time.time()
 
     if pbar is not None:
         pbar.update(10)
 
-    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                  start_superoperator))
-    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
+    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                   start_superoperator))
+    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
 
-    return qc._print_lines
+    return (dataframe, qc.cut_off_time_reached), qc.print_lines
 
 
-def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q,
-                   lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+def expedient_swap(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_creation_success,
+                   bell_pair_creation_duration, measurement_duration, pulse_duration, probabilistic, lkt_1q,
+                   lkt_2q, save_latex_pdf, pbar, draw_circuit, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
-                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic,
+                        decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_lde=2, T2_lde=2,
+                        measurement_duration=measurement_duration, bell_creation_duration=bell_pair_creation_duration,
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
-                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
+                        T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1)
 
     qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9)
     qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6)
@@ -343,35 +382,37 @@ def expedient_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     if pbar is not None:
         pbar.update(10)
 
-    if draw:
+    if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
 
     start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+    _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console)
     end_superoperator = time.time()
 
     if pbar is not None:
         pbar.update(10)
 
-    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                    start_superoperator))
-    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
+    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                   start_superoperator))
+    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
 
-    return qc._print_lines
+    return (dataframe, qc.cut_off_time_reached), qc.print_lines
 
 
-def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, meas_dur, pulse_duration, prb, lkt_1q,
-                   lkt_2q, save_latex_pdf, save_csv, csv_file_name, pbar, draw, to_console):
+def stringent_swap(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_creation_success,
+                   bell_pair_creation_duration, measurement_duration, pulse_duration, probabilistic, lkt_1q,
+                   lkt_2q, save_latex_pdf, pbar, draw_circuit, to_console):
     start = time.time()
     qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pn=pn, pm_1=pm_1,
-                        network_noise_type=1, thread_safe_printing=True, probabilistic=prb, decoherence=dec,
-                        p_bell_success=p_bell, measurement_duration=meas_dur, bell_creation_duration=bell_dur,
+                        network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic,
+                        decoherence=decoherence, p_bell_success=bell_pair_creation_success,
+                        measurement_duration=measurement_duration, bell_creation_duration=bell_pair_creation_duration,
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1, T1_lde=2, T2_lde=2)
 
@@ -455,7 +496,7 @@ def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
     if pbar is not None:
         pbar.update(10)
 
-    if draw:
+    if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
 
     if save_latex_pdf:
@@ -463,19 +504,17 @@ def stringent_swap(operation, pg, pm, pm_1, pn, color, dec, p_bell, bell_dur, me
 
     stab_rep = "Z" if operation == CZ_gate else "X"
     start_superoperator = time.time()
-    qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), to_csv=save_csv,
-                         csv_file_name=csv_file_name, stabilizer_protocol=True, print_to_console=to_console)
+    _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console)
     end_superoperator = time.time()
 
     if pbar is not None:
         pbar.update(10)
 
-    qc._print_lines.append("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc._print_lines.append("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc._print_lines.append("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                  start_superoperator))
-    qc._print_lines.append("\nTotal time is {}\n".format(time.time() - start))
+    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
+    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
+    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
+                                                                                   start_superoperator))
+    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
 
-    return qc._print_lines
-
-
+    return (dataframe, qc.cut_off_time_reached), qc.print_lines

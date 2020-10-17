@@ -1545,15 +1545,18 @@ class QuantumCircuit:
 
     @skip_if_cut_off_reached
     def double_dot(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
-                   draw_X_gate=False, parity_check=True, user_operation=True):
+                   draw_X_gate=False, parity_check=True, retry=True, user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         drawn = False
+        single_selection_success = False
         while not success:
-            self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
-                            user_operation=user_operation)
-            self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
-                                  user_operation=user_operation)
+            while not single_selection_success:
+                self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
+                                user_operation=user_operation)
+                single_selection_success = self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1,
+                                                                 noise=noise, pn=pn, pm=pm, pg=pg, retry=False,
+                                                                 user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
             if measurement_outcomes is None:
@@ -1563,6 +1566,8 @@ class QuantumCircuit:
             if draw_X_gate and self._sub_circuits and not drawn:
                 self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
                 drawn = True
+            if not retry:
+                return success
 
             if not parity_check:
                 if not success:
@@ -2053,11 +2058,12 @@ class QuantumCircuit:
         if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
-        if to_csv:
-            self._superoperator_to_csv(superoperator, proj_type, file_name=csv_file_name, use_exact_path=use_exact_path)
+        superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type,
+                                                                   use_exact_path=use_exact_path)
+
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
-        return superoperator
+        return superoperator, superoperator_dataframe
 
     @staticmethod
     def _return_QC_object(num_qubits, init):
@@ -2265,7 +2271,7 @@ class QuantumCircuit:
         """ Prints the superoperator in a clear way to the console """
         self._superoperator.superoperator_methods.print_superoperator(self, superoperator, no_color)
 
-    def _superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+    def _superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
             format that is used in the (distributed) surface code simulations.
@@ -2283,8 +2289,8 @@ class QuantumCircuit:
                 User specified file name that should be used to save the csv file with. The file will always be stored
                 in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
         """
-        return self._superoperator.superoperator_methods.superoperator_to_csv(self, superoperator, proj_type, file_name,
-                                                                              use_exact_path)
+        return self._superoperator.superoperator_methods.superoperator_to_dataframe(self, superoperator, proj_type,
+                                                                                    file_name, use_exact_path)
 
     """
         ----------------------------------------------------------------------------------------------------------
@@ -2433,6 +2439,13 @@ class QuantumCircuit:
 
     def copy(self):
         return self.__copy__()
+
+    def append_print_lines(self, line):
+        self._print_lines.append(line)
+
+    @property
+    def print_lines(self):
+        return self._print_lines
 
     def print(self, empty_print_lines=True):
         print(*self._print_lines)

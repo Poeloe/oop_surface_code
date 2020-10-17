@@ -104,7 +104,7 @@ def compose_parser():
     parser.add_argument('-fn',
                         '--csv_filename',
                         required=False,
-                        nargs="*",
+                        type=str,
                         default=None,
                         help='Give the file name of the csv file that will be saved.')
     parser.add_argument("-tr",
