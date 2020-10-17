@@ -90,6 +90,7 @@ def _print_circuit_parameters(**kwargs):
 
 
 def main_threaded(*, it, workers, **kwargs):
+    results = []
     for _ in range(workers):
         kwargs["it"] = it // workers
         kwargs["threaded"] = True
