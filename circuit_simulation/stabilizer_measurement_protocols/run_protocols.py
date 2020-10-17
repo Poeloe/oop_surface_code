@@ -225,12 +225,6 @@ if __name__ == "__main__":
     if meas_eq_gate:
         meas_errors = [None]
 
-    # Create a thread Pool if multithreading is requested
-    if threaded:
-        workers = it if 0 < it < cpu_count() else cpu_count()
-        thread_pool = Pool(workers)
-        results = []
-
     # Loop over all possible combinations of the user determined parameters
     for protocol, pg, pn, pm, pm_1 in itertools.product(protocols, gate_errors, network_errors, meas_errors,
                                                         meas_1_errors):
@@ -241,6 +235,8 @@ if __name__ == "__main__":
         print("\nRunning now {} iterations: protocol={}, pg={}, pn{}, pm={}, pm_1={}".format(it, protocol, pg, pn, pm,
                                                                                              pm_1))
         if threaded:
+            workers = it if 0 < it < cpu_count() else cpu_count()
+            thread_pool = Pool(workers)
             main_threaded(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, lkt_1q=lkt_1q, lkt_2q=lkt_2q,
                           progress_bar=progress_bar, gate_duration_file=gate_duration_file, workers=workers, **args)
         else:
