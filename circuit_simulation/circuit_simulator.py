@@ -468,6 +468,11 @@ class QuantumCircuit:
             ----------
             name : str
                 Name of the sub circuit that should be marked as current sub circuit.
+            forced_level: bool
+                Force the method to level the drawing and duration of the total circuit. This means that the drawing
+                each qubit path will be leveled and the maximum duration of the sub circuits will be added to the
+                total duration of the circuit. Usually this will only happen when all concurrent sub circuits have
+                been evaluated by the circuit simulator.
         """
         if name not in self._sub_circuits.keys():
             raise ValueError('Provided sub circuit name is not an existing sub circuit.')
@@ -611,7 +616,9 @@ class QuantumCircuit:
                 self._check_if_cut_off_time_is_reached()
 
     def correct_for_failed_ghz_check(self, success_dict):
-        shortest_duration, shortest_failed_sc = max([(self._sub_circuits[sc_name].total_duration,
+        # Find shortest sub circuit that failed, from this point the circuit will start over, so any longer duration
+        # should be forgotten
+        shortest_duration, shortest_failed_sc = min([(self._sub_circuits[sc_name].total_duration,
                                                       self._sub_circuits[sc_name]) for sc_name, success
                                                      in success_dict.items() if not success])
         data_qubit_shortest = [self.qubits[qubit_index] for qubit_index in self.get_node_qubits(
@@ -1549,14 +1556,11 @@ class QuantumCircuit:
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         drawn = False
-        single_selection_success = False
         while not success:
-            while not single_selection_success:
-                self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
+            self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                                 user_operation=user_operation)
-                single_selection_success = self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1,
-                                                                 noise=noise, pn=pn, pm=pm, pg=pg, retry=False,
-                                                                 user_operation=user_operation)
+            self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
+                                  retry=False, user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
             if measurement_outcomes is None:

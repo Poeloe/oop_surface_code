@@ -166,10 +166,10 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
                         pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q,
                         T1_idle=(5*60), T2_idle=10, T1_idle_electron=100, T2_idle_electron=1)
 
-    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11)
-    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8)
-    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5)
-    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2)
+    qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11, data_qubits=18)
+    qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8, data_qubits=16)
+    qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5, data_qubits=14)
+    qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2, data_qubits=12)
 
     qc.define_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[10, 7, 18, 16])
     qc.define_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12], concurrent_sub_circuits="AB")
@@ -272,7 +272,7 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
         pbar.update(10)
 
     if draw_circuit:
-        qc.draw_circuit(no_color=not color)
+        qc.draw_circuit(no_color=not color, color_nodes=True)
 
     if save_latex_pdf:
         qc.draw_circuit_latex()
