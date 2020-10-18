@@ -117,6 +117,8 @@ class SubQuantumCircuit:
         self._total_duration = 0
         self._ran = False
         self._cut_off_time_reached = False
+        self._concurrent_local_operations_applied = 0
+        self._concurrent_swap_wait_applied = 0
 
     def __hash__(self):
         return hash(self.name)

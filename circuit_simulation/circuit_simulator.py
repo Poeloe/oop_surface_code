@@ -142,7 +142,6 @@ class QuantumCircuit:
         # Basic attributes
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
-        self.density_matrices = None
         self.qubits = None
         self.nodes = None
         self._init_type = init_type
@@ -197,15 +196,15 @@ class QuantumCircuit:
         self._circuit_operations_ended = False
 
         if init_type == 0:
-            self.density_matrices = self._init_density_matrix()
+            self._init_density_matrix()
         elif init_type == 1:
-            self.density_matrices = self._init_density_matrix_first_qubit_ket_p()
+            self._init_density_matrix_first_qubit_ket_p()
         elif init_type == 2:
-            self.density_matrices = self._init_density_matrix_bell_pair_state()
+            self._init_density_matrix_bell_pair_state()
         elif init_type == 3:
-            self.density_matrices = self._init_density_matrix_bell_pair_state(bell_type=2)
+            self._init_density_matrix_bell_pair_state(bell_type=2)
         elif init_type == 4:
-            self.density_matrices = self._init_density_matrix_ket_p_and_CNOTS()
+            self._init_density_matrix_ket_p_and_CNOTS()
 
         self._init_parameters = self._init_parameters_to_dict()
 
@@ -249,7 +248,7 @@ class QuantumCircuit:
                                                 Separated Density Matrices Methods
         ---------------------------------------------------------------------------------------------------------
     """
-    def _correct_lookup_for_addition(self, amount_qubits=1, position='top'):
+    def _correct_lookup_for_addition(self, new_density_matrix, amount_qubits=1, position='top'):
         """
             Method corrects the qubit_density_matrix_lookup dictionary for the addition of a top or bottom qubit.
 
@@ -274,7 +273,7 @@ class QuantumCircuit:
 
         qubit_indices = [i for i in range(amount_qubits)]
         for qubit_num in range(amount_qubits):
-            self._qubit_density_matrix_lookup[qubit_num] = (self.density_matrices[position], qubit_indices)
+            self._qubit_density_matrix_lookup[qubit_num] = (new_density_matrix, qubit_indices)
 
     def _correct_lookup_for_two_qubit_gate(self, cqubit, tqubit):
         """
@@ -967,8 +966,7 @@ class QuantumCircuit:
             if noise:
                 density_matrix = self._N_network(density_matrix, pn, network_noise_type)
 
-            self.density_matrices.insert(0, density_matrix)
-            self._correct_lookup_for_addition(amount_qubits=2)
+            self._correct_lookup_for_addition(amount_qubits=2, new_density_matrix=density_matrix)
 
             self._update_uninitialised_qubit_register([i, i+1], update_type='remove')
 
@@ -1154,8 +1152,7 @@ class QuantumCircuit:
         self.d = 2 ** self.num_qubits
         self._correct_drawing_for_n_top_qubit_additions()
 
-        self.density_matrices.insert(0, CT(qubit_state))
-        self._correct_lookup_for_addition()
+        self._correct_lookup_for_addition(CT(qubit_state))
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -1691,7 +1688,7 @@ class QuantumCircuit:
         drawn = False
         while not success:
             self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
-                                user_operation=user_operation)
+                            user_operation=user_operation)
             self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
                                   retry=False, user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
@@ -2554,6 +2551,43 @@ class QuantumCircuit:
         self._measured_qubits = other._measured_qubits + self._measured_qubits
         self._print_lines = other._print_lines + self._print_lines
         self._qubit_array = other._qubit_array + self._qubit_array
+
+    def reset(self):
+        self._qubit_array = self.num_qubits * [ket_0]
+        self._draw_order = []
+        self._user_operation_order = []
+        self._effective_measurements = 0
+        self._measured_qubits = []
+        self._uninitialised_qubits = []
+        self._qubit_density_matrix_lookup = {}
+        self._print_lines = []
+        self._fused = False
+
+        # Decoherence and duration attributes
+        self.total_duration = 0
+        self.cut_off_time_reached = False
+
+        # Probabilistic nature attributes
+        self._total_lde_attempts = 0
+
+        # Sub circuit attributes
+        self._current_sub_circuit = None
+        self._circuit_operations_ended = False
+
+        for sub_circuit in self._sub_circuits:
+            sub_circuit.reset()
+
+        if self._init_type == 0:
+            self._init_density_matrix()
+        elif self._init_type == 1:
+            self._init_density_matrix_first_qubit_ket_p()
+        elif self._init_type == 2:
+            self._init_density_matrix_bell_pair_state()
+        elif self._init_type == 3:
+            self._init_density_matrix_bell_pair_state(bell_type=2)
+        elif self._init_type == 4:
+            self._init_density_matrix_ket_p_and_CNOTS()
+
 
     def __repr__(self):
         return "\nQuantumCircuit object containing {} qubits\n".format(self.num_qubits)

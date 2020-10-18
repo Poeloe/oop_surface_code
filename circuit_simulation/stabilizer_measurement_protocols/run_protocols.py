@@ -5,11 +5,15 @@ from pprint import pprint
 from multiprocessing import Pool, cpu_count
 import threading
 import pickle
-import re
 import pandas as pd
-from circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_protocols import *
+import circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_protocols as stab_protocols
 from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
+from circuit_simulation.gates.gates import *
 import itertools
+import time
+from copy import copy
+import random
+import math
 
 
 def _init_random_seed(timestamp=None, worker=0, iteration=0):
@@ -21,6 +25,16 @@ def _init_random_seed(timestamp=None, worker=0, iteration=0):
 
 
 def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
+    """
+        Combines two given superoperator dataframes into one dataframe
+
+        Parameters
+        ----------
+        dataframe_1 : pd.DataFrame
+            Superoperator dataframe to be combined
+        dataframe_2 : pd.DataFrame
+            Superoperator dataframe to be combined
+    """
     if dataframe_1 is None and dataframe_2 is None:
         return None
     if dataframe_1 is None:
@@ -45,32 +59,6 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     return dataframe_1
 
 
-def _combine_multiple_csv_files(filenames, cut_off=False, delete=False):
-    for filename in filenames:
-        csv_dir = os.path.dirname(os.path.abspath(filename))
-        original_data_frame = None
-        plain_file_name = os.path.split(filename)[1]
-        handle_failed = "(?<!failed)" if not cut_off else "(?<=failed)"
-        regex_pattern = re.compile('^' + plain_file_name + '_.*' + handle_failed + "\.csv$")
-        plain_file_name = plain_file_name if not cut_off else plain_file_name + "_failed"
-        final_file_name = os.path.join(csv_dir, "combined_" + plain_file_name + ".csv")
-        if os.path.exists(final_file_name):
-            original_data_frame = pd.read_csv(final_file_name, sep=';', index_col=[0, 1])
-
-        for i, file in enumerate(os.listdir(csv_dir)):
-            if regex_pattern.fullmatch(file):
-                data_frame = pd.read_csv(os.path.join(csv_dir, file), sep=';', index_col=[0, 1])
-                if original_data_frame is None:
-                    original_data_frame = data_frame
-                else:
-                    original_data_frame = _combine_superoperator_dataframes(original_data_frame, data_frame)
-                if delete:
-                    os.remove(os.path.join(csv_dir, file))
-
-        if original_data_frame is not None:
-            original_data_frame.to_csv(final_file_name, sep=';')
-
-
 def _print_circuit_parameters(**kwargs):
     protocol = kwargs.get('protocol')
     pg = kwargs.get('gate_error_probability')
@@ -90,56 +78,63 @@ def _print_circuit_parameters(**kwargs):
 
 
 def main_threaded(*, it, workers, fn, **kwargs):
+    # Run main method asynchronously with each worker getting an equal amount of iterations to run
     results = []
     for _ in range(workers):
         kwargs["it"] = it // workers
         kwargs["threaded"] = True
         kwargs["progress_bar"] = None
-        results.append(thread_pool.
-                       apply_async(main,
-                                   kwds=kwargs))
-    count = 0
+
+        results.append(thread_pool.apply_async(main, kwds=kwargs))
+
+    # Collect all the results from the workers and close the threadpool
     superoperator_results = []
     print_lines_results = []
-    start = time.time()
     for res in results:
         superoperator_tuple, print_lines = res.get()
         superoperator_results.append(superoperator_tuple)
         print_lines_results.append(print_lines)
-        count += 1
-        print("{} workers finished after {} seconds".format(count, time.time() - start))
-
     thread_pool.close()
-    if fn:
-        total_superoperator_succeed = pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]) if \
-            os.path.exists(fn + ".csv") else None
-        total_superoperator_failed = pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if \
-            os.path.exists(fn + "_failed.csv") else None
+
+    # Check if csv already exists to append new data to it, if user requested saving of csv file
+    total_superoperator_succeed = (pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1])
+                                   if fn and os.path.exists(fn + ".csv") else None)
+    total_superoperator_failed = (pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if
+                                  fn and os.path.exists(fn + "_failed.csv") else None)
+
+    # Combine the superoperator results obtained for each worker
     for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results,
                                                                          print_lines_results):
-        if fn:
-            total_superoperator_succeed = _combine_superoperator_dataframes(
-                total_superoperator_succeed, superoperator_succeed)
-            total_superoperator_failed = _combine_superoperator_dataframes(
-                total_superoperator_failed, superoperator_failed)
+        total_superoperator_succeed = _combine_superoperator_dataframes(total_superoperator_succeed,
+                                                                        superoperator_succeed)
+        total_superoperator_failed = _combine_superoperator_dataframes(total_superoperator_failed,
+                                                                       superoperator_failed)
         print(*print_line)
-    if fn:
-        if total_superoperator_succeed is not None:
-            total_superoperator_succeed.to_csv(fn + ".csv", sep=';')
-        if total_superoperator_failed is not None:
-            total_superoperator_failed.to_csv(fn + "_failed.csv", sep=';')
+
+    # Save superoperator dataframe to csv if exists and requested by user
+    if total_superoperator_succeed is not None and fn:
+        total_superoperator_succeed.to_csv(fn + ".csv", sep=';')
+    if total_superoperator_failed is not None and fn:
+        total_superoperator_failed.to_csv(fn + "_failed.csv", sep=';')
 
 
-def main(*, it, protocol, stabilizer_type, print_run_order, use_swap_gates, threaded=False, gate_duration_file=None,
+def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate_duration_file=None,
          **kwargs):
-
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
+    operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
+    kwargs['operation'] = operation
     total_print_lines = []
+
+    # Get the corresponding protocol method by name
+    protocol_method = getattr(stab_protocols, protocol)
+
+    # Progress bar initialisation
     progress_bar = kwargs.pop('progress_bar')
     pbar = tqdm(total=100, position=0) if progress_bar else None
     pbar_2 = tqdm(total=it, position=1) if progress_bar and it > 1 else None
     kwargs["pbar"] = pbar
+
     for i in range(it):
         if pbar_2 and it > 1:
             pbar_2.update(1)
@@ -153,23 +148,10 @@ def main(*, it, protocol, stabilizer_type, print_run_order, use_swap_gates, thre
         if print_run_order:
             return (None, None), []
 
-        operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
-        kwargs['operation'] = operation
+        # Run the user requested protocol
+        (supop_dataframe, cut_off), print_lines = protocol_method(**kwargs)
 
-        if protocol == "monolithic":
-            (supop_dataframe, cut_off), print_lines = monolithic(**kwargs)
-        elif protocol == "expedient":
-            if use_swap_gates:
-                (supop_dataframe, cut_off), print_lines = expedient_swap(**kwargs)
-            else:
-                (supop_dataframe, cut_off), print_lines = expedient(**kwargs)
-        else:
-            if use_swap_gates:
-                (supop_dataframe, cut_off), print_lines = stringent_swap(**kwargs)
-            else:
-                (supop_dataframe, cut_off), print_lines = stringent(**kwargs)
-
-        # Fuse the superoperators obtained in each iteration
+        # Fuse the superoperator dataframes obtained in each iteration
         if cut_off:
             supop_dataframe_failed = _combine_superoperator_dataframes(supop_dataframe_failed, supop_dataframe)
         else:
@@ -200,6 +182,7 @@ if __name__ == "__main__":
     gate_duration_file = args.pop('gate_duration_file')
     progress_bar = args.pop('no_progress_bar')
     args.pop("argument_file")
+    use_swap_gates = args.pop('use_swap_gates')
 
     file_dir = os.path.dirname(__file__)
     # THIS IS NOT GENERIC, will error when directories are moved or renamed
@@ -234,7 +217,7 @@ if __name__ == "__main__":
     for protocol, pg, pn, pm, pm_1 in itertools.product(protocols, gate_errors, network_errors, meas_errors,
                                                         meas_1_errors):
         pm = pg if pm is None else pm
-
+        protocol = protocol + "_swap" if use_swap_gates else protocol
 
         fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}".format(filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "") \
             if filename else None

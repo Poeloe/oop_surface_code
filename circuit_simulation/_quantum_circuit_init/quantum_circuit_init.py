@@ -86,7 +86,6 @@ def init_parameters_to_dict(self):
                    'pg': self.pg,
                    'pn': self.pn,
                    'qubit_array': self._qubit_array,
-                   'density_matrices': self.density_matrices,
                    'qubit_density_matrix_lookup': self._qubit_density_matrix_lookup}
 
     return init_params
