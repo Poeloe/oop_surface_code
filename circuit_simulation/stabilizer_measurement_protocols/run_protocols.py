@@ -89,7 +89,7 @@ def _print_circuit_parameters(**kwargs):
     print('\n-----------------------\n')
 
 
-def main_threaded(*, it, workers, **kwargs):
+def main_threaded(*, it, workers, fn, **kwargs):
     results = []
     for _ in range(workers):
         kwargs["it"] = it // workers
@@ -110,10 +110,11 @@ def main_threaded(*, it, workers, **kwargs):
         print("{} workers finished after {} seconds".format(count, time.time() - start))
 
     thread_pool.close()
-    total_superoperator_succeed = pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]) if \
-        os.path.exists(fn + ".csv") else None
-    total_superoperator_failed = pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if \
-        os.path.exists(fn + "_failed.csv") else None
+    if fn:
+        total_superoperator_succeed = pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]) if \
+            os.path.exists(fn + ".csv") else None
+        total_superoperator_failed = pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if \
+            os.path.exists(fn + "_failed.csv") else None
     for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results,
                                                                          print_lines_results):
         if fn:
@@ -142,8 +143,9 @@ def main(*, it, protocol, stabilizer_type, print_run_order, use_swap_gates, thre
     for i in range(it):
         if pbar_2 and it > 1:
             pbar_2.update(1)
-        elif threaded and i % int(it/5) == 0:
+        elif threaded and (i % math.ceil(it/5)) == 0:
             print("at iteration {} of the {}.".format(i, it), flush=True)
+
         if threaded:
             _init_random_seed(worker=threading.get_ident(), iteration=it)
             set_gate_durations_from_file(gate_duration_file)
@@ -233,14 +235,15 @@ if __name__ == "__main__":
                                                         meas_1_errors):
         pm = pg if pm is None else pm
 
-        if filename:
-            fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}".format(filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "")
+
+        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}".format(filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "") \
+            if filename else None
         print("\nRunning now {} iterations: protocol={}, pg={}, pn{}, pm={}, pm_1={}".format(it, protocol, pg, pn, pm,
                                                                                              pm_1))
         if threaded:
             workers = it if 0 < it < cpu_count() else cpu_count()
             thread_pool = Pool(workers)
-            main_threaded(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, lkt_1q=lkt_1q, lkt_2q=lkt_2q,
+            main_threaded(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, lkt_1q=lkt_1q, lkt_2q=lkt_2q, fn=fn,
                           progress_bar=progress_bar, gate_duration_file=gate_duration_file, workers=workers, **args)
         else:
             (dataframe, cut_off), print_lines = main(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
