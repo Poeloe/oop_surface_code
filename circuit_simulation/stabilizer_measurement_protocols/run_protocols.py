@@ -142,6 +142,8 @@ def main(*, it, protocol, stabilizer_type, print_run_order, use_swap_gates, thre
     for i in range(it):
         if pbar_2 and it > 1:
             pbar_2.update(1)
+        elif threaded and i % int(it/5) == 0:
+            print("at iteration {} of the {}.".format(i, it), flush=True)
         if threaded:
             _init_random_seed(worker=threading.get_ident(), iteration=it)
             set_gate_durations_from_file(gate_duration_file)
@@ -229,8 +231,8 @@ if __name__ == "__main__":
     # Loop over all possible combinations of the user determined parameters
     for protocol, pg, pn, pm, pm_1 in itertools.product(protocols, gate_errors, network_errors, meas_errors,
                                                         meas_1_errors):
-        if pm is None:
-            pm = pg
+        pm = pg if pm is None else pm
+
         if filename:
             fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}".format(filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "")
         print("\nRunning now {} iterations: protocol={}, pg={}, pn{}, pm={}, pm_1={}".format(it, protocol, pg, pn, pm,

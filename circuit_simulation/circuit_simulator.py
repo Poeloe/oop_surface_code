@@ -342,12 +342,38 @@ class QuantumCircuit:
         self._qubit_density_matrix_lookup = new_lookup_dict
 
     def _correct_lookup_for_measurement_any(self, qubit, qubits, density_matrix_measured, new_density_matrix):
+        """
+            Corrects the lookup table, where for each qubit the corresponding density matrix can be found,
+            for the measurement of a qubit. In case of a measurement, the qubit that is measured will separate from
+            the density matrix it was involved in and will get the new density matrix that corresponds to the state
+            that has been measured on the qubit.
+
+            Parameters
+            ----------
+            qubit : int
+                The qubit index of the qubit that has been measured
+            qubits : list
+                List of qubit indices of the qubits, including the measured qubit, that span the density matrix
+                before the measurement.
+            density_matrix_measured : sp.csr_matrix
+                Density of the new state of the measured qubit
+            new_density_matrix : sp.csr_matrix
+                Density matrix of the resulting system after the measurement (system without the measured qubit)
+        """
         self._qubit_density_matrix_lookup[qubit] = (density_matrix_measured, [qubit])
         qubits.remove(qubit)
         for q in qubits:
             self._qubit_density_matrix_lookup[q] = (new_density_matrix, qubits)
 
     def _correct_lookup_for_circuit_fusion(self, lookup_other):
+        """
+            Correct the qubit density matrix look-up table for the fusion of two QuantumCircuit objects
+
+            Parameters
+            ----------
+            lookup_other : dict
+                Lookup table of the other QuantumCircuit object that is fused with the current QuantumCircuit object.
+        """
         num_qubits_other = len(lookup_other)
         new_lookup = lookup_other
         prev_qubits = None
@@ -379,6 +405,24 @@ class QuantumCircuit:
             self._qubit_density_matrix_lookup[qubit] = (new_density_matrix, qubits)
 
     def get_combined_density_matrix(self, qubits):
+        """
+            Returns the combined density matrix of the qubits requested and returns a list of the qubits that span
+            this combined density matrix. The list of qubits is given in the exact order of how the qubits are
+            situated in the density matrix.
+
+            Parameters
+            ----------
+            qubits : list
+                List of qubits of which the combined density matrix is requested
+
+            Returns
+            -------
+            combined_density_matrix : sp.csr_matrix
+                Combined density matrix of the qubits requested
+            spanning_qubits : list
+                List of qubits spanning the density matrix. The qubits are in the exact order of appareance in the
+                density matrix
+        """
         density_matrices = []
         skip_qubits = []
         for qubit in qubits:
@@ -390,7 +434,7 @@ class QuantumCircuit:
 
     def total_density_matrix(self):
         """
-            Get the total density matrix of the system
+            Get the total density matrix of the system and the order of the qubits that span it.
         """
         density_matrices = []
         skip_qubits = []
@@ -616,6 +660,17 @@ class QuantumCircuit:
                 self._check_if_cut_off_time_is_reached()
 
     def correct_for_failed_ghz_check(self, success_dict):
+        """
+            Method is used in the Expedient and Stringent protocols. When the GHZ check step fails (step 8 in table
+            D.1 and step 14 in table D.2 of thesis Naomi Nickerson), the time of the shortest sub_circuit that failed
+            should be used to add to the total duration of the circuit and to the waiting qubits as decoherence. This
+            method ensures this.
+
+            The waiting qubit of the sub circuits that took longer than the circuit that failed the first should be
+            reset to the time of the waiting qubits of this first failed sub circuit. This simplification can be
+            justified, knowing that the decoherence that is a result of previous sub circuits has already been added
+            to the qubits.
+        """
         # Find shortest sub circuit that failed, from this point the circuit will start over, so any longer duration
         # should be forgotten
         shortest_duration, shortest_failed_sc = min([(self._sub_circuits[sc_name].total_duration,
@@ -659,7 +714,7 @@ class QuantumCircuit:
                 List of qubit indices of which the idle time should be increased. If not specified, the program will
                 determine this dynamically (preferred).
             kind : str
-                Type of waiting time that should be added to the qubits
+                Type of waiting time that should be added to the qubits (choose from: 'idle' or 'lde')
         """
         if amount == 0:
             return
@@ -936,6 +991,42 @@ class QuantumCircuit:
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
                          probabilistic=None, p_bell_success=None, bell_creation_duration=None,  decoherence=None,
                          user_operation=True):
+        """
+            Creates a Bell pair between the supplied qubits. No actual circuit is applied, the requested Bell state is
+            created between the qubits by appointing the corresponding density matrix to the qubits.
+
+            Method is only able to create Bell pairs in this fashion if the qubits supplied have a single qubit
+            density matrix or if the two qubits are spanning a two qubit density matrix.
+
+            Parameters
+            ----------
+            qubit1 : int
+                Qubit index of one of the qubits involved in the Bell pair. Qubit will be the second qubit in the
+                density matrix
+            qubit2 : int
+                Qubit index of one of the qubits involved in the Bell pair. Qubit will be the first qubit in the
+                density matrix
+            noise : bool
+                Applies noise to the operation if True. If not specified, the global noise parameter is used.
+            network_noise_type :
+                The noise channel that should be used for the noisy operation.
+            bell_state_type : int
+                The type of Bell state that is created. Types can be found at the '_get_bell_state_by_type' method
+            probabilistic : bool
+                Determines if the creation of the Bell pair is probabilistic. If not specified, the global
+                probabilistic variable is used.
+            p_bell_success : float
+                The success rate of the Bell pair creation attempt in case the creation is probabilistic. If not
+                specified the global p_bell_success value is used.
+            bell_creation_duration : float
+                The time it takes to do a Bell pair creation attempt. If not specified, the global
+                bell_creation_duration value will be used.
+            decoherence : bool
+                Applies decoherence to the qubits that wait on the operation to finish. If not specified, the global
+                decoherence value will be used.
+            user_operation : bool
+                If True, the operation will be logged as an user operation applied to the circuit.
+        """
         if user_operation:
             self._user_operation_order.append({"create_bell_pair": [qubit1, qubit2, noise, pn, network_noise_type,
                                                                     bell_state_type]})
@@ -976,23 +1067,34 @@ class QuantumCircuit:
         self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
 
     @handle_none_parameters
-    def _split_total_duration_lde_old(self, attempts_till_success, fixed_lde_attempts=None, bell_creation_duration=None,
-                                      probabilistic=None, pulse_duration=None):
-        if not probabilistic:
-            return bell_creation_duration, 0
-        n_pulses_before_success = math.floor(1 + (attempts_till_success-fixed_lde_attempts)/(2*fixed_lde_attempts))
-        lde_time = attempts_till_success * bell_creation_duration + n_pulses_before_success * pulse_duration
-
-        total_amount_pulses = math.ceil(attempts_till_success/(2*fixed_lde_attempts))
-        n_pulses_after_success = total_amount_pulses - n_pulses_before_success
-        idle_time = ((total_amount_pulses * (2 * fixed_lde_attempts) - attempts_till_success) * bell_creation_duration
-                     + n_pulses_after_success * pulse_duration)
-
-        return lde_time, idle_time
-
-    @handle_none_parameters
     def _calculate_duration_bell_pair_creation(self, attempts_till_success, fixed_lde_attempts=None,
                                                bell_creation_duration=None, pulse_duration=None):
+        """
+            Returns the lde waiting time and the idle waiting time based on the sequence parameters present for the
+            system. The pulse sequence is used to keep the nuclear qubit more coherent, but therefore only at certain
+            places in the pulse sequence, the states can be swapped. Consider the following pulse sequence containing 8
+            pulses:
+
+            n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n |
+
+            Only at the '|' signs the state of the qubit can be swapped. 'n' is the predetermined fixed_lde_attempts
+            that can be made before a pulse (pi) is applied. By the amount of lde attempts it to took create a Bell
+            pair it is thus determined how much of the time is lde waiting time (qubits in node experiencing more
+            decoherence due to bell pair creation attempts) and how much is idle time which the qubits experience
+            after the Bell pair is created but it must be waited before the pulse refocuses.
+
+            Parameters
+            ----------
+            attempts_till_success : int
+                Amount of Bell pair creation attempts it took to create a Bell pair.
+            fixed_lde_attempts : int
+                Amount of Bell pair creation attempts before a pulse of the pulse sequence is applied ('n' in the
+                sequence shown above).
+            bell_creation_duration : float
+                Time it takes to do one Bell pair creation attempt.
+            pulse_duration : float
+                The duration of the pulse ('pi' in the sequence shown above).
+        """
         n_pulses_before_success = math.floor(
             1 + (attempts_till_success - fixed_lde_attempts) / (2 * fixed_lde_attempts))
         lde_time = attempts_till_success * bell_creation_duration + n_pulses_before_success * pulse_duration
@@ -1064,6 +1166,31 @@ class QuantumCircuit:
     @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
                    user_operation=True):
+        """
+            General method to apply a two- or single-qubit gate to the circuit.
+
+            Parameters
+            ----------
+            gate : TwoQubitGate, SingleQubitGate
+                TwoQubitGate object or SingleQubitGate object that should be applied to the system
+            tqubit : int
+                Qubit index of the target qubit
+            cqubit : int, optional
+                Qubit index of control qubit, if applicable
+            noise : bool
+                Specifies is noise is present for this operation. If not specified, the global noise variable is used
+            conj : bool
+                If True, the conjugate of the supplied gate is applied (if known)
+            pg : float
+                Specifies the error probability of the gate error. If not specified, the global noise variable is used
+            draw : bool
+                Whether the gate operation should show in the circuit drawing
+            decoherence : bool
+                If True, the duration of the gate operation will be added to the qubits that are known to be waiting
+                on this operation to finish. If not specified, the global decoherence variable is used.
+            user_operation : bool
+                If True, the system will log this as a by the user applied operation on the circuit.
+        """
         if user_operation:
             self._user_operation_order.append({"apply_gate": [gate, tqubit, cqubit, noise, conj, pg, draw]})
 
@@ -1349,6 +1476,12 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
+        """
+            Applies the SWAP gate to specified qubits. The efficient parameter is used, when no actual circuit has
+            to be applied, but the qubits can be swapped by swapping the qubit indices in the qubit density matrix
+            lookup table.
+
+        """
         # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
         if efficient:
             if user_operation:

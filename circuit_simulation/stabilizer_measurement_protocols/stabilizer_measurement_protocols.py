@@ -194,31 +194,35 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
             if not success_ab:
                 continue
             success_ab = qc.double_selection(CNOT_gate, 10, 7, retry=False)
-
-            ghz_success = qc.double_dot(CZ_gate, 10, 7, retry=False)
-            if not ghz_success:
+            if not success_ab:
                 continue
-            ghz_success = qc.double_dot(CNOT_gate, 10, 7, retry=False)
-            if not ghz_success:
+
+            success_ab = qc.double_dot(CZ_gate, 10, 7, retry=False)
+            if not success_ab:
+                continue
+            success_ab = qc.double_dot(CNOT_gate, 10, 7, retry=False)
+            if not success_ab:
                 continue
 
         pbar.update(20) if pbar is not None else None
 
         # Step 1-8 from Table D.2 (Thesis Naomi Nickerson)
-        success_ab = False
+        success_cd = False
         qc.start_sub_circuit("CD")
-        while not success_ab:
+        while not success_cd:
             qc.create_bell_pair(5, 2)
-            success_ab = qc.double_selection(CZ_gate, 4, 1, retry=False)
-            if not success_ab:
+            success_cd = qc.double_selection(CZ_gate, 4, 1, retry=False)
+            if not success_cd:
                 continue
-            success_ab = qc.double_selection(CNOT_gate, 4, 1, retry=False)
+            success_cd = qc.double_selection(CNOT_gate, 4, 1, retry=False)
+            if not success_cd:
+                continue
 
-            ghz_success = qc.double_dot(CZ_gate, 4, 1, retry=False)
-            if not ghz_success:
+            success_cd = qc.double_dot(CZ_gate, 4, 1, retry=False)
+            if not success_cd:
                 continue
-            ghz_success = qc.double_dot(CNOT_gate, 4, 1, retry=False)
-            if not ghz_success:
+            success_cd = qc.double_dot(CNOT_gate, 4, 1, retry=False)
+            if not success_cd:
                 continue
 
         pbar.update(20) if pbar is not None else None
