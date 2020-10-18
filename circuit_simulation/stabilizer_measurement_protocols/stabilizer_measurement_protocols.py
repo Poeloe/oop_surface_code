@@ -58,8 +58,9 @@ def expedient(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
 
     ghz_success = False
     while not ghz_success:
-        if pbar is not None:
-            pbar.reset()
+        pbar.reset() if pbar is not None else None
+
+        # Step 1-2 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AB")
         success_ab = False
         while not success_ab:
@@ -69,9 +70,9 @@ def expedient(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
                 continue
             success_ab = qc.double_selection(CNOT_gate, 10, 7, retry=False)
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+        # Step 1-2 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("CD")
         success_cd = False
         while not success_cd:
@@ -81,9 +82,9 @@ def expedient(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
                 continue
             success_cd = qc.double_selection(CNOT_gate, 4, 1, retry=False)
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+        # Step 3-5 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC")
         # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single
         # dot
@@ -93,9 +94,9 @@ def expedient(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
         if not ghz_success:
             continue
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+        # Step 6-8 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC", forced_level=True)
         ghz_success_1 = qc.single_dot(CZ_gate, 10, 4, retry=False)
         qc.start_sub_circuit("BD")
@@ -105,9 +106,9 @@ def expedient(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
             ghz_success = False
             continue
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+    # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
     qc.apply_gate(operation, cqubit=8, tqubit=16)
@@ -182,47 +183,47 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
 
     ghz_success = False
     while not ghz_success:
-        if pbar is not None:
-            pbar.reset()
+        pbar.reset() if pbar is not None else None
 
+        # Step 1-8 from Table D.2 (Thesis Naomi Nickerson)
         success_ab = False
+        qc.start_sub_circuit("AB")
         while not success_ab:
-            qc.start_sub_circuit("AB")
             qc.create_bell_pair(11, 8)
             success_ab = qc.double_selection(CZ_gate, 10, 7, retry=False)
             if not success_ab:
                 continue
             success_ab = qc.double_selection(CNOT_gate, 10, 7, retry=False)
 
-        ghz_success = qc.double_dot(CZ_gate, 10, 7, retry=False)
-        if not ghz_success:
-            continue
-        ghz_success = qc.double_dot(CNOT_gate, 10, 7, retry=False)
-        if not ghz_success:
-            continue
+            ghz_success = qc.double_dot(CZ_gate, 10, 7, retry=False)
+            if not ghz_success:
+                continue
+            ghz_success = qc.double_dot(CNOT_gate, 10, 7, retry=False)
+            if not ghz_success:
+                continue
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+        # Step 1-8 from Table D.2 (Thesis Naomi Nickerson)
         success_ab = False
+        qc.start_sub_circuit("CD")
         while not success_ab:
-            qc.start_sub_circuit("CD")
             qc.create_bell_pair(5, 2)
             success_ab = qc.double_selection(CZ_gate, 4, 1, retry=False)
             if not success_ab:
                 continue
             success_ab = qc.double_selection(CNOT_gate, 4, 1, retry=False)
 
-        ghz_success = qc.double_dot(CZ_gate, 4, 1, retry=False)
-        if not ghz_success:
-            continue
-        ghz_success = qc.double_dot(CNOT_gate, 4, 1, retry=False)
-        if not ghz_success:
-            continue
+            ghz_success = qc.double_dot(CZ_gate, 4, 1, retry=False)
+            if not ghz_success:
+                continue
+            ghz_success = qc.double_dot(CNOT_gate, 4, 1, retry=False)
+            if not ghz_success:
+                continue
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+        # Step 9-11 from Table D.2 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC")
         # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single
         # dot
@@ -232,9 +233,9 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
         if not ghz_success:
             continue
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+        # Step 12-14 from Table D.2 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC", forced_level=True)
         ghz_success_1 = qc.double_dot(CZ_gate, 10, 4, retry=False)
         qc.start_sub_circuit("BD")
@@ -244,9 +245,9 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
             ghz_success = False
             continue
 
-        if pbar is not None:
-            pbar.update(20)
+        pbar.update(20) if pbar is not None else None
 
+    # Step 15 from Table D.2 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
     qc.apply_gate(operation, cqubit=8, tqubit=16)
@@ -268,8 +269,7 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
 
     end_circuit = time.time()
 
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
@@ -283,8 +283,7 @@ def stringent(*, operation, pg, pm, pm_1, pn, color, decoherence, bell_pair_crea
                                         print_to_console=to_console)
     end_superoperator = time.time()
 
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
     qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
     qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
