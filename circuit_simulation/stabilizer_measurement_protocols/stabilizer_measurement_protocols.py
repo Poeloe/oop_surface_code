@@ -1,5 +1,4 @@
 from circuit_simulation.circuit_simulator import *
-import time
 
 
 def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair_creation_success, measurement_duration,

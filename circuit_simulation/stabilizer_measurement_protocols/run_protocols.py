@@ -148,8 +148,8 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
         pbar.reset() if pbar else None
         if pbar_2 and it > 1:
             pbar_2.update(1)
-        elif threaded and (i % math.ceil(it/5)) == 0:
-            print("At iteration {} of the {}.".format(i, it), flush=True)
+        else:
+            print(">>> At iteration {} of the {}.".format(i, it), end='\r', flush=True)
 
         if threaded:
             _init_random_seed(worker=threading.get_ident(), iteration=i)
@@ -226,7 +226,7 @@ if __name__ == "__main__":
 
         fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}".format(filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "") \
             if filename else None
-        print("\nRunning now {} iterations: protocol={}, pg={}, pn{}, pm={}, pm_1={}".format(it, protocol, pg, pn, pm,
+        print("\nRunning now {} iterations: protocol={}, pg={}, pn={}, pm={}, pm_1={}".format(it, protocol, pg, pn, pm,
                                                                                              pm_1))
         if threaded:
             workers = it if 0 < it < cpu_count() else cpu_count()
