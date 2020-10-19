@@ -134,7 +134,7 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
     # Gather method arguments
     operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
     arguments = ['color', 'save_latex_pdf', 'draw_circuit', 'to_console']
-    protocol_args = {'operation': operation, 'pbar': pbar}
+    protocol_args = {'operation': operation}
     for argument in arguments:
         argument_value = kwargs.pop(argument)
         protocol_args[argument] = argument_value
@@ -145,6 +145,7 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
 
     # Run iterations of the protocol
     for i in range(it):
+        pbar.reset() if pbar else None
         if pbar_2 and it > 1:
             pbar_2.update(1)
         elif threaded and (i % math.ceil(it/5)) == 0:
@@ -158,7 +159,7 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
             return (None, None), []
 
         # Run the user requested protocol
-        (supop_dataframe, cut_off), print_lines = protocol_method(qc, **protocol_args )
+        (supop_dataframe, cut_off), print_lines = protocol_method(qc, pbar=pbar, **protocol_args)
 
         # Fuse the superoperator dataframes obtained in each iteration
         if cut_off:

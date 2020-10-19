@@ -86,8 +86,7 @@ def monolithic(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_c
     qc.apply_gate(operation, cqubit=0, tqubit=7)
     qc.measure([0])
 
-    if pbar is not None:
-        pbar.update(50)
+    pbar.update(50) if pbar is not None else None
 
     if draw_circuit:
         qc.draw_circuit(not color)
@@ -96,8 +95,7 @@ def monolithic(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_c
     stab_rep = "Z" if operation == CZ_gate else "X"
     _, dataframe = qc.get_superoperator([1, 3, 5, 7], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console)
-    if pbar is not None:
-        pbar.update(50)
+    pbar.update(50) if pbar is not None else None
 
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
@@ -107,8 +105,6 @@ def monolithic(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_c
 
 
 def expedient(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
-    start = time.time()
-
     ghz_success = False
     while not ghz_success:
         pbar.reset() if pbar is not None else None
@@ -181,30 +177,20 @@ def expedient(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
 
     qc.end_current_sub_circuit(total=True)
 
-    end_circuit = time.time()
-
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
 
-    start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console, use_exact_path=True)
-    end_superoperator = time.time()
 
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
-    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                   start_superoperator))
-    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
     qc.reset()
@@ -213,8 +199,6 @@ def expedient(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
 
 
 def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
-    start = time.time()
-
     ghz_success = False
     while not ghz_success:
         pbar.reset() if pbar is not None else None
@@ -305,8 +289,6 @@ def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
 
     qc.end_current_sub_circuit(total=True)
 
-    end_circuit = time.time()
-
     pbar.update(10) if pbar is not None else None
 
     if draw_circuit:
@@ -316,19 +298,12 @@ def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
         qc.draw_circuit_latex()
 
     stab_rep = "Z" if operation == CZ_gate else "X"
-    start_superoperator = time.time()
     _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console)
-    end_superoperator = time.time()
 
     pbar.update(10) if pbar is not None else None
 
-    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                   start_superoperator))
-    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
-
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
     qc.reset()
@@ -337,8 +312,6 @@ def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
 
 
 def expedient_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
-    start = time.time()
-
     qc.start_sub_circuit("AB")
     qc.create_bell_pair(9, 6)
     qc.SWAP(9, 10, efficient=True)
@@ -346,8 +319,7 @@ def expedient_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
     qc.double_selection_swap(CZ_gate, 9, 6)
     qc.double_selection_swap(CNOT_gate, 9, 6)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     qc.start_sub_circuit("CD")
     qc.create_bell_pair(3, 0)
@@ -356,22 +328,19 @@ def expedient_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
     qc.double_selection_swap(CZ_gate, 3, 0)
     qc.double_selection_swap(CNOT_gate, 3, 0)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     qc.start_sub_circuit('AC')
     success_1 = qc.single_dot_swap(CZ_gate, 9, 3, parity_check=False)
     success_2 = qc.single_dot_swap(CZ_gate, 9, 3, parity_check=False)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     qc.start_sub_circuit('BD')
     qc.single_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_1)
     qc.single_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_2)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -396,31 +365,20 @@ def expedient_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
 
     qc.end_current_sub_circuit(total=True)
 
-    end_circuit = time.time()
-
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
 
-    start_superoperator = time.time()
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
     _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console)
-    end_superoperator = time.time()
 
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
-    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                   start_superoperator))
-    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
-
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
     qc.reset()
@@ -429,8 +387,6 @@ def expedient_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
 
 
 def stringent_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
-    start = time.time()
-
     qc.start_sub_circuit("AB")
     qc.create_bell_pair(9, 6)
     qc.SWAP(9, 10, efficient=True)
@@ -440,8 +396,7 @@ def stringent_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
     qc.double_dot_swap(CZ_gate, 9, 6)
     qc.double_dot_swap(CNOT_gate, 9, 6)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     qc.start_sub_circuit("CD")
     qc.create_bell_pair(3, 0)
@@ -452,22 +407,19 @@ def stringent_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
     qc.double_dot_swap(CZ_gate, 3, 0)
     qc.double_dot_swap(CNOT_gate, 3, 0)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     qc.start_sub_circuit("AC")
     success_1 = qc.double_dot_swap(CZ_gate, 9, 3, parity_check=False)
     success_2 = qc.double_dot_swap(CZ_gate, 9, 3, parity_check=False)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     qc.start_sub_circuit("BD")
     qc.double_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_1)
     qc.double_dot_swap(CZ_gate, 6, 0, draw_X_gate=not success_2)
 
-    if pbar is not None:
-        pbar.update(20)
+    pbar.update(20) if pbar is not None else None
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -492,10 +444,7 @@ def stringent_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
 
     qc.end_current_sub_circuit(total=True)
 
-    end_circuit = time.time()
-
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
@@ -504,20 +453,13 @@ def stringent_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
         qc.draw_circuit_latex()
 
     stab_rep = "Z" if operation == CZ_gate else "X"
-    start_superoperator = time.time()
+
     _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console)
-    end_superoperator = time.time()
 
-    if pbar is not None:
-        pbar.update(10)
+    pbar.update(10) if pbar is not None else None
 
-    qc.append_print_lines("\nTotal duration of the circuit is {} seconds".format(qc.total_duration))
-    qc.append_print_lines("\nCircuit simulation took {} seconds".format(end_circuit - start))
-    qc.append_print_lines("\nCalculating the superoperator took {} seconds".format(end_superoperator -
-                                                                                   start_superoperator))
-    qc.append_print_lines("\nTotal time is {}\n".format(time.time() - start))
-
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
     qc.reset()

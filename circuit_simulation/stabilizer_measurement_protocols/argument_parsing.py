@@ -49,8 +49,7 @@ def compose_parser():
                        '--measurement_error_probability',
                        help='Specifies the amount of measurement error present in the system',
                        type=float,
-                       nargs="*",
-                       default=[0.006])
+                       nargs="*")
     parser.add_argument('-pm_1',
                         '--measurement_error_probability_one_state',
                         help='The measurement error rate in case an 1-state is supposed to be measured',
