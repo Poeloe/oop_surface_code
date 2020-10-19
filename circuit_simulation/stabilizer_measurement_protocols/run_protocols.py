@@ -13,7 +13,6 @@ import itertools
 import time
 from copy import copy
 import random
-import math
 
 
 def _init_random_seed(timestamp=None, worker=0, iteration=0):
@@ -49,10 +48,10 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     dataframe_1.iloc[0, dataframe_1.columns.get_loc("written_to")] = corrected_written_to
 
     # Calculate the average probability of the error configurations per stabilizer
-    dataframe_1['s'] = ((dataframe_1['s'] * written_to_original + dataframe_2['s'] * written_to_new) /
-                        corrected_written_to)
-    dataframe_1['p'] = ((dataframe_1['p'] * written_to_original + dataframe_2['p'] * written_to_new) /
-                        corrected_written_to)
+    dataframe_2[['p', 's']] = dataframe_2[['p', 's']].mul(written_to_new)
+    dataframe_1[['p', 's']] = dataframe_1[['p', 's']].mul(written_to_original)
+
+    dataframe_1[['s', 'p']] = (dataframe_1[['s', 'p']] + dataframe_2[['s', 'p']]) / corrected_written_to
 
     # Update the average of the other system characteristics
     dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])
@@ -73,7 +72,7 @@ def _print_circuit_parameters(**kwargs):
     stab_type = kwargs.get('stab_type')
 
     print("\nRunning the {} protocols, with pg={}, pm={}, pm_1={}{}, for a {} stabilizer {} time{}.\n"
-          .format(protocol, pg, pm, pm_1,(' and pn=' + str(pn) if protocol != 'monolithic' else ""),
+          .format(protocol, pg, pm, pm_1, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
                   "plaquette" if stab_type == "Z" else "star", it, "s" if it > 1 else ""))
 
     print("All circuit parameters:\n-----------------------\n")
@@ -148,8 +147,8 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
         pbar.reset() if pbar else None
         if pbar_2 and it > 1:
             pbar_2.update(1)
-        else:
-            print(">>> At iteration {} of the {}.".format(i, it), end='\r', flush=True)
+        if pbar_2 is None:
+            print(">>> At iteration {} of the {}.".format(i + 1, it), end='\r', flush=True)
 
         if threaded:
             _init_random_seed(worker=threading.get_ident(), iteration=i)
@@ -241,4 +240,5 @@ if __name__ == "__main__":
             if filename and not args['print_run_order'] and os.path.exists(fn + ".csv"):
                 dataframe = _combine_superoperator_dataframes(pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]),
                                                               dataframe)
+            if fn:
                 dataframe.to_csv(fn + ".csv", sep=';')

@@ -20,7 +20,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             measurement_duration=measurement_duration, single_qubit_gate_lookup=lkt_1q,
                             two_qubit_gate_lookup=lkt_2q, decoherence=decoherence, pulse_duration=pulse_duration)
         return qc
-    if protocol in ['expedient', 'stringent']:
+    else:
         qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
                             decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
@@ -31,37 +31,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             two_qubit_gate_lookup=lkt_2q,
                             T1_idle_electron=100, T2_idle_electron=1, T2_lde=2, no_single_qubit_error=True)
 
-        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=11, data_qubits=18)
-        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=8, data_qubits=16)
-        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=5, data_qubits=14)
-        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=2, data_qubits=12)
-
-        qc.define_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[10, 7, 18, 16])
-        qc.define_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12],
-                              concurrent_sub_circuits="AB")
-        qc.define_sub_circuit("AC", [11, 5, 10, 9, 4, 3, 18, 14], waiting_qubits=[10, 4, 18, 14])
-        qc.define_sub_circuit("BD", [8, 2, 7, 6, 1, 0, 16, 12], waiting_qubits=[7, 1, 16, 12],
-                              concurrent_sub_circuits="AC")
-        qc.define_sub_circuit("A", [18, 11, 10, 9])
-        qc.define_sub_circuit("B", [16, 8, 7, 6])
-        qc.define_sub_circuit("C", [14, 5, 4, 3])
-        qc.define_sub_circuit("D", [12, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
-
-        return qc
-
-    if 'swap' in protocol:
-        qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                            network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic,
-                            decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_lde=2, T2_lde=2,
-                            measurement_duration=measurement_duration, two_qubit_gate_lookup=lkt_2q,
-                            bell_creation_duration=bell_pair_creation_duration, single_qubit_gate_lookup=lkt_1q,
-                            pulse_duration=pulse_duration, T1_idle=(5*60), T2_idle=10, T1_idle_electron=100,
-                            T2_idle_electron=1)
-
-        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9)
-        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6)
-        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3)
-        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0)
+        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18)
+        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16)
+        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14)
+        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12)
 
         qc.define_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 18, 16], waiting_qubits=[10, 7, 18, 16])
         qc.define_sub_circuit("CD", [5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[4, 1, 14, 12],
@@ -83,7 +56,7 @@ def monolithic(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_c
     qc.apply_gate(operation, cqubit=0, tqubit=3)
     qc.apply_gate(operation, cqubit=0, tqubit=5)
     qc.apply_gate(operation, cqubit=0, tqubit=7)
-    qc.measure([0])
+    qc.measure(0, probabilistic=False)
 
     pbar.update(50) if pbar is not None else None
 
@@ -160,19 +133,19 @@ def expedient(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
     qc.apply_gate(operation, cqubit=8, tqubit=16)
-    qc.measure(8)
+    qc.measure(8, probabilistic=False)
 
     qc.start_sub_circuit("A")
     qc.apply_gate(operation, cqubit=11, tqubit=18)
-    qc.measure(11)
+    qc.measure(11, probabilistic=False)
 
     qc.start_sub_circuit("D")
     qc.apply_gate(operation, cqubit=2, tqubit=12)
-    qc.measure(2)
+    qc.measure(2, probabilistic=False)
 
     qc.start_sub_circuit("C")
     qc.apply_gate(operation, cqubit=5, tqubit=14)
-    qc.measure(5)
+    qc.measure(5, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
 
