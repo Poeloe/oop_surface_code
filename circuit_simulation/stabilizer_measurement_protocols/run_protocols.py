@@ -42,15 +42,19 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     if dataframe_2 is None:
         return dataframe_1
 
+    # First combine the total amount of iterations, such that it can be used later
     written_to_original = dataframe_1.iloc[0, dataframe_1.columns.get_loc("written_to")]
     written_to_new = dataframe_2.iloc[0, dataframe_2.columns.get_loc("written_to")]
     corrected_written_to = written_to_new + written_to_original
     dataframe_1.iloc[0, dataframe_1.columns.get_loc("written_to")] = corrected_written_to
 
+    # Calculate the average probability of the error configurations per stabilizer
     dataframe_1['s'] = ((dataframe_1['s'] * written_to_original + dataframe_2['s'] * written_to_new) /
                         corrected_written_to)
     dataframe_1['p'] = ((dataframe_1['p'] * written_to_original + dataframe_2['p'] * written_to_new) /
                         corrected_written_to)
+
+    # Update the average of the other system characteristics
     dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])
     dataframe_1['lde_attempts'] = (dataframe_1['lde_attempts'] + dataframe_2['lde_attempts'])
     dataframe_1['avg_lde'] = dataframe_1['lde_attempts'] / corrected_written_to
@@ -63,10 +67,10 @@ def _print_circuit_parameters(**kwargs):
     protocol = kwargs.get('protocol')
     pg = kwargs.get('gate_error_probability')
     pm = kwargs.get('measurement_error_probability')
-    pm_1 = kwargs.get('measurement_error_probability_one_state')
     pn = kwargs.get('network_error_probability')
     it = kwargs.get('iterations')
-    stab_type= kwargs.get('stab_type')
+    pm_1 = kwargs.get('measurement_error_probability_one_state')
+    stab_type = kwargs.get('stab_type')
 
     print("\nRunning the {} protocols, with pg={}, pm={}, pm_1={}{}, for a {} stabilizer {} time{}.\n"
           .format(protocol, pg, pm, pm_1,(' and pn=' + str(pn) if protocol != 'monolithic' else ""),
@@ -103,12 +107,10 @@ def main_threaded(*, it, workers, fn, **kwargs):
                                   fn and os.path.exists(fn + "_failed.csv") else None)
 
     # Combine the superoperator results obtained for each worker
-    for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results,
-                                                                         print_lines_results):
+    for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
         total_superoperator_succeed = _combine_superoperator_dataframes(total_superoperator_succeed,
                                                                         superoperator_succeed)
-        total_superoperator_failed = _combine_superoperator_dataframes(total_superoperator_failed,
-                                                                       superoperator_failed)
+        total_superoperator_failed = _combine_superoperator_dataframes(total_superoperator_failed, superoperator_failed)
         print(*print_line)
 
     # Save superoperator dataframe to csv if exists and requested by user
@@ -122,34 +124,41 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
          **kwargs):
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
-    operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
-    kwargs['operation'] = operation
     total_print_lines = []
-
-    # Get the corresponding protocol method by name
-    protocol_method = getattr(stab_protocols, protocol)
 
     # Progress bar initialisation
     progress_bar = kwargs.pop('progress_bar')
     pbar = tqdm(total=100, position=0) if progress_bar else None
     pbar_2 = tqdm(total=it, position=1) if progress_bar and it > 1 else None
-    kwargs["pbar"] = pbar
 
+    # Gather method arguments
+    operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
+    arguments = ['color', 'save_latex_pdf', 'draw_circuit', 'to_console']
+    protocol_args = {'operation': operation, 'pbar': pbar}
+    for argument in arguments:
+        argument_value = kwargs.pop(argument)
+        protocol_args[argument] = argument_value
+
+    # Get the QuantumCircuit object corresponding to the protocol and the protocol method by its name
+    qc = stab_protocols.create_quantum_circuit(protocol, **kwargs)
+    protocol_method = getattr(stab_protocols, protocol)
+
+    # Run iterations of the protocol
     for i in range(it):
         if pbar_2 and it > 1:
             pbar_2.update(1)
         elif threaded and (i % math.ceil(it/5)) == 0:
-            print("at iteration {} of the {}.".format(i, it), flush=True)
+            print("At iteration {} of the {}.".format(i, it), flush=True)
 
         if threaded:
-            _init_random_seed(worker=threading.get_ident(), iteration=it)
+            _init_random_seed(worker=threading.get_ident(), iteration=i)
             set_gate_durations_from_file(gate_duration_file)
 
         if print_run_order:
             return (None, None), []
 
         # Run the user requested protocol
-        (supop_dataframe, cut_off), print_lines = protocol_method(**kwargs)
+        (supop_dataframe, cut_off), print_lines = protocol_method(qc, **protocol_args )
 
         # Fuse the superoperator dataframes obtained in each iteration
         if cut_off:
@@ -168,6 +177,7 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     _print_circuit_parameters(**copy(args))
 
+    # Pop the command line arguments from the list that should be evaluated first
     it = args.pop('iterations')
     protocols = args.pop('protocol')
     meas_errors = args.pop('measurement_error_probability')
@@ -184,14 +194,9 @@ if __name__ == "__main__":
     args.pop("argument_file")
     use_swap_gates = args.pop('use_swap_gates')
 
-    file_dir = os.path.dirname(__file__)
     # THIS IS NOT GENERIC, will error when directories are moved or renamed
+    file_dir = os.path.dirname(__file__)
     look_up_table_dir = os.path.join(file_dir, '../gates', 'gate_lookup_tables')
-
-    if meas_1_errors is not None and len(meas_1_errors) != len(meas_errors):
-        raise ValueError("Amount of values for --pm_1 should equal the amount of values for -pm.")
-    elif meas_1_errors is None:
-        meas_1_errors = [None]
 
     if lkt_1q is not None:
         with open(os.path.join(look_up_table_dir, lkt_1q), 'rb') as obj:
@@ -201,17 +206,16 @@ if __name__ == "__main__":
         with open(os.path.join(look_up_table_dir, lkt_2q), "rb") as obj2:
             lkt_2q = pickle.load(obj2)
 
-    if gate_duration_file is not None:
-        if os.path.exists(gate_duration_file):
-            set_gate_durations_from_file(gate_duration_file)
-        else:
-            raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
+    if gate_duration_file is not None and os.path.exists(gate_duration_file):
+        set_gate_durations_from_file(gate_duration_file)
+    elif gate_duration_file is not None:
+        raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
 
     if progress_bar:
         from tqdm import tqdm
 
-    if meas_eq_gate:
-        meas_errors = [None]
+    meas_1_errors = [None] if meas_1_errors is None else meas_1_errors
+    meas_errors = [None] if meas_errors is None else meas_errors
 
     # Loop over all possible combinations of the user determined parameters
     for protocol, pg, pn, pm, pm_1 in itertools.product(protocols, gate_errors, network_errors, meas_errors,
@@ -233,8 +237,7 @@ if __name__ == "__main__":
                                                      progress_bar=progress_bar, lkt_1q=lkt_1q, lkt_2q=lkt_2q,
                                                      gate_duration_file=gate_duration_file, **args)
             print(*print_lines)
-            if filename and not args['print_run_order']:
-                if os.path.exists(fn + ".csv"):
-                    dataframe = _combine_superoperator_dataframes(pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]),
-                                                                  dataframe)
+            if filename and not args['print_run_order'] and os.path.exists(fn + ".csv"):
+                dataframe = _combine_superoperator_dataframes(pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]),
+                                                              dataframe)
                 dataframe.to_csv(fn + ".csv", sep=';')

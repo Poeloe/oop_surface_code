@@ -2574,8 +2574,11 @@ class QuantumCircuit:
         self._current_sub_circuit = None
         self._circuit_operations_ended = False
 
-        for sub_circuit in self._sub_circuits:
+        for sub_circuit in self._sub_circuits.values():
             sub_circuit.reset()
+
+        for qubit in self.qubits.values():
+            qubit.reset_waiting_time()
 
         if self._init_type == 0:
             self._init_density_matrix()
@@ -2587,7 +2590,6 @@ class QuantumCircuit:
             self._init_density_matrix_bell_pair_state(bell_type=2)
         elif self._init_type == 4:
             self._init_density_matrix_ket_p_and_CNOTS()
-
 
     def __repr__(self):
         return "\nQuantumCircuit object containing {} qubits\n".format(self.num_qubits)
