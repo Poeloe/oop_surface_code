@@ -24,12 +24,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
                             decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
-                            T2_idle=10,
-                            measurement_duration=measurement_duration,
-                            bell_creation_duration=bell_pair_creation_duration,
-                            pulse_duration=pulse_duration, single_qubit_gate_lookup=lkt_1q,
-                            two_qubit_gate_lookup=lkt_2q,
-                            T1_idle_electron=100, T2_idle_electron=1, T2_lde=2, no_single_qubit_error=True)
+                            T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
+                            bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
+                            single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
+                            no_single_qubit_error=True, fixed_lde_attempts=10000)
 
         qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18)
         qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16)

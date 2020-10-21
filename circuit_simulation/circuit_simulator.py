@@ -527,15 +527,16 @@ class QuantumCircuit:
         if current_sub_circuit is not None and not current_sub_circuit.ran:
             current_sub_circuit.set_ran()
             if current_sub_circuit.all_ran or forced_level:
-                self._draw_order.append("LEVEL")
                 added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
                                  + [current_sub_circuit]])
+                self._draw_order.append(["LEVEL", added_dur, current_sub_circuit])
                 self.total_duration += added_dur
                 if self.total_duration > self.cut_off_time:
                     self._apply_decoherence_to_fastest_sub_circuits(cut_off_time_reached=True)
                     self.cut_off_time_reached = True
                 else:
                     self._apply_decoherence_to_fastest_sub_circuits()
+                self._draw_order.append(["LEVEL", None, None])
 
         started_sub_circuit.reset()
         self._current_sub_circuit = started_sub_circuit
@@ -559,11 +560,11 @@ class QuantumCircuit:
             self.total_duration += self._current_sub_circuit.total_duration
             self._current_sub_circuit.set_ran()
 
+        self._draw_order.append(["LEVEL", self._current_sub_circuit.total_duration, self._current_sub_circuit])
         self._current_sub_circuit = None
 
         if total:
             self._circuit_operations_ended = True
-        self._draw_order.append("LEVEL")
 
     def define_node(self, name, qubits, electron_qubits=None, data_qubits=None):
         """
@@ -654,8 +655,8 @@ class QuantumCircuit:
                 self._increase_duration(longest_duration - sub_circuit.total_duration, [],
                                         included_qubits=sub_circuit.waiting_qubits,
                                         sub_circuit=sub_circuit, skip_check=True)
-                self._N_decoherence(qubits=qubits, sub_circuit=sub_circuit,
-                                    sub_circuit_concurrent=True)
+                # Apply decoherence on all qubits (based on the waiting time)
+                self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
                 self._check_if_cut_off_time_is_reached()
 
     def correct_for_failed_ghz_check(self, success_dict):
@@ -1804,7 +1805,7 @@ class QuantumCircuit:
     def _N_preparation(self, state, p_prep):
         return self._noise.noise_maps.N_preparation(state, p_prep)
 
-    def _N_decoherence(self, qubits, sub_circuit=None, sub_circuit_concurrent=False):
+    def _N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=False):
         self._noise.decoherence.N_decoherence(self, qubits, sub_circuit, sub_circuit_concurrent)
 
     def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
@@ -1905,7 +1906,7 @@ class QuantumCircuit:
                 self._effective_measurements += (1+qubit)
                 times = int(math.ceil(self.measurement_duration/self.time_step))
                 self._N_decoherence([], times=times)
-                self._increase_duration(self.measurement_duration)
+                self._increase_duration(self.measurement_duration, qubit)
                 self._effective_measurements -= (1+qubit)
 
         self._effective_measurements += N
@@ -2439,7 +2440,7 @@ class QuantumCircuit:
                   "(with target qubit at same level), [X,Y,Z,H]: gates, M: measurement,"\
                   " {}: noisy operation (gate/measurement)\n".format("~" if no_color else colored("~", 'red'))
         init = self._draw_init(no_color)
-        self._draw_gates(init, no_color)
+        self._draw_operations(init, no_color)
         init[-1] += "\n\n"
         if not no_color and color_nodes and self.nodes:
             self._color_qubit_lines(init)
@@ -2456,9 +2457,9 @@ class QuantumCircuit:
         """ Returns an array containing the visual representation of the initial state of the qubits. """
         return self._draw.draw_circuit.draw_init(self, no_color)
 
-    def _draw_gates(self, init, no_color):
+    def _draw_operations(self, init, no_color):
         """ Adds the visual representation of the operations applied on the qubits """
-        self._draw.draw_circuit.draw_gates(self, init, no_color)
+        self._draw.draw_circuit.draw_operations(self, init, no_color)
 
     def _color_qubit_lines(self, init):
         self._draw.draw_circuit.color_qubit_lines(self, init)

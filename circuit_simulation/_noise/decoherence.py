@@ -1,6 +1,7 @@
 
 
-def N_decoherence(self, qubits, sub_circuit=None, sub_circuit_concurrent=False):
+def N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=False):
+    qubits = qubits if qubits is not None else [i for i in self.qubits.keys()]
     for qubit in qubits:
         current_qubit = self.qubits[qubit]
         waiting_time_lde = current_qubit.waiting_time_lde

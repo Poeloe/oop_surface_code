@@ -34,15 +34,22 @@ def draw_init(self, no_color):
     return init_state_repr
 
 
-def draw_gates(self, init, no_color):
+def draw_operations(self, init, no_color):
     """ Adds the visual representation of the operations applied on the qubits """
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     for draw_item in self._draw_order:
         # A level item sets the length of al qubit paths the same. This is usually used for points where a sub
         # circuit waits on another sub circuit to finish before continuing with the rest of the circuit
-        if draw_item == "LEVEL":
+        if draw_item[0] == "LEVEL":
             init = _level_qubit_paths(init)
+            total_duration = draw_item[1]
+            sub_circuit = draw_item[2]
+            if sub_circuit is not None:
+                sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
+                init[int(len(init)/2) - 1] += "{}{} took {:1.1e} s.{}".format(10*" ", sub_circuits, total_duration,
+                                                                            10*" ")
+                init = _level_qubit_paths(init)
             continue
         gate = draw_item[0]
         qubits = draw_item[1]
