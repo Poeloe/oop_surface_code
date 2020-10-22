@@ -61,11 +61,12 @@ class Gate(ABC):
 
     def __mul__(self, other):
         if type(other) not in [SingleQubitGate, TwoQubitGate, State, sp.csr_matrix]:
-            raise ValueError('It is not possible to multiply this object with a Gate object')
+            raise ValueError('It is not possible to multiply an object of type {} with a Gate object'
+                             .format(type(other)))
         if type(other) in [SingleQubitGate, TwoQubitGate]:
-            other_matrix = other.matrix
+            other_matrix = other.sp_matrix
         elif type(other) == State:
-            other_matrix = other.vector
+            other_matrix = other.sp_vector
         else:
             other_matrix = other
 
@@ -85,7 +86,7 @@ class SingleQubitGate(Gate):
 
     def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
-        return qc._create_1_qubit_gate(self, target_qubit)
+        return qc._create_1_qubit_gate(self, target_qubit, num_qubits=num_qubits)
 
     def __eq__(self, other):
         if type(other) != SingleQubitGate:
