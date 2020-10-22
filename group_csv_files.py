@@ -14,7 +14,7 @@ def get_all_files_from_folder(folder, folder_name):
     return files
 
 
-def group_csv_files(filenames):
+def group_csv_files(filenames, error_values=None):
     indices_names = ["L", "p", "GHZ_success"]
     data = None
     for filename in filenames:
@@ -29,6 +29,10 @@ def group_csv_files(filenames):
             for column, value in columns.items():
                 data.at[index, column] += value
 
+    if error_values is not None:
+        idx = pd.IndexSlice
+        data = data.loc[idx[:, error_values, :], :]
+
     print(data)
     return data
 
@@ -40,14 +44,15 @@ def append_dataframes(dataframes):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/expedient_superoperators_naomi.csv"
-    folder = "./results/sim_data"
-    folder_names = ["mwpm_expedient_sim_8", "mwpm_expedient_sim_12", "mwpm_expedient_sim_16", "mwpm_expedient_sim_20"]
+    name_csv = "./results/expedient_superoperators_swap.csv"
+    folder = "./results/sim_data_new"
+    folder_names = ["mwpm_expedient_swap_8", "mwpm_expedient_swap_12"]
+    error_values = [0.001, 0.0015, 0.002, 0.0025, 0.003]
     dataframes = []
 
     for folder_name in folder_names:
         files = get_all_files_from_folder(folder, folder_name)
-        dataframes.append(group_csv_files(files))
+        dataframes.append(group_csv_files(files, error_values))
 
     total_dataframe = pd.concat(dataframes)
     total_dataframe.to_csv(name_csv)
