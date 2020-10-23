@@ -9,7 +9,8 @@ def get_all_files_from_folder(folder, folder_name):
     for sub_dir in os.listdir(folder):
         if pattern.fullmatch(sub_dir):
             for file in os.listdir(os.path.join(folder, sub_dir)):
-                files.append(os.path.join(folder, sub_dir, file))
+                if file.endswith(".csv"):
+                    files.append(os.path.join(folder, sub_dir, file))
 
     return files
 
@@ -46,8 +47,11 @@ def append_dataframes(dataframes):
 if __name__ == '__main__':
     name_csv = "./results/expedient_superoperators_swap.csv"
     folder = "./results/sim_data_new"
-    folder_names = ["mwpm_expedient_swap_8", "mwpm_expedient_swap_12"]
-    error_values = [0.001, 0.0015, 0.002, 0.0025]
+    folder_names = ["mwpm_expedient_swap_8",
+                    "mwpm_expedient_swap_12",
+                    "mwpm_expedient_swap_16",
+                    "mwpm_expedient_swap_20"]
+    error_values = [0.0015, 0.00175, 0.002, 0.00225, 0.0025, 0.00275]
     dataframes = []
 
     for folder_name in folder_names:
