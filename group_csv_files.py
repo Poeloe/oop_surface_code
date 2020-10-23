@@ -47,7 +47,7 @@ if __name__ == '__main__':
     name_csv = "./results/expedient_superoperators_swap.csv"
     folder = "./results/sim_data_new"
     folder_names = ["mwpm_expedient_swap_8", "mwpm_expedient_swap_12"]
-    error_values = [0.001, 0.0015, 0.002, 0.0025, 0.003]
+    error_values = [0.001, 0.0015, 0.002, 0.0025]
     dataframes = []
 
     for folder_name in folder_names:
