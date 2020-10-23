@@ -664,7 +664,9 @@ class QuantumCircuit:
             Method is used in the Expedient and Stringent protocols. When the GHZ check step fails (step 8 in table
             D.1 and step 14 in table D.2 of thesis Naomi Nickerson), the time of the shortest sub_circuit that failed
             should be used to add to the total duration of the circuit and to the waiting qubits as decoherence. This
-            method ensures this.
+            method ensures this. THIS METHOD CAN BE USED WHEN THE SLOWER SUB CIRCUIT IS CUT-OFF WHEN THE PARITY CHECK
+            FAILS. AT THIS POINT IN TIME IT IS ASSUMED THAT THE SUB CIRCUITS WAIT FOR THE OTHER TO REACH THE PARITY
+            CHECK AND SIMULTANEOUSLY PERFORM THE PARITY CHECK.
 
             The waiting qubit of the sub circuits that took longer than the circuit that failed the first should be
             reset to the time of the waiting qubits of this first failed sub circuit. This simplification can be

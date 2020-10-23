@@ -121,7 +121,6 @@ def expedient(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
         qc.start_sub_circuit("BD")
         ghz_success_2 = qc.single_dot(CZ_gate, 7, 1, retry=False)
         if any([not ghz_success_1, not ghz_success_2]):
-            qc.correct_for_failed_ghz_check({"AC": ghz_success_1, "BD": ghz_success_2})
             ghz_success = False
             continue
 
@@ -233,7 +232,6 @@ def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
         qc.start_sub_circuit("BD")
         ghz_success_2 = qc.double_dot(CZ_gate, 7, 1, retry=False)
         if any([not ghz_success_1, not ghz_success_2]):
-            qc.correct_for_failed_ghz_check({"AC": ghz_success_1, "BD": ghz_success_2})
             ghz_success = False
             continue
 
