@@ -1692,13 +1692,14 @@ class QuantumCircuit:
         while not success:
             self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
                             user_operation=user_operation)
-            self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise, pn=pn, pm=pm, pg=pg,
-                                  retry=False, user_operation=user_operation)
+            success_single_selection = self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise,
+                                                             pn=pn, pm=pm, pg=pg, retry=False,
+                                                             user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
             if measurement_outcomes is None:
                 return
-            success = measurement_outcomes[0] == measurement_outcomes[1]
+            success = (success_single_selection and measurement_outcomes[0] == measurement_outcomes[1])
 
             if draw_X_gate and self._sub_circuits and not drawn:
                 self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
@@ -1707,10 +1708,10 @@ class QuantumCircuit:
                 return success
 
             if not parity_check:
-                if not success:
+                if not success and success_single_selection:
                     self.X(bell_qubit_2 + 1, noise=noise)
                     self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                return success
+                return success, success_single_selection
 
     @skip_if_cut_off_reached
     def double_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,

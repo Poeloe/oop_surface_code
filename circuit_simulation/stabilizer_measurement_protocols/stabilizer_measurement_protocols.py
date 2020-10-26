@@ -218,10 +218,11 @@ def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_co
         qc.start_sub_circuit("AC")
         # Return success (even parity of measurement outcome). If False (uneven), X-gate must be drawn at second single
         # dot
-        success_1 = qc.double_dot(CZ_gate, 10, 4, parity_check=False)
+        success_1, success_2 = qc.double_dot(CZ_gate, 10, 4, parity_check=False)
         qc.start_sub_circuit("BD")
         ghz_success = qc.double_dot(CZ_gate, 7, 1, draw_X_gate=not success_1, retry=False)
-        if not ghz_success:
+        if not ghz_success or not success_2:
+            ghz_success = False
             continue
 
         pbar.update(20) if pbar is not None else None
