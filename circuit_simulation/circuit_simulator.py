@@ -2002,7 +2002,7 @@ class QuantumCircuit:
                                                                                          outcome=1)
 
                 probs = [prob_0, prob_1]
-                if round(sum(probs), 10) != 1:
+                if round(sum(probs), 10) != 1 and pm_1 is None:
                     raise ValueError("Probabilities do not sum to 1")
 
                 density_matrices = [density_matrix_0, density_matrix_1]
