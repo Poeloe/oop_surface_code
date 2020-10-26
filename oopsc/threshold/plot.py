@@ -50,7 +50,7 @@ def plot_thresholds(
     ms=5,
     ymax=1,
     ymin=0.5,
-    styles=[".", "-"],           # linestyles for data and fit
+    styles=[".-", "-"],           # linestyles for data and fit
     plotn=1000                  # number of points on x axis
 ):
 
@@ -113,15 +113,15 @@ def plot_thresholds(
                 fillstyle="none",
             )
             X = np.linspace(min(fp), max(fp), plotn)
-            ax0.plot(
-                [x * 100 for x in X],
-                [fit_func((x, lati), *par) for x in X],
-                "-",
-                color=colors[lati],
-                lw=1.5,
-                alpha=0.6,
-                ls=styles[1],
-            )
+            # ax0.plot(
+            #     [x * 100 for x in X],
+            #     [fit_func((x, lati), *par) for x in X],
+            #     "-",
+            #     color=colors[lati],
+            #     lw=1.5,
+            #     alpha=0.6,
+            #     ls=styles[1],
+            # )
 
             legend.append(Line2D(
                 [0],
@@ -138,13 +138,13 @@ def plot_thresholds(
         DS = fit_func((par[0], 20), *par)
 
         # ax0.axvline(par[0] * 100, ls="dotted", color="k", alpha=0.5)
-        ax0.annotate(
-            "$p_t$ = {}%, DS = {:.2f}".format(str(round(100 * par[0], 2)), DS),
-            (par[0] * 100, DS),
-            xytext=(10, 10),
-            textcoords="offset points",
-            fontsize=8,
-        )
+        # ax0.annotate(
+        #     "$p_t$ = {}%, DS = {:.2f}".format(str(round(100 * par[0], 2)), DS),
+        #     (par[0] * 100, DS),
+        #     xytext=(10, 10),
+        #     textcoords="offset points",
+        #     fontsize=8,
+        # )
 
         plot_style(ax0, plot_title, "probability of Pauli X error (%)", "decoding success rate")
         ax0.set_ylim(ymin, ymax)

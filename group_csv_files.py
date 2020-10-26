@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import re
+import numpy as np
 
 
 def get_all_files_from_folder(folder, folder_name):
@@ -28,12 +29,17 @@ def group_csv_files(filenames, error_values=None):
 
         for index, columns in data_new.iterrows():
             for column, value in columns.items():
-                data.at[index, column] += value
+                if index in data.index:
+                    data.at[index, column] = (value + data.at[index, column] if not pd.isna(data.at[index, column])
+                                              else value)
+                else:
+                    data.at[index, column] = value
 
     if error_values is not None:
         idx = pd.IndexSlice
         data = data.loc[idx[:, error_values, :], :]
 
+    data = data.sort_index()
     print(data)
     return data
 
@@ -51,12 +57,11 @@ if __name__ == '__main__':
                     "mwpm_expedient_swap_12",
                     "mwpm_expedient_swap_16",
                     "mwpm_expedient_swap_20"]
-    error_values = [0.0015, 0.00175, 0.002, 0.00225, 0.0025, 0.00275]
-    dataframes = []
+    error_values = [0.0016, 0.0017, 0.0018, 0.0019, 0.002]
+    files = []
 
     for folder_name in folder_names:
-        files = get_all_files_from_folder(folder, folder_name)
-        dataframes.append(group_csv_files(files, error_values))
+        files.extend(get_all_files_from_folder(folder, folder_name))
 
-    total_dataframe = pd.concat(dataframes)
-    total_dataframe.to_csv(name_csv)
+    dataframe = group_csv_files(files, error_values)
+    dataframe.to_csv(name_csv)
