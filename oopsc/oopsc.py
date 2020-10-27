@@ -18,6 +18,7 @@ from .info.decorators import debug as db
 import numpy as np
 import random
 import time
+import resource
 
 
 def init_random_seed(timestamp=None, worker=0, iteration=0, **kwargs):
@@ -140,6 +141,9 @@ def single(
                 print("Debug not available in single mode")
     else:
         output = correct
+
+    print("Maximum memory usage (MB): {}".format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000000),
+          end="\r", flush=True)
 
     return output
 
@@ -285,9 +289,7 @@ def multiprocess(
             else:
                 output[key] += value
 
-    # from guppy import hpy
-    # h = hpy().heap()
-    # print("\nmememory (MB):", h.size/1000000)
+    print("Maximum memory usage (MB): {}\n".format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1000000))
 
     for key, value in workerlists.items():
         output.update(get_mean_var(value, key))
