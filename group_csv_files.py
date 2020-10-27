@@ -57,7 +57,7 @@ if __name__ == '__main__':
                     "mwpm_expedient_swap_12",
                     "mwpm_expedient_swap_16",
                     "mwpm_expedient_swap_20"]
-    error_values = [0.0016, 0.0017, 0.0018, 0.0019, 0.002]
+    error_values = [0.0016, 0.0017, 0.0018, 0.0019, 0.002, 0.0025]
     files = []
 
     for folder_name in folder_names:
