@@ -82,7 +82,9 @@ def single(
     go=None,
     graph=None,
     worker=0,
+    workers=1,
     iter=0,
+    iters=0,
     seed=None,
     called=True,
     debug=False,
@@ -143,8 +145,11 @@ def single(
         output = correct
 
     if (iter % 100) == 0:
-        print("Simulation approximately at iteration {}. Maximum memory usage (MB): {}".format(iter, resource.getrusage(
-              resource.RUSAGE_SELF).ru_maxrss / 1000000),
+        print("Threads arrived at iteration {}/{} at {} approximately. Maximum memory usage (MB): {}"
+              .format(workers*iter,
+                      workers*iters,
+                      time.ctime(),
+                      resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000000),
               end="\r", flush=True)
 
     return output
@@ -167,6 +172,7 @@ def multiple(
     graph=None,
     qres=None,
     worker=0,
+    workers=1,
     seeds=None,
     called=True,
     progressbar=True,
@@ -206,7 +212,8 @@ def multiple(
     )
 
     zipped = zip(range(iters), seeds)
-    result = [single(size, config, iter=iter, seed=seed, **options, **kwargs) for iter, seed in zipped]
+    result = [single(size, config, iter=iter, iters=iters, workers=workers, seed=seed, **options, **kwargs)
+              for iter, seed in zipped]
 
     if called:
         output = dict(
@@ -274,7 +281,7 @@ def multiprocess(
             mp.Process(
                 target=multiple,
                 args=(size, config, process_iters),
-                kwargs=dict(worker=i, graph=g, **options, **kwargs),
+                kwargs=dict(worker=i, workers=processes, graph=g, **options, **kwargs),
             )
         )
     print("Starting", processes, "workers.")
@@ -291,7 +298,10 @@ def multiprocess(
             else:
                 output[key] += value
 
-    print("Maximum memory usage (MB): {}\n".format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1000000))
+    print("\nFinished at {}. Maximum memory usage (MB): {}\n"
+          .format(time.ctime(),
+                  resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1000000)
+          )
 
     for key, value in workerlists.items():
         output.update(get_mean_var(value, key))
