@@ -142,7 +142,8 @@ def single(
     else:
         output = correct
 
-    print("Maximum memory usage (MB): {}".format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000000),
+    print("Simulation approximately at iteration {}. Maximum memory usage (MB): {}".format(iter, resource.getrusage(
+          resource.RUSAGE_SELF).ru_maxrss / 1000000),
           end="\r", flush=True)
 
     return output
