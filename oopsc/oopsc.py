@@ -145,7 +145,7 @@ def single(
         output = correct
 
     if (iter % 100) == 0:
-        print("Threads arrived at iteration {}/{} at {} approximately. Maximum memory usage (MB): {}"
+        print("Threads arrived at iteration {}/{} at {} approximately. Maximum memory usage: {} MB (OS X)/GB (Linux)"
               .format(workers*iter,
                       workers*iters,
                       time.ctime(),
@@ -298,7 +298,7 @@ def multiprocess(
             else:
                 output[key] += value
 
-    print("\nFinished at {}. Maximum memory usage (MB): {}\n"
+    print("\nFinished at {}. Maximum memory usage: {} MB (OS X)/GB (Linux)\n"
           .format(time.ctime(),
                   resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1000000)
           )
