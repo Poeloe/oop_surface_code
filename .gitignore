@@ -31,4 +31,5 @@ _trial_temp/
 cartesiusdata
 !csv_files/
 !expedient*.csv
+!stringent*.csv
 test_scripts/
