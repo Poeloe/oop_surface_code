@@ -32,4 +32,5 @@ cartesiusdata
 !csv_files/
 !expedient*.csv
 !stringent*.csv
+!monolithic*.csv
 test_scripts/
