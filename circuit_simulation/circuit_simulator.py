@@ -2581,8 +2581,9 @@ class QuantumCircuit:
         for sub_circuit in self._sub_circuits.values():
             sub_circuit.reset()
 
-        for qubit in self.qubits.values():
-            qubit.reset_waiting_time()
+        if self.qubits is not None:
+            for qubit in self.qubits.values():
+                qubit.reset_waiting_time()
 
         if self._init_type == 0:
             self._init_density_matrix()
