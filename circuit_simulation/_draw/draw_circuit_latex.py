@@ -50,15 +50,17 @@ def create_qasm_file(self, meas_error):
                 gate = 'cnot' if not noise else "n-cnot"
             elif '#' in gate:
                 gate = 'bell' if not noise else "n-bell"
-            cqubit = qubits[0]
-            tqubit = qubits[1]
-            file.write("\t" + gate + " " + str(cqubit) + "," + str(tqubit) + "\n")
+            tqubit = qubits[0]
+            cqubit = qubits[1]
+            file.write("\t{} {},{}\n".format(gate, cqubit, tqubit))
         elif "m" in gate:
-            gate = "meas " if "~" not in gate else "n-meas "
-            file.write("\t" + gate + str(qubits) + "\n")
+            gate = "meas" if "~" not in gate else "n-meas"
+            file.write("\t{} {}\n".format(gate, qubits[0]))
+        elif 'level' in gate.lower():
+            pass
         else:
             gate = gate if "~" not in gate or not noise else "n-" + gate
-            file.write("\t" + gate + " " + str(qubits) + "\n")
+            file.write("\t{} {}\n".format(gate, qubits))
 
     file.close()
 
