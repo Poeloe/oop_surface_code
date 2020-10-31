@@ -10,6 +10,7 @@
 *.lprof
 *.npz
 *.pdf
+*.lock
 
 .python-version
 
@@ -17,6 +18,7 @@ simulations
 simulations/
 Simulations
 Simulations/
+test_scripts/
 __pycache__/
 errors/
 figures/
@@ -34,3 +36,8 @@ cartesiusdata
 !stringent*.csv
 !monolithic*.csv
 test_scripts/
+old_files/
+!gate_lookup_tables/
+!single_qubit_gates.pkl
+!two_qubit_gates.pkl
+gate_duration.txt

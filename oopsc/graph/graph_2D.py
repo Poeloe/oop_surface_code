@@ -199,13 +199,13 @@ class toric(object):
         logical_error = [0, 0, 0, 0]
 
         for i in self.range:
-            if self.Q[z][(1, i, 0)].E[0].state:
-                logical_error[0] = 1 - logical_error[0]
             if self.Q[z][(0, 0, i)].E[0].state:
+                logical_error[0] = 1 - logical_error[0]
+            if self.Q[z][(1, i, 0)].E[0].state:
                 logical_error[1] = 1 - logical_error[1]
-            if self.Q[z][(0, i, 0)].E[1].state:
-                logical_error[2] = 1 - logical_error[2]
             if self.Q[z][(1, 0, i)].E[1].state:
+                logical_error[2] = 1 - logical_error[2]
+            if self.Q[z][(0, i, 0)].E[1].state:
                 logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
@@ -217,8 +217,8 @@ class toric(object):
             implementation. When a superoperator is used that represents iid error on the stabilizer qubits, then
             this method ensures a similar error implementation as the usual iid error implementation (see the
             'apply_and_measure_errors' method). This way, threshold simulation results with the superoperator
-            implementation can be compared with the usual implementation to verify the implementation.
 
+            implementation can be compared with the usual implementation to verify the implementation.
             Parameters
             ----------
             z : int, optional, z=0
@@ -467,12 +467,12 @@ class toric(object):
         """Adds an edge with edge ID number qID with pointers to vertices. Also adds pointers to this edge on the vertices. """
 
         qubit = self.Q[z][(td, y, x)] = Qubit(qID=(td, y, x), z=z)
-        E1, E2 = (qubit.E[0], qubit.E[1]) if td == 1 else (qubit.E[1], qubit.E[0])
+        E1, E2 = (qubit.E[0], qubit.E[1]) if td == 0 else (qubit.E[1], qubit.E[0])
 
-        vW.neighbors["e"] = (vE, E1)
-        vE.neighbors["w"] = (vW, E1)
-        vN.neighbors["s"] = (vS, E2)
-        vS.neighbors["n"] = (vN, E2)
+        vW.neighbors["e"] = (vE, E2)
+        vE.neighbors["w"] = (vW, E2)
+        vN.neighbors["s"] = (vS, E1)
+        vS.neighbors["n"] = (vN, E1)
 
     def reset(self):
         """
@@ -562,7 +562,8 @@ class planar(toric):
 
     def logical_error(self, z=0):
         """
-        Finds whether there are any logical errors on the lattice/self. The logical error is returned as [Xhorizontal, Zvertical], where each item represents a homological Loop
+        Finds whether there are any logical errors on the lattice/self. The logical error is returned as
+        [Xvertical, Zhorizontal], where each item represents a homological Loop
         """
 
         # if self.gl_plot: self.gl_plot.plot_final()
@@ -570,9 +571,9 @@ class planar(toric):
         logical_error = [0, 0]
 
         for i in self.range:
-            if self.Q[z][(0, i, 0)].E[0].state:
+            if self.Q[z][(0, 0, i)].E[0].state:
                 logical_error[0] = 1 - logical_error[0]
-            if self.Q[z][(0, 0, i)].E[1].state:
+            if self.Q[z][(0, i, 0)].E[1].state:
                 logical_error[1] = 1 - logical_error[1]
 
         errorless = True if logical_error == [0, 0] else False
@@ -795,9 +796,11 @@ class Edge(object):
     def __repr__(self):
         if self.edge_type == 0:
             orientation = "-" if self.ertype == self.qubit.qID[0] else "|"
+            errortype = "P" if self.ertype == 0 else "S"
         else:
             orientation = "~"
-        errortype = "X" if self.ertype == 0 else "Z"
+            errortype = "P" if self.ertype == 1 else "S"
+
         return "e{}{}({},{}|{})".format(errortype, orientation, *self.qubit.qID[1:], self.z)
 
     def __eq__(self, other):

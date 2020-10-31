@@ -1,45 +1,50 @@
-from circuit_simulation.states_and_gates import *
 import numpy as np
 from scipy import sparse as sp
 from scipy.linalg import sqrtm
 import random
+import circuit_simulation.states.states as s
+import circuit_simulation.gates.gates as g
+from circuit_simulation.states.state import State
+from circuit_simulation.gates.gate import SingleQubitGate, TwoQubitGate
 
 
 def state_repr(state):
     """ Returns the visual representation of the given state if known """
-    if np.array_equal(state, ket_0):
+    if np.array_equal(state, s.ket_0.vector):
         return "|0>"
-    if np.array_equal(state, ket_1):
+    if np.array_equal(state, s.ket_1.vector):
         return "|1>"
-    if np.array_equal(state, ket_p):
+    if np.array_equal(state, s.ket_p.vector):
         return "|+>"
-    if np.array_equal(state, ket_m):
+    if np.array_equal(state, s.ket_m.vector):
         return "|->"
     return "|?>"
 
 
 def gate_name(gate):
     """ Returns the (visual) representation of the given gate if known """
-    if np.array_equal(gate, X_gate.matrix):
+    if np.array_equal(gate, g.X_gate.matrix):
         return "X"
-    if np.array_equal(gate, Y_gate.matrix):
+    if np.array_equal(gate, g.Y_gate.matrix):
         return "Y"
-    if np.array_equal(gate, Z_gate.matrix):
+    if np.array_equal(gate, g.Z_gate.matrix):
         return "Z"
-    if np.array_equal(gate, I_gate.matrix):
+    if np.array_equal(gate, g.I_gate.matrix):
         return "I"
-    if np.array_equal(gate, H_gate.matrix):
+    if np.array_equal(gate, g.H_gate.matrix):
         return "H"
-    if np.array_equal(gate, S_gate.matrix):
+    if np.array_equal(gate, g.S_gate.matrix):
         return "S"
     return "?"
 
 
 def get_value_by_prob(array, p):
     """ Returns, bases on the given weights 'p', a value out of the given array """
+    if len(p) == 2 and 0 in p:
+        return array[p.index(max(p))]
     r = random.random()
     index = 0
-    while r >= 0 and index < len(p):
+    while r > 0 and index < len(p):
         r -= p[index]
         index += 1
     return array[index - 1]
@@ -52,23 +57,35 @@ def KP(*args):
         if state is None:
             continue
         if type(state) == State:
-            state = state.vector
+            state = state.sp_vector
+        if type(state) in [SingleQubitGate, TwoQubitGate]:
+            state = state.sp_matrix
+        if not sp.issparse(state):
+            state = sp.csr_matrix(state)
         if result is None:
-            result = sp.csr_matrix(state)
+            result = state
             continue
-        result = sp.csr_matrix(sp.kron(result, sp.csr_matrix(state)))
-    return sp.csr_matrix(result)
+        result = sp.kron(result, state, format='csr')
+    return result
 
 
 def CT(state1, state2=None):
     """ returns the dot prodcut of the two passed states, where the second state will be the conjugate transpose """
     if type(state1) == State:
-        state1 = state1.vector
-    if type(state2) == State:
-        state2 = state2.vector
+        state1 = state1.sp_vector
+    elif not sp.issparse(state1):
+        state1 = sp.csr_matrix(state1)
 
-    state2 = state1 if state2 is None else state2
-    return sp.csr_matrix(state1).dot(sp.csr_matrix(state2).conj().T)
+    if state2 is not None:
+        if type(state2) == State:
+            state2 = state2.sp_vector
+        elif not sp.issparse(state2):
+            state2 = sp.csr_matrix(state2)
+    else:
+        state2 = state1
+
+    result = state1.dot(state2.conj().T)
+    return result
 
 
 def trace(sparse_matrix):

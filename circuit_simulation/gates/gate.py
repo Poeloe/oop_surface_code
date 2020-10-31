@@ -1,6 +1,8 @@
 import numpy as np
-from abc import ABC, abstractmethod
+from abc import ABC
+import scipy.sparse as sp
 import circuit_simulation.circuit_simulator as cs
+from circuit_simulation.states.state import State
 
 
 class Gate(ABC):
@@ -17,7 +19,7 @@ class Gate(ABC):
         Matrix that represents the gate operation.
     representation : str
         Representation is used in the drawing of the circuits
-    duration : int
+    duration : float
         Duration of the gate in time unit
 
     """
@@ -25,6 +27,7 @@ class Gate(ABC):
     def __init__(self, name, matrix, representation, duration=0):
         self._name = name
         self._matrix = matrix
+        self._sp_matrix = sp.csr_matrix(matrix)
         self._representation = representation
         self._duration = duration
 
@@ -35,6 +38,10 @@ class Gate(ABC):
     @property
     def matrix(self):
         return self._matrix
+
+    @property
+    def sp_matrix(self):
+        return self._sp_matrix
 
     @property
     def representation(self):
@@ -52,6 +59,19 @@ class Gate(ABC):
     def duration(self, duration):
         self._duration = duration
 
+    def __mul__(self, other):
+        if type(other) not in [SingleQubitGate, TwoQubitGate, State, sp.csr_matrix]:
+            raise ValueError('It is not possible to multiply an object of type {} with a Gate object'
+                             .format(type(other)))
+        if type(other) in [SingleQubitGate, TwoQubitGate]:
+            other_matrix = other.sp_matrix
+        elif type(other) == State:
+            other_matrix = other.sp_vector
+        else:
+            other_matrix = other
+
+        return self.matrix * other_matrix
+
     def __repr__(self):
         return "{}:\n{}".format(self._representation, self.matrix)
 
@@ -66,7 +86,7 @@ class SingleQubitGate(Gate):
 
     def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
-        return qc._create_1_qubit_gate(self, target_qubit)
+        return qc._create_1_qubit_gate(self, target_qubit, num_qubits=num_qubits)
 
     def __eq__(self, other):
         if type(other) != SingleQubitGate:
@@ -75,6 +95,7 @@ class SingleQubitGate(Gate):
 
 
 class TwoQubitGate(Gate):
+
     """
         TwoQubitGate class inherits from the abstract Gate class
 
@@ -94,15 +115,15 @@ class TwoQubitGate(Gate):
             True if only upper left matrix and lower right matrix are non-zero
     """
 
-    def __init__(self, name, matrix, representation, duration=0, control_repr="o"):
+    def __init__(self, name, matrix, representation, duration=0., control_repr="o"):
         super().__init__(name, matrix, representation, duration)
         self._control_repr = control_repr
-        self._upper_left_matrix = matrix[2:, 2:]
-        self._lower_right_matrix = matrix[:2, :2]
-        self._upper_right_matrix = matrix[:2, 2:]
-        self._lower_left_matrix = matrix[2:, :2]
-        self._cntrl_gate = True if np.array_equal(self._upper_right_matrix, np.zeros((2, 2))) and \
-                                   np.array_equal(self._lower_left_matrix, np.zeros((2, 2))) else False
+        self._upper_left_matrix = self.sp_matrix[2:, 2:]
+        self._lower_right_matrix = self.sp_matrix[:2, :2]
+        self._upper_right_matrix = self.sp_matrix[:2, 2:]
+        self._lower_left_matrix = self.sp_matrix[2:, :2]
+        self._cntrl_gate = True if np.array_equal(self._upper_right_matrix.toarray(), np.zeros((2, 2))) and \
+                                   np.array_equal(self._lower_left_matrix.toarray(), np.zeros((2, 2))) else False
 
     @property
     def control_repr(self):
@@ -137,91 +158,4 @@ class TwoQubitGate(Gate):
             return False
         return np.array_equal(self.matrix, other.matrix)
 
-class State(object):
-    """
-        State class
 
-        Class defines a state with the attributes
-
-        Attributes
-        ----------
-        name : str
-            Name that will be used to refer to the state
-        vector : numpy array
-            Vector that represents the state
-        representation : str
-            Representation is used in the drawing of the circuits
-    """
-
-    def __init__(self, name, vector, representation):
-        self._name = name
-        self._vector = vector
-        self._representation = representation
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def vector(self):
-        return self._vector
-
-    @property
-    def representation(self):
-        return self._representation
-
-    def __repr__(self):
-        return self.representation
-
-    def __eq__(self, other):
-        if type(other) != State:
-            return False
-        return np.array_equal(self.vector, other.vector)
-
-"""
-    SINGLE QUBIT STATES
-"""
-ket_0 = State("Zero", np.array([[1, 0]]).T, "|0>")
-ket_1 = State("One", np.array([[0, 1]]).T, "|1>")
-ket_p = State("Plus", 1 / np.sqrt(2) * np.array([[1, 1]]).T, "|+>")
-ket_m = State("Minus", 1 / np.sqrt(2) * np.array([[1, -1]]).T, "|->")
-
-"""
-    SINGLE QUBIT GATES
-"""
-X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X")
-Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y")
-Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z")
-I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I")
-H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H")
-S_gate = SingleQubitGate("Phase", np.array([[1, 0], [0, 1j]]), "S")
-
-"""
-    TWO-QUBIT GATES
-"""
-CNOT_gate = TwoQubitGate("CNOT",
-                         np.array([[1, 0, 0, 0],
-                                   [0, 1, 0, 0],
-                                   [0, 0, 0, 1],
-                                   [0, 0, 1, 0]]),
-                         "X")
-CZ_gate = TwoQubitGate("CPhase",
-                       np.array([[1, 0, 0, 0],
-                                 [0, 1, 0, 0],
-                                 [0, 0, 1, 0],
-                                 [0, 0, 0, -1]]),
-                       "Z")
-NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
-                                 np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
-                                           [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],
-                                           [0, 0, np.cos(np.pi/4), -1 * np.sin(np.pi/4)],
-                                           [0, 0, 1 * np.sin(np.pi/4), np.cos(np.pi/4)]]),
-                                 "NV")
-
-SWAP_gate = TwoQubitGate("Swap",
-                         np.array([[1, 0, 0, 0],
-                                   [0, 0, 1, 0],
-                                   [0, 1, 0, 0],
-                                   [0, 0, 0, 1]]),
-                         "(X)",
-                         control_repr="(X)")

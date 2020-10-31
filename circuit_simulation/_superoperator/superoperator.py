@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import os
 import random
@@ -54,7 +55,6 @@ class Superoperator:
                     A dictionary with the z layer a key and the value a list of the stabilizers that are involved in
                     the second round of star stabilizer measurements for that layer.
         """
-        self.file_name = file_name
         self.file_name = file_name.replace('.csv', '')
         self._path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
         self.GHZ_success = GHZ_success
@@ -118,10 +118,6 @@ class Superoperator:
         """
         with open(self._path_to_file) as file:
             reader = pd.read_csv(file, sep=";", float_precision='round_trip')
-
-            if 's' in reader:
-                self._convert_csv_file_to_superoperator()
-                return
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
             if 'GHZ_success' in reader and self.GHZ_success == 1.1:
