@@ -1994,7 +1994,7 @@ class QuantumCircuit:
                 self._N_decoherence([qubit])
 
             if basis == "X":
-                self.H(qubit, noise=basis_transformation_noise, user_operation=False, draw=False)
+                self.H(qubit, noise=basis_transformation_noise if noise else False, user_operation=False, draw=False)
 
             density_matrix, qubits, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
 

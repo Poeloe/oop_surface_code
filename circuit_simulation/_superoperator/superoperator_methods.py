@@ -71,6 +71,9 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
             qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
+        else:
+            method = getattr(qc_noiseless, operation)
+            method(*parameters)
 
     qc_noiseless.draw_circuit()
 
