@@ -64,7 +64,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         if operation == "create_bell_pair":
             qc_noiseless.create_bell_pair(parameters[0], parameters[1], network_noise_type=parameters[4],
                                           bell_state_type=parameters[5])
-        if operation == "SWAP":
+        elif operation == "SWAP":
             qc_noiseless.SWAP(parameters[0], parameters[1])
         elif operation == "apply_gate":
             qc_noiseless.apply_gate(parameters[0], parameters[1], parameters[2])

@@ -136,6 +136,9 @@ def fidelity_elementwise(rho, sigma):
 
 
 def csr_matrix_equal(a1, a2):
+    # Sort indices, such that equality does not fail because of this
+    a1.sort_indices()
+    a2.sort_indices()
     return (np.array_equal(a1.indptr, a2.indptr) and
             np.array_equal(a1.indices, a2.indices) and
             np.array_equal(a1.data, a2.data))
