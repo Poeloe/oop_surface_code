@@ -119,9 +119,11 @@ def sim_thresholds(
                 superoperator.reset_stabilizer_rounds()
                 networked_architecture = bool(superoperator.pn) if not networked_architecture else True
 
-            print("Calculating for L = {}{} and p = {}".format(lati, ', GHZ_success = ' +
-                                                               str(superoperator.GHZ_success) if
-                                                               superoperator else "", pi))
+            print("Calculating for L = {}{}, p = {} and {} stabilizer measurement cycles"
+                  .format(lati,
+                          ', GHZ_success = ' + str(superoperator.GHZ_success) if superoperator else "",
+                          pi,
+                          cycles if cycles is not None else lati))
 
             oopsc_args = dict(
                 paulix=pi,

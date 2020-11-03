@@ -105,8 +105,8 @@ class toric(object):
             return [[d_anyons[i0], d_anyons[i1], anyons[i0], anyons[i1]] for i0, i1 in enumerate(output) if i0 > i1]
 
         self.matching = []
-        if verts:
-            self.matching += get_matching(verts, d_verts)
+        # if verts:
+        #     self.matching += get_matching(verts, d_verts)
         if plaqs:
             self.matching += get_matching(plaqs, d_plaqs)
 

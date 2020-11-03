@@ -203,10 +203,10 @@ class toric(object):
                 logical_error[0] = 1 - logical_error[0]
             if self.Q[z][(1, i, 0)].E[0].state:
                 logical_error[1] = 1 - logical_error[1]
-            if self.Q[z][(1, 0, i)].E[1].state:
-                logical_error[2] = 1 - logical_error[2]
-            if self.Q[z][(0, i, 0)].E[1].state:
-                logical_error[3] = 1 - logical_error[3]
+            # if self.Q[z][(1, 0, i)].E[1].state:
+            #     logical_error[2] = 1 - logical_error[2]
+            # if self.Q[z][(0, i, 0)].E[1].state:
+            #     logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
@@ -217,8 +217,8 @@ class toric(object):
             implementation. When a superoperator is used that represents iid error on the stabilizer qubits, then
             this method ensures a similar error implementation as the usual iid error implementation (see the
             'apply_and_measure_errors' method). This way, threshold simulation results with the superoperator
-
             implementation can be compared with the usual implementation to verify the implementation.
+
             Parameters
             ----------
             z : int, optional, z=0
