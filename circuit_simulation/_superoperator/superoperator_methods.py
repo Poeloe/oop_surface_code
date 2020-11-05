@@ -236,10 +236,8 @@ def remove_not_likely_configurations(superoperator):
         therefore only this configuration is kept in the returned superoperator. Effectively, this means that the
         [Z,Z,Z,X] is removed from the superoperator together with the according probability.
     """
-    print("\nRemove not likely")
     for supop_el_a, supop_el_b in combinations(superoperator, 2):
         if supop_el_a.any_error_density_matrix_equals(supop_el_b):
-            print("\nin loop")
             if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") and supop_el_b in superoperator:
                 supop_el_a.fused_configs.update(supop_el_b.fused_configs)
                 superoperator.remove(supop_el_b)
