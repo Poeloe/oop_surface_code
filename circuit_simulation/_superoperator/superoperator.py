@@ -373,5 +373,5 @@ class SuperoperatorElement:
         a2.sort_indices()
         return (np.array_equal(a1.indptr, a2.indptr) and
                 np.array_equal(a1.indices, a2.indices) and
-                np.allclose(a1.data, a2.data))
+                np.array_equal(a1.data, a2.data))
 
