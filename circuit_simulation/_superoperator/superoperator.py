@@ -371,6 +371,7 @@ class SuperoperatorElement:
         # Sort indices, such that equality does not fail because of this
         a1.sort_indices()
         a2.sort_indices()
+        print("\nThis is printed\n")
         return (np.array_equal(a1.indptr, a2.indptr) and
                 np.array_equal(a1.indices, a2.indices) and
                 np.array_equal(a1.data, a2.data))
