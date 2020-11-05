@@ -153,4 +153,10 @@ def compose_parser():
     parser.add_argument("--no_progress_bar",
                         help="Displays no progress bar for simulation.",
                         action='store_false')
+    parser.add_argument("-lde",
+                        "--fixed_lde_attempts",
+                        help="Specify the path to the file that contains the gate duration times.",
+                        type=int,
+                        default=10000)
+
     return parser

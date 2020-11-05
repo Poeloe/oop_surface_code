@@ -2,7 +2,8 @@ from circuit_simulation.circuit_simulator import *
 
 
 def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair_creation_success, measurement_duration,
-                           bell_pair_creation_duration, pulse_duration, probabilistic, lkt_1q, lkt_2q):
+                           bell_pair_creation_duration, pulse_duration, probabilistic, lkt_1q, lkt_2q,
+                           fixed_lde_attempts):
     """
         Initialises a QuantumCircuit object corresponding to the protocol requested.
 
@@ -27,7 +28,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
                             bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
                             single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
-                            no_single_qubit_error=True, fixed_lde_attempts=10000)
+                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts)
 
         qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18)
         qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16)
