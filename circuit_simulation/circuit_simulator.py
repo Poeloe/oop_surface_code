@@ -2017,7 +2017,7 @@ class QuantumCircuit:
 
                 probs = [prob_0, prob_1]
                 if round(sum(probs), 10) != 1 and pm_1 is None:
-                    raise ValueError("Probabilities do not sum to 1")
+                    raise ValueError("Probabilities do not sum to 1. Sum is {}".format(round(sum(probs), 10)))
 
                 density_matrices = [density_matrix_0, density_matrix_1]
                 outcome_new = get_value_by_prob([0, 1], [prob_0, prob_1])
@@ -2103,9 +2103,9 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------     
     """
 
-    def get_superoperator(self, qubits, proj_type, stabilizer_protocol=False, save_noiseless_density_matrix=False,
+    def get_superoperator(self, qubits, proj_type, *, stabilizer_protocol=False, save_noiseless_density_matrix=False,
                           combine=True, most_likely=True, print_to_console=True, file_name_noiseless=None,
-                          file_name_measerror=None, no_color=False, to_csv=False, csv_file_name=None,
+                          file_name_measerror=None, no_color=False, csv_file_name=None,
                           use_exact_path=False):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
@@ -2209,7 +2209,7 @@ class QuantumCircuit:
         if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
-        superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type,
+        superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type, file_name=csv_file_name,
                                                                    use_exact_path=use_exact_path)
 
         if print_to_console:
