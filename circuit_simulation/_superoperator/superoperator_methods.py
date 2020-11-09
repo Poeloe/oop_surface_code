@@ -64,7 +64,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         if operation == "create_bell_pair":
             qc_noiseless.create_bell_pair(parameters[0], parameters[1], network_noise_type=parameters[4],
                                           bell_state_type=parameters[5])
-        if operation == "SWAP":
+        elif operation == "SWAP":
             qc_noiseless.SWAP(parameters[0], parameters[1])
         elif operation == "apply_gate":
             qc_noiseless.apply_gate(parameters[0], parameters[1], parameters[2])
@@ -236,7 +236,6 @@ def remove_not_likely_configurations(superoperator):
         therefore only this configuration is kept in the returned superoperator. Effectively, this means that the
         [Z,Z,Z,X] is removed from the superoperator together with the according probability.
     """
-
     for supop_el_a, supop_el_b in combinations(superoperator, 2):
         if supop_el_a.any_error_density_matrix_equals(supop_el_b):
             if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") and supop_el_b in superoperator:

@@ -582,7 +582,7 @@ class qcircuit:  # quantum circuit class
                 if (g.texsym.find('\dmeter') >= 0):  # alternative measurement gate
                     cbit = 1
                 if (g.name == 'measure'):  # if measurement gate then cbit=1
-                    cbit = 1  # switch to double wire
+                    cbit = 0  # CHANGED AS OF 31-10-2020, measured qubits will also be reinitialised. No double wire!
                 if (g.name == 'zero'):  # if zero gate then cbit=0
                     cbit = 0  # switch to single wire
             while (k < ntime):  # fill in null ops until end of circuit

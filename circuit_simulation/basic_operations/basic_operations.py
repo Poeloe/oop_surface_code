@@ -40,8 +40,12 @@ def gate_name(gate):
 
 def get_value_by_prob(array, p):
     """ Returns, bases on the given weights 'p', a value out of the given array """
+    # if a 0 probability is in a list of 2 weights, get the other value
     if len(p) == 2 and 0 in p:
         return array[p.index(max(p))]
+
+    # Normalise the weights
+    p = [i/sum(p) for i in p]
     r = random.random()
     index = 0
     while r > 0 and index < len(p):
@@ -127,15 +131,18 @@ def fidelity(rho, sigma):
 def fidelity_elementwise(rho, sigma):
     """ Calculates the fidelity using the element wise multiplication method """
     if not sp.issparse(rho):
-        rho = rho.toarray()
+        rho = sp.csr_matrix(rho)
     if not sp.issparse(sigma):
-        sigma = sigma.toarray()
+        sigma = sp.csr_matrix(sigma)
 
     resulting_matrix = rho * sigma * rho
     return trace(resulting_matrix)
 
 
 def csr_matrix_equal(a1, a2):
+    # Sort indices, such that equality does not fail because of this
+    a1.sort_indices()
+    a2.sort_indices()
     return (np.array_equal(a1.indptr, a2.indptr) and
             np.array_equal(a1.indices, a2.indices) and
             np.array_equal(a1.data, a2.data))
