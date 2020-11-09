@@ -51,13 +51,11 @@ def append_dataframes(dataframes):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/monolithic_superoperators_L_cycles.csv"
+    name_csv = "./results/expedient_superoperators_100_cycles_GHZ_99.csv"
     folder = "./results/sim_data"
-    folder_names = ["mwpm_monolithic_8_l",
-                    "mwpm_monolithic_12_l",
-                    "mwpm_monolithic_16_l",
-                    "mwpm_monolithic_20_l"]
-    error_values = [0.0065, 0.0068, 0.007, 0.0073, 0.0075, 0.008]
+    folder_names = ["mwpm_expedient_sim_8_run_3_ghz",
+                    "mwpm_expedient_sim_12_run_5_ghz"]
+    error_values = None # [0.0065, 0.0068, 0.007, 0.0073, 0.0075, 0.008]
     files = []
 
     for folder_name in folder_names:

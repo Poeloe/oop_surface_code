@@ -7,6 +7,7 @@ _____________________________________________
 '''
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.ticker import FormatStrFormatter
 from collections import defaultdict
 from scipy import optimize
 import numpy as np
@@ -18,9 +19,9 @@ from .sim import get_data, read_data
 
 def plot_style(ax, title=None, xlabel=None, ylabel=None, **kwargs):
     ax.grid(color='w', linestyle='-', linewidth=2)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_title(title, fontsize=12)
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
     for key, arg in kwargs.items():
         func = getattr(ax, f"set_{key}")
         func(arg)
@@ -84,6 +85,7 @@ def plot_thresholds(
 
         if f0 is None:
             f0, ax0 = plt.subplots()
+            plt.subplots_adjust(left=0.06, bottom=0.06, right=.95, top=.95)
         else:
             ax0 = f0.axes[0]
         if f1 is None:
@@ -103,9 +105,13 @@ def plot_thresholds(
         markers = {lati: markerlist[i%len(markerlist)] for i, lati in enumerate(lattices)}
         legend = []
 
+        # X-axis precision
+        ax0.xaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+        ax0.xaxis.set_ticks(np.arange(min(fitp)*100, max(fitp)*100 + 0.025, 0.025))
+
         for i, lati in enumerate(lattices):
             fp, fN, fs = map(list, zip(*sorted(LP[lati], key=lambda k: k[0])))
-            ft = [si / ni for si, ni in zip(fs, fN)]
+            ft = [100/(1-math.sqrt(si/ni)) for si, ni in zip(fs, fN)]
             ax0.plot(
                 [q * 100 for q in fp], ft, styles[0],
                 color=colors[lati],
@@ -135,7 +141,6 @@ def plot_thresholds(
                 fillstyle="none"
             ))
 
-
         DS = fit_func((par[0], 20), *par)
 
         # ax0.axvline(par[0] * 100, ls="dotted", color="k", alpha=0.5)
@@ -147,7 +152,7 @@ def plot_thresholds(
         #     fontsize=8,
         # )
 
-        plot_style(ax0, plot_title, "probability of Pauli X error (%)", "decoding success rate")
+        plot_style(ax0, plot_title, "Probability of Pauli X error (%)", "Average time to failure")
         ax0.set_ylim(ymin, ymax)
         ax0.legend(handles=legend, loc="lower left", ncol=2)
 
@@ -179,7 +184,7 @@ def plot_thresholds(
         ax1.plot(x, par[1] + par[2] * x + par[3] * x ** 2, "--", color="C0", alpha=0.5)
         ax1.legend(handles=legend, loc="lower left", ncol=2)
 
-        plot_style(ax1, "Modified curve " + plot_title, "Rescaled error rate", "Modified succces probability")
+        plot_style(ax1, "Modified curve " + plot_title, "Rescaled error rate", "Modified succcess probability")
 
         if show_plot and GHZ_index == (len(GHZ_successes) - 1):
             plt.show()

@@ -3,6 +3,7 @@ import os
 import random
 import copy
 import inspect
+import numpy as np
 
 
 class Superoperator:
