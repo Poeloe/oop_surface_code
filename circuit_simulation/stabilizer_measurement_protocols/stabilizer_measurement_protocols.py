@@ -1,9 +1,10 @@
 from circuit_simulation.circuit_simulator import *
+import pickle
 
 
 def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair_creation_success, measurement_duration,
                            bell_pair_creation_duration, pulse_duration, probabilistic, lkt_1q, lkt_2q,
-                           fixed_lde_attempts):
+                           fixed_lde_attempts, network_noise_type):
     """
         Initialises a QuantumCircuit object corresponding to the protocol requested.
 
@@ -21,14 +22,31 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             measurement_duration=measurement_duration, single_qubit_gate_lookup=lkt_1q,
                             two_qubit_gate_lookup=lkt_2q, decoherence=decoherence, pulse_duration=pulse_duration)
         return qc
-    else:
-        qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                            network_noise_type=1, thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
+    elif protocol == 'duo_structure':
+        qc = QuantumCircuit(14, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                            thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
                             decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
                             T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
                             bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
                             single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
-                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts)
+                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
+                            network_noise_type=network_noise_type)
+
+        qc.define_node("A", qubits=[0, 1, 2, 6, 8], electron_qubits=2, data_qubits=[6, 8])
+        qc.define_node("B", qubits=[3, 4, 5, 10, 12], electron_qubits=5, data_qubits=[10, 12])
+
+        qc.define_sub_circuit("AB", [0, 1, 2, 6, 8, 3, 4, 5, 10, 12], waiting_qubits=[6, 8, 10, 12])
+
+        return qc
+    else:
+        qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                            thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
+                            decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
+                            T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
+                            bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
+                            single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
+                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
+                            network_noise_type=network_noise_type)
 
         qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18)
         qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16)
@@ -49,7 +67,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         return qc
 
 
-def monolithic(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+def monolithic(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
     qc.set_qubit_states({0: ket_p})
     qc.apply_gate(operation, cqubit=0, tqubit=1)
     qc.apply_gate(operation, cqubit=0, tqubit=3)
@@ -75,7 +93,7 @@ def monolithic(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_c
     return (dataframe, cut_off_reached), print_lines
 
 
-def expedient(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
     ghz_success = False
     while not ghz_success:
         pbar.reset() if pbar is not None else None
@@ -474,3 +492,34 @@ def stringent_swap(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, 
     qc.reset()
 
     return (dataframe, cut_off_reached), print_lines
+
+
+def duo_structure(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(2, 5)
+    qc.double_selection(CZ_gate, 1, 4)
+    qc.double_selection(CNOT_gate, 1, 4)
+    qc.apply_gate(operation, cqubit=2, tqubit=6)
+    qc.apply_gate(operation, cqubit=2, tqubit=8)
+    qc.apply_gate(operation, cqubit=5, tqubit=10)
+    qc.apply_gate(operation, cqubit=5, tqubit=12)
+    qc.measure([5, 2], probabilistic=False)
+    qc.end_current_sub_circuit(total=True)
+
+    pbar.update(50) if pbar is not None else None
+
+    if draw_circuit:
+        qc.draw_circuit(not color, color_nodes=True)
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([6, 8, 10, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console)
+    pbar.update(50) if pbar is not None else None
+
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (None, cut_off_reached), print_lines
