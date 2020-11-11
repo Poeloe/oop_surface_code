@@ -3,14 +3,17 @@ from copy import copy
 
 class SubQuantumCircuit:
 
-    def __init__(self, name, qubits, waiting_qubits, concurrent_sub_circuits=None):
+    def __init__(self, name, qubits, waiting_qubits, concurrent_sub_circuits=None, involved_nodes=None):
         self._name = name
         self._qubits = qubits
         self._waiting_qubits = waiting_qubits
         self._total_duration = 0
         self._concurrent_sub_circuits = concurrent_sub_circuits if concurrent_sub_circuits is not None else []
+        self._involved_nodes = involved_nodes if involved_nodes is not None else []
         self._cut_off_time_reached = False
         self._ran = False
+        self._concurrent_local_operations_applied = 0
+        self._concurrent_swap_wait_applied = 0
 
     @property
     def name(self):
@@ -33,6 +36,14 @@ class SubQuantumCircuit:
         return self._concurrent_sub_circuits
 
     @property
+    def involved_nodes(self):
+        return self._involved_nodes
+
+    @property
+    def amount_involved_nodes(self):
+        return len(self._involved_nodes)
+
+    @property
     def amount_concurrent_sub_circuits(self):
         return len(self.concurrent_sub_circuits) + 1
 
@@ -43,6 +54,14 @@ class SubQuantumCircuit:
             total_qubits.extend(sub_circuit.qubits)
 
         return total_qubits
+
+    @property
+    def all_concurrent_operations_applied(self):
+        return self._concurrent_local_operations_applied == 0
+
+    @property
+    def all_concurrent_swap_wait_applied(self):
+        return self._concurrent_swap_wait_applied == 0
 
     @property
     def ran(self):
@@ -69,6 +88,23 @@ class SubQuantumCircuit:
     def increase_duration(self, amount):
         self._total_duration += amount
 
+    def increase_amount_concurrent_operations_applied(self, amount=1):
+        """
+            Increases the amount of concurrent local operations that have been applied.
+
+            Since a QuantumCircuit does not actually work with concurrency it has to be emulated. At this point in
+            time, it is assumed that the same local operations are applied in each node that is involved in the sub
+            circuit and that they are applied concurrently. In order to keep good track of the duration of the
+            circuit, the duration of the sub circuit should only be increased when all of these concurrent local
+            operations at a point in time are applied to the sub circuit.
+        """
+        self._concurrent_local_operations_applied = ((self._concurrent_local_operations_applied + amount) %
+                                                     self.amount_involved_nodes)
+
+    def increase_amount_concurrent_swap_wait(self, amount=1):
+        self._concurrent_swap_wait_applied = ((self._concurrent_swap_wait_applied + amount) %
+                                              self.amount_involved_nodes)
+
     def add_concurrent_sub_circuits(self, sub_circuits):
         if type(sub_circuits) != list:
             sub_circuits = [sub_circuits]
@@ -76,6 +112,13 @@ class SubQuantumCircuit:
             self._concurrent_sub_circuits.append(sub_circuit)
 
         self._concurrent_sub_circuits = list(set(self._concurrent_sub_circuits))
+
+    def reset(self):
+        self._total_duration = 0
+        self._ran = False
+        self._cut_off_time_reached = False
+        self._concurrent_local_operations_applied = 0
+        self._concurrent_swap_wait_applied = 0
 
     def __hash__(self):
         return hash(self.name)

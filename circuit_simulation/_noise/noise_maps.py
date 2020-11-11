@@ -1,6 +1,6 @@
 import scipy.sparse as sp
 import math
-from termcolor import colored
+from circuit_simulation.termcolor.termcolor import colored
 from circuit_simulation.gates.gates import *
 from circuit_simulation.states.states import *
 from circuit_simulation.basic_operations.basic_operations import CT
@@ -12,11 +12,7 @@ def N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waitin
     kraus_opp_1 = SingleQubitGate("A1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'A1')
     kraus_opp_2 = SingleQubitGate("A2", np.array([[0, math.sqrt(p)], [0, 0]]), 'A2')
 
-    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
-    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
-
-    return kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) + \
-           kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full)
+    return N_kraus_operators(self, tqubit, [kraus_opp_1, kraus_opp_2], density_matrix, num_qubits)
 
 
 def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
@@ -24,11 +20,7 @@ def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_ti
     kraus_opp_1 = SingleQubitGate("K1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'K1')
     kraus_opp_2 = SingleQubitGate("K2", np.array([[0, 0], [0, math.sqrt(p)]]), 'K2')
 
-    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
-    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
-
-    return kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) + \
-           kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full)
+    return N_kraus_operators(self, tqubit, [kraus_opp_1, kraus_opp_2], density_matrix, num_qubits)
 
 
 def N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T_a, T_p):
@@ -43,13 +35,16 @@ def N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num
     kraus_opp_2 = SingleQubitGate("K2_ap", np.array([[0, math.sqrt(p_a)], [0, 0]]), 'K2_ap')
     kraus_opp_3 = SingleQubitGate("K3_ap", np.array([[0, 0], [0, math.sqrt(1 - p_a) * math.sqrt(p_p)]]), 'K3_ap')
 
-    kraus_opp_1_full = self._create_1_qubit_gate(kraus_opp_1, tqubit, num_qubits=num_qubits)
-    kraus_opp_2_full = self._create_1_qubit_gate(kraus_opp_2, tqubit, num_qubits=num_qubits)
-    kraus_opp_3_full = self._create_1_qubit_gate(kraus_opp_3, tqubit, num_qubits=num_qubits)
+    return N_kraus_operators(self, tqubit, [kraus_opp_1, kraus_opp_2, kraus_opp_3], density_matrix, num_qubits)
 
-    return (kraus_opp_1_full * CT(density_matrix, kraus_opp_1_full) +
-            kraus_opp_2_full * CT(density_matrix, kraus_opp_2_full) +
-            kraus_opp_3_full * CT(density_matrix, kraus_opp_3_full))
+
+def N_kraus_operators(self, tqubit, kraus_operators, density_matrix, num_qubits):
+    result = []
+    for kraus_op in kraus_operators:
+        kraus_op_full = self._create_1_qubit_gate(kraus_op, tqubit, num_qubits=num_qubits)
+        result.append(kraus_op_full * CT(density_matrix, kraus_op_full))
+
+    return sum(result)
 
 
 def N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p):

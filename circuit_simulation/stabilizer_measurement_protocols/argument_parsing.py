@@ -49,8 +49,7 @@ def compose_parser():
                        '--measurement_error_probability',
                        help='Specifies the amount of measurement error present in the system',
                        type=float,
-                       nargs="*",
-                       default=[0.006])
+                       nargs="*")
     parser.add_argument('-pm_1',
                         '--measurement_error_probability_one_state',
                         help='The measurement error rate in case an 1-state is supposed to be measured',
@@ -84,11 +83,12 @@ def compose_parser():
                         help='Specifies the duration of a measurement operation.',
                         type=float,
                         default=0.)
-    parser.add_argument('-ts',
-                        '--time_step',
-                        help='Specifies the duration of a measurement operation.',
+    parser.add_argument('-pulse_dur',
+                        '--pulse_duration',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
                         type=float,
-                        default=1)
+                        default=0)
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',
@@ -103,7 +103,7 @@ def compose_parser():
     parser.add_argument('-fn',
                         '--csv_filename',
                         required=False,
-                        nargs="*",
+                        type=str,
                         default=None,
                         help='Give the file name of the csv file that will be saved.')
     parser.add_argument("-tr",
@@ -146,5 +146,17 @@ def compose_parser():
                         help="loads values from a file instead of the command line",
                         type=open,
                         action=LoadFromFile)
+    parser.add_argument("--gate_duration_file",
+                        help="Specify the path to the file that contains the gate duration times.",
+                        type=str,
+                        required=False)
+    parser.add_argument("--no_progress_bar",
+                        help="Displays no progress bar for simulation.",
+                        action='store_false')
+    parser.add_argument("-lde",
+                        "--fixed_lde_attempts",
+                        help="Specify the path to the file that contains the gate duration times.",
+                        type=int,
+                        default=10000)
 
     return parser

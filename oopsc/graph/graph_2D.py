@@ -280,14 +280,14 @@ class toric(object):
 
         # First apply error and measure plaquette stabilizers in two rounds
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p)
+                                                            self.superoperator.sup_op_elements_p_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
                           measurement_errors=measurement_errors_p1,
                           GHZ_success=self.superoperator.GHZ_success)
 
         measurement_errors_p2, _ = self.superoperator_error(self.superoperator.stabs_p2[z],
-                                                            self.superoperator.sup_op_elements_p)
+                                                            self.superoperator.sup_op_elements_p_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_p2[z],
                           z=z,
                           measurement_errors=measurement_errors_p2,
@@ -295,14 +295,14 @@ class toric(object):
 
         # The apply error and measure star stabilizers in two rounds
         measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
-                                                            self.superoperator.sup_op_elements_s)
+                                                            self.superoperator.sup_op_elements_s_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
                           measurement_errors=measurement_errors_s1,
                           GHZ_success=self.superoperator.GHZ_success)
 
         measurement_errors_s2, _ = self.superoperator_error(self.superoperator.stabs_s2[z],
-                                                            self.superoperator.sup_op_elements_s)
+                                                            self.superoperator.sup_op_elements_s_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           z=z,
                           measurement_errors=measurement_errors_s2,
@@ -325,11 +325,11 @@ class toric(object):
 
         # First apply error to first round of plaquette stabilizers qubits
         measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p)
+                                                            self.superoperator.sup_op_elements_p_before_meas)
 
         # Get the measurement errors and qubit errors from the second round, but do not yet apply the error
         measurement_errors_p2, qubit_errors_p2 = self.superoperator_error(self.superoperator.stabs_p2[z],
-                                                                          self.superoperator.sup_op_elements_p2,
+                                                                          self.superoperator.sup_op_elements_p,
                                                                           apply_error=False)
 
         # Measure all plaquette stabilizers and apply the corresponding measurement errors
@@ -349,10 +349,10 @@ class toric(object):
         # -------------- Same as above only now for the star stabilizers -------------------
         # ----------------------------------------------------------------------------------
         measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
-                                                            self.superoperator.sup_op_elements_s)
+                                                            self.superoperator.sup_op_elements_s_before_meas)
 
         measurement_errors_s2, qubit_errors_s2 = self.superoperator_error(self.superoperator.stabs_s2[z],
-                                                                          self.superoperator.sup_op_elements_s2,
+                                                                          self.superoperator.sup_op_elements_s,
                                                                           apply_error=False)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,

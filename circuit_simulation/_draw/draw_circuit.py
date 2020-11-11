@@ -1,5 +1,5 @@
 import re
-from termcolor import colored, COLORS
+from circuit_simulation.termcolor.termcolor import colored, COLORS
 from circuit_simulation.gates.gate import SingleQubitGate, TwoQubitGate
 from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
 import numpy as np
@@ -34,26 +34,38 @@ def draw_init(self, no_color):
     return init_state_repr
 
 
-def draw_gates(self, init, no_color):
+def draw_operations(self, init, no_color):
     """ Adds the visual representation of the operations applied on the qubits """
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     for draw_item in self._draw_order:
-        if draw_item == "LEVEL":
+        # A level item sets the length of al qubit paths the same. This is usually used for points where a sub
+        # circuit waits on another sub circuit to finish before continuing with the rest of the circuit
+        if draw_item[0] == "LEVEL":
             init = _level_qubit_paths(init)
+            total_duration = draw_item[1]
+            sub_circuit = draw_item[2]
+            if sub_circuit is not None:
+                sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
+                init[int(len(init)/2) - 1] += "{}{} took {:1.1e} s.{}".format(10*" ", sub_circuits, total_duration,
+                                                                            10*" ")
+                init = _level_qubit_paths(init)
             continue
         gate = draw_item[0]
         qubits = draw_item[1]
         noise = draw_item[2]
+        sub_circuit = draw_item[3]
         sub_circuit_concurrent = draw_item[4]
         if sub_circuit_concurrent:
-            concurrent_qubits = draw_item[3].qubits if draw_item[3] is not None else []
+            concurrent_qubits = sub_circuit.qubits if sub_circuit is not None else []
         else:
-            concurrent_qubits = draw_item[3].get_all_concurrent_qubits if draw_item[3] is not None else []
+            concurrent_qubits = sub_circuit.get_all_concurrent_qubits if sub_circuit is not None else []
 
+        # Find qubits that are not involved in the current sub circuit
         non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in range(self.num_qubits)]))
 
-        if type(qubits) == tuple:
+        # Draw 2 qubit operations
+        if len(qubits) == 2:
             if type(gate) in [SingleQubitGate, TwoQubitGate]:
                 control = gate.control_repr if type(gate) == TwoQubitGate else "o"
                 gate = gate.representation
@@ -66,8 +78,8 @@ def draw_gates(self, init, no_color):
                 control = "~" + control if no_color else colored("~", 'red') + control
                 gate = "~" + gate if no_color else colored('~', 'red') + gate
 
-            cqubit = qubits[0]
-            tqubit = qubits[1]
+            cqubit = qubits[1]
+            tqubit = qubits[0]
 
             init = _correct_path_length(init, cqubit, tqubit)
 
@@ -84,10 +96,10 @@ def draw_gates(self, init, no_color):
                 gate = gate.representation
             if noise:
                 gate = "~" + gate if no_color else colored("~", 'red') + gate
-            init[qubits] += "---{}---".format(gate)
+            init[qubits[0]] += "---{}---".format(gate)
 
-            longest_item = ansi_escape.sub("", init[qubits])
-            current_qubits = list(set(self.get_node_qubits(qubits) + non_involved_qubits))
+            longest_item = ansi_escape.sub("", init[qubits[0]])
+            current_qubits = list(set(self.get_node_qubits(qubits[0]) + non_involved_qubits))
 
         partial_update = list(np.array(init)[current_qubits]) if current_qubits != [] else init
         for index, item in enumerate(partial_update):
@@ -166,7 +178,10 @@ def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circui
             MEANS THAT THE CIRCUIT REPRESENTATION MAY NOT ALWAYS PROPERLY REPRESENT THE APPLIED CIRCUIT WHEN USING
             MEASUREMENTS AND QUBIT ADDITIONS.
     """
-    if type(qubits) is tuple:
+    if type(qubits) == int:
+        qubits = [qubits]
+
+    if len(qubits) > 1:
 
         cqubit = qubits[0] + self._effective_measurements
         tqubit = qubits[1] + self._effective_measurements
@@ -178,7 +193,7 @@ def add_draw_operation(self, operation, qubits, noise=False, _current_sub_circui
 
         qubits = (cqubit, tqubit)
     else:
-        qubits += int(self._effective_measurements)
+        qubits[0] += int(self._effective_measurements)
 
         if self._measured_qubits != [] and qubits >= min(self._measured_qubits):
             qubits += len(self._measured_qubits)

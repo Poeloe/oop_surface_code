@@ -29,14 +29,11 @@ def init_density_matrix_first_qubit_ket_p(self):
     return density_matrices
 
 
-def init_density_matrix_bell_pair_state(self, amount_qubits=8, draw=True):
-    """ Realises init_type option 2. See class description for more info. """
+def init_density_matrix_bell_pair_state(self, bell_type=1, amount_qubits=8, draw=True):
+    """ Realises init_type option 2 or 3. See class description for more info. """
 
     density_matrices = []
-    bell_pair_rho = sp.csr_matrix([[1 / 2, 0, 0, 1 / 2],
-                                   [0, 0, 0, 0],
-                                   [0, 0, 0, 0],
-                                   [1 / 2, 0, 0, 1 / 2]])
+    bell_pair_rho = self._get_bell_state_by_type(bell_type)
 
     for i in range(0, self.num_qubits - amount_qubits):
         state = self._qubit_array[i]
@@ -54,7 +51,7 @@ def init_density_matrix_bell_pair_state(self, amount_qubits=8, draw=True):
 
 
 def init_density_matrix_ket_p_and_CNOTS(self):
-    """ Realises init_type option 3. See class description for more info. """
+    """ Realises init_type option 4. See class description for more info. """
 
     # Set ket_p as first qubit of the qubit array (mainly for proper drawing of the circuit)
     self._qubit_array[0] = ket_p
@@ -89,7 +86,6 @@ def init_parameters_to_dict(self):
                    'pg': self.pg,
                    'pn': self.pn,
                    'qubit_array': self._qubit_array,
-                   'density_matrices': self.density_matrices,
                    'qubit_density_matrix_lookup': self._qubit_density_matrix_lookup}
 
     return init_params

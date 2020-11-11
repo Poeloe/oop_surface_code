@@ -2,9 +2,9 @@ import os
 import scipy.sparse as sp
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
-from oopsc.superoperator.superoperator import SuperoperatorElement
+from circuit_simulation._superoperator.superoperator import SuperoperatorElement
 from itertools import combinations, product, combinations_with_replacement
-from termcolor import colored
+from circuit_simulation.termcolor.termcolor import colored
 import pandas as pd
 
 
@@ -39,6 +39,9 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         noiseless_density_matrix : sparse matrix
             The density matrix of the current system, but without noise
     """
+    if self.cut_off_time_reached:
+        qc = self._return_QC_object(8, 2)
+        return qc.get_combined_density_matrix([7, 5, 3, 1])[0]
     if stabilizer_protocol:
         return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error)
     if file_name is None:
@@ -61,15 +64,16 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
         if operation == "create_bell_pair":
             qc_noiseless.create_bell_pair(parameters[0], parameters[1], network_noise_type=parameters[4],
                                           bell_state_type=parameters[5])
-        if operation == "SWAP":
+        elif operation == "SWAP":
             qc_noiseless.SWAP(parameters[0], parameters[1])
-        elif operation == "apply_1_qubit_gate":
-            qc_noiseless.apply_1_qubit_gate(parameters[0], parameters[1])
-        elif operation == "apply_2_qubit_gate":
-            qc_noiseless.apply_2_qubit_gate(parameters[0], parameters[1], parameters[2])
+        elif operation == "apply_gate":
+            qc_noiseless.apply_gate(parameters[0], parameters[1], parameters[2])
         elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
             qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
+        else:
+            method = getattr(qc_noiseless, operation)
+            method(*parameters)
 
     qc_noiseless.draw_circuit()
 
@@ -94,16 +98,16 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
     """
     qc = self._return_QC_object(9, 2)
     qc.set_qubit_states({0: ket_p})
-    gate = Z_gate if proj_type == "Z" else X_gate
+    gate = CZ_gate if proj_type == "Z" else CNOT_gate
     for i in range(1, qc.num_qubits, 2):
-        qc.apply_2_qubit_gate(gate, 0, i)
+        qc.apply_gate(gate, cqubit=0, tqubit=i)
 
     qc.measure([0], outcome=0 if not measure_error else 1)
 
     return qc.get_combined_density_matrix([1])[0]
 
 
-def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
+def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
     """
         Method returns a list containing all the possible combinations of Pauli matrix gates
         that can be applied to the specified qubits.
@@ -131,7 +135,7 @@ def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
     gate_combinations = []
 
     for qubit in qubits:
-        _, _, rel_qubit, _ = self._get_qubit_relative_objects(qubit)
+        rel_qubit = qubits_matrix.index(qubit)
         gates = []
         for operation in operations:
             gates.append({operation.representation: self._create_1_qubit_gate(operation, rel_qubit,
@@ -141,7 +145,7 @@ def all_single_qubit_gate_possibilities(self, qubits, num_qubits):
     return list(product(*gate_combinations))
 
 
-def fuse_equal_config_up_to_permutation(superoperator, proj_type):
+def fuse_equal_config_up_to_permutation(superoperator):
     """
         Post-processing method for the superoperator which fuses similar Pauli-error configurations inside the
         superoperator up to permutation. This is done by sorting the error configurations and comparing them after.
@@ -188,10 +192,20 @@ def fuse_equal_config_up_to_permutation(superoperator, proj_type):
         lie = equal_supop_el[0].lie
         error_array = sorted(equal_supop_el[0].error_array)
         p = sum([el.p for el in equal_supop_el])
-        # say 'Z' is the proj_type, then IIZZ with ZZII and ZIIZ with IZZI are degenerate. Sum is halved
-        if error_array.count("I") == error_array.count(proj_type):
-            p = sum([el.p for el in equal_supop_el]) / 2
-        sorted_superoperator.append(SuperoperatorElement(p, lie, error_array))
+        error_density_matrix = [el.error_density_matrix for el in equal_supop_el if el.error_array == error_array]
+        error_density_matrix = error_density_matrix[0] if len(error_density_matrix) > 1 \
+            else equal_supop_el[0].error_density_matrix
+        degenerate_configurations = {"".join(el.error_array): el.error_density_matrix for el in equal_supop_el}
+
+        # If permutations are degenerate, like IIZZ with ZZII and ZIIZ with IZZI this should be taken into account.
+        # Sum is halved (considering degenerate pairs)
+        amount_degenerate = [el1.error_density_matrix_equals(el2) for el1, el2 in combinations(equal_supop_el,
+                                                                                               2)].count(True)
+        if amount_degenerate > 0:
+            p /= 2 if amount_degenerate == int(len(equal_supop_el)/2) else len(equal_supop_el)
+
+        sorted_superoperator.append(SuperoperatorElement(p, lie, error_array, error_density_matrix,
+                                                         degenerate_configurations))
 
     return sorted_superoperator
 
@@ -222,15 +236,17 @@ def remove_not_likely_configurations(superoperator):
         therefore only this configuration is kept in the returned superoperator. Effectively, this means that the
         [Z,Z,Z,X] is removed from the superoperator together with the according probability.
     """
-
     for supop_el_a, supop_el_b in combinations(superoperator, 2):
-        if supop_el_a.probability_lie_equals(supop_el_b):
-            if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") \
-                    and supop_el_b in superoperator:
+        if supop_el_a.any_error_density_matrix_equals(supop_el_b):
+            if supop_el_a.error_array.count("I") > supop_el_b.error_array.count("I") and supop_el_b in superoperator:
+                supop_el_a.fused_configs.update(supop_el_b.fused_configs)
                 superoperator.remove(supop_el_b)
-            elif supop_el_a.error_array.count("I") < supop_el_b.error_array.count("I") \
-                    and supop_el_a in superoperator:
+            elif supop_el_a.error_array.count("I") < supop_el_b.error_array.count("I") and supop_el_a in superoperator:
+                supop_el_b.fused_configs.update(supop_el_a.fused_configs)
                 superoperator.remove(supop_el_a)
+            elif supop_el_a in superoperator and supop_el_b in superoperator:
+                supop_el_b.p /= 2
+                supop_el_a.p /= 2
 
     return superoperator
 
@@ -265,7 +281,7 @@ def print_superoperator(self, superoperator, no_color):
         self.print()
 
 
-def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -283,83 +299,93 @@ def superoperator_to_csv(self, superoperator, proj_type, file_name=None, use_exa
             User specified file name that should be used to save the csv file with. The file will always be stored
             in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
     """
-    path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
-    if file_name is None:
-        self._print_lines.append("\nFile name was created manually and is: {}\n".format(path_to_file))
-    elif use_exact_path:
-        path_to_file = file_name + ".csv"
-    else:
-        path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
-        self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
+    if file_name:
+        if use_exact_path:
+            file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
+            path_to_file = file_name + ".csv"
+        else:
+            path_to_file = self._absolute_file_path_from_circuit(measure_error=False, kind="so")
+            file_name = file_name if not self.cut_off_time_reached else file_name + "_failed"
+            path_to_file = os.path.join(path_to_file.rpartition(os.sep)[0], file_name.replace(os.sep, "") + ".csv")
 
-    error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
-    error_index.extend(error_index)
-    lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
-
-    index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
-
-    if os.path.exists(path_to_file):
+    if file_name and os.path.exists(path_to_file):
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
+        error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
+        error_index.extend(error_index)
+        lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
+
+        index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
         columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts', 'total_duration']
+                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration']
         data = pd.DataFrame(0., index=index, columns=columns)
         data.iloc[0, data.columns.get_loc('pg')] = self.pg
         data.iloc[0, data.columns.get_loc('pm')] = self.pm
         data.iloc[0, data.columns.get_loc('pn')] = self.pn
-        data.iloc[0, data.columns.get_loc('p_dec')] = self.decoherence
+        data.iloc[0, data.columns.get_loc('p_dec')] = int(self.decoherence)
         data.iloc[0, data.columns.get_loc('p_bell')] = self.p_bell_success
         data.iloc[0, data.columns.get_loc('bell_dur')] = self.bell_creation_duration
         data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
-        data.iloc[0, data.columns.get_loc('lde_attempts')] = self._total_lde_attempts
-        data.iloc[0, data.columns.get_loc('total_duration')] = self.total_duration
+        data.iloc[0, data.columns.get_loc('lde_attempts')] = 0
+        data.iloc[0, data.columns.get_loc('total_duration')] = 0
+        data.iloc[0, data.columns.get_loc('avg_lde')] = 0
+        data.iloc[0, data.columns.get_loc('avg_duration')] = 0
+        data.iloc[0, data.columns.get_loc("written_to")] = 0
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
+    written_to = data.iloc[0, data.columns.get_loc("written_to")]
 
     for supop_el in superoperator:
-        error_array = "".join(sorted(supop_el.error_array))
-        current_index = (error_array, supop_el.lie)
-        if current_index in data.index:
-            current_value_stab = data.at[(error_array, supop_el.lie), stab_type]
-            new_value_stab = (current_value_stab + supop_el.p) / 2 if current_value_stab != 0. else supop_el.p
-            data.at[current_index, stab_type] = new_value_stab
-        else:
-            data.loc[current_index, stab_type] = supop_el.p
-
         # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
         # error_array
-        error_array = "".join(sorted(error_array.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))
-        current_index_opp = (error_array, supop_el.lie)
-        if current_index_opp in data.index:
-            current_value_opp_stab = data.at[(error_array, supop_el.lie), opp_stab]
-            new_value_opp_stab = (current_value_opp_stab + supop_el.p) / 2 if current_value_opp_stab != 0. \
-                else supop_el.p
-            data.at[current_index_opp, opp_stab] = new_value_opp_stab
-        else:
-            data.loc[current_index_opp, opp_stab] = supop_el.p
+        error_array_str = "".join(sorted(supop_el.error_array))
+        zipped_items = zip([error_array_str,
+                            "".join(sorted(error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))],
+                           [stab_type, opp_stab])
+        for error_array, current_stab_type in zipped_items:
+            current_index = (error_array, supop_el.lie)
+            if current_index in data.index:
+                current_value_stab = data.at[(error_array, supop_el.lie), current_stab_type]
+                new_value_stab = (current_value_stab * written_to + supop_el.p) / (written_to + 1) if \
+                    current_value_stab != 0. else supop_el.p / (written_to + 1)
+                data.at[current_index, current_stab_type] = new_value_stab
+            else:
+                data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
 
-    if 'total_duration' in data:
-        data.iloc[0, data.columns.get_loc("total_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] +
-                                                                self.total_duration) / 2
-    else:
-        data['total_duration'] = 0
-        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
-    if 'lde_attempts' in data:
-        data.iloc[0, data.columns.get_loc("lde_attempts")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] +
-                                                              self._total_lde_attempts) / 2
-    else:
-        data['lde_attempts'] = 0
-        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
     if 'written_to' in data:
         data.iloc[0, data.columns.get_loc("written_to")] += 1.0
     else:
         data['written_to'] = 0
         data.iloc[0, data.columns.get_loc("written_to")] = 1
 
+    if 'total_duration' in data:
+        data.iloc[0, data.columns.get_loc("total_duration")] += self.total_duration
+    else:
+        data['total_duration'] = 0
+        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
+
+    if 'avg_duration' in data:
+        data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
+                                                              data.iloc[0, data.columns.get_loc("written_to")])
+
+    if 'lde_attempts' in data:
+        data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
+    else:
+        data['lde_attempts'] = 0
+        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
+
+    if 'avg_lde' in data:
+        data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
+                                                         data.iloc[0, data.columns.get_loc("written_to")])
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]
 
-    data.to_csv(path_to_file, sep=';')
+    if file_name:
+        data.to_csv(path_to_file, sep=';')
+        self._print_lines.append("\nCSV file has been saved at: {}\n".format(path_to_file))
+
     if not self._thread_safe_printing:
         self.print()
+
+    return data

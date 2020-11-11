@@ -37,3 +37,4 @@ old_files/
 !gate_lookup_tables/
 !single_qubit_gates.pkl
 !two_qubit_gates.pkl
+gate_duration.txt

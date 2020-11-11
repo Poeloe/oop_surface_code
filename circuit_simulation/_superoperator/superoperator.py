@@ -71,8 +71,8 @@ class Superoperator:
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
         self.sup_op_elements_s = []
-        self.sup_op_elements_p_before_meas = []
-        self.sup_op_elements_s_before_meas = []
+        self.sup_op_elements_p2 = []
+        self.sup_op_elements_s2 = []
 
         # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
         self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
@@ -190,13 +190,13 @@ class Superoperator:
             the application is done after the measurement projection instead of before, which changes the original
             (first round) superoperator elements accordingly.
         """
-        self.sup_op_elements_p_before_meas = copy.deepcopy(self.sup_op_elements_p)
-        self.sup_op_elements_s_before_meas = copy.deepcopy(self.sup_op_elements_s)
+        self.sup_op_elements_p2 = copy.deepcopy(self.sup_op_elements_p)
+        self.sup_op_elements_s2 = copy.deepcopy(self.sup_op_elements_s)
 
-        for sup_op_el_p2, sup_op_el_s2 in zip(self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas):
-            if (sup_op_el_p2.error_array.count("Y") + sup_op_el_p2.error_array.count("X")) % 2 == 1:
+        for sup_op_el_p2, sup_op_el_s2 in zip(self.sup_op_elements_p2, self.sup_op_elements_s2):
+            if (sup_op_el_p2.error_array.count("I") + sup_op_el_p2.error_array.count("Z")) % 2 == 1:
                 sup_op_el_p2.lie = not sup_op_el_p2.lie
-            if (sup_op_el_s2.error_array.count("Y") + sup_op_el_s2.error_array.count("Z")) % 2 == 1:
+            if (sup_op_el_s2.error_array.count("I") + sup_op_el_s2.error_array.count("X")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
 
     def set_stabilizer_rounds(self, graph):
@@ -368,7 +368,10 @@ class SuperoperatorElement:
 
     @staticmethod
     def _csr_matrix_equal(a1, a2):
+        # Sort indices, such that equality does not fail because of this
+        a1.sort_indices()
+        a2.sort_indices()
         return (np.array_equal(a1.indptr, a2.indptr) and
                 np.array_equal(a1.indices, a2.indices) and
-                np.array_equal(a1.data, a2.data))
+                np.allclose(a1.data, a2.data))
 
