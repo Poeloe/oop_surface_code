@@ -21,7 +21,7 @@ def compose_parser():
                         '--protocol',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         nargs="*",
-                        choices=['monolithic', 'expedient', 'stringent'],
+                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure'],
                         type=str.lower,
                         default='monolithic')
     parser.add_argument('-s',
@@ -88,7 +88,7 @@ def compose_parser():
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=0)
+                        default=10e-3)
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',
@@ -155,8 +155,14 @@ def compose_parser():
                         action='store_false')
     parser.add_argument("-lde",
                         "--fixed_lde_attempts",
-                        help="Specify the path to the file that contains the gate duration times.",
+                        help="Specify the amount of fixed lde attempts before a pulse is sent to the nuclear qubits.",
                         type=int,
                         default=10000)
+    parser.add_argument("-n_type",
+                        "--network_noise_type",
+                        help="Specify the network noise type. ",
+                        type=int,
+                        choices=[1, 0],
+                        default=0)
 
     return parser
