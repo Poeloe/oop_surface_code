@@ -555,7 +555,13 @@ class QuantumCircuit:
                 applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
+        # First apply left over waiting time of all qubits in the form of decoherence
+        self._N_decoherence(decoherence=self.decoherence)
+
+        # Apply decoherence to the fastest sub circuits if applicable
         self._apply_decoherence_to_fastest_sub_circuits()
+
+        # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
             self.total_duration += self._current_sub_circuit.total_duration
             self._current_sub_circuit.set_ran()
@@ -563,6 +569,8 @@ class QuantumCircuit:
         self._draw_order.append(["LEVEL", self._current_sub_circuit.total_duration, self._current_sub_circuit])
         self._current_sub_circuit = None
 
+        # Used in case cut-off can be reached, this frees the methods that otherwise will be skipped due to cut-off
+        # reached.
         if total:
             self._circuit_operations_ended = True
 
@@ -653,7 +661,7 @@ class QuantumCircuit:
                 # If the cut-off time is reached, all remaining decoherence should be applied
                 qubits = sub_circuit.waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
                 self._increase_duration(longest_duration - sub_circuit.total_duration, [],
-                                        included_qubits=sub_circuit.waiting_qubits,
+                                        included_qubits=qubits,
                                         sub_circuit=sub_circuit, skip_check=True)
                 # Apply decoherence on all qubits (based on the waiting time)
                 self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
@@ -1821,8 +1829,8 @@ class QuantumCircuit:
     def _N_preparation(self, state, p_prep):
         return self._noise.noise_maps.N_preparation(state, p_prep)
 
-    def _N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=False):
-        self._noise.decoherence.N_decoherence(self, qubits, sub_circuit, sub_circuit_concurrent)
+    def _N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=False, decoherence=True):
+        self._noise.decoherence.N_decoherence(self, qubits, sub_circuit, sub_circuit_concurrent, decoherence)
 
     def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
         return self._noise.noise_maps.N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits,

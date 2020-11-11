@@ -128,11 +128,18 @@ def N_network(density_matrix, pn, network_noise_type):
             Amount of network noise present in the system.
         network_noise_type: int {0, 1}
             Type of network noise that is requested
+            Option 0:
+                (1-4/3*pn) * |Bell_ideal><Bell_ideal| + pn/3 * I
+            Option 1:
+                (1-pn) * |Bell_ideal><Bell_ideal| + pn * |11><11|
     """
-    if network_noise_type == 1:
+    if network_noise_type not in [0, 1]:
+        raise ValueError("Network noise type can only be 0 or 1, not {}".format(network_noise_type))
+
+    if network_noise_type == 0:
         return (1-(4/3)*pn) * density_matrix + pn/3 * sp.eye(4, 4, format='csr')
     else:
-        error_density = sp.lil_matrix(4, 4)
+        error_density = sp.lil_matrix((4, 4))
         error_density[3, 3] = 1
         return (1-pn) * density_matrix + pn * error_density
 
