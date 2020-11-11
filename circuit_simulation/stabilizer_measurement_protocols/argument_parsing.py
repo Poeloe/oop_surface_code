@@ -21,7 +21,7 @@ def compose_parser():
                         '--protocol',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         nargs="*",
-                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure'],
+                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'dyn_prot_14_1'],
                         type=str.lower,
                         default='monolithic')
     parser.add_argument('-s',

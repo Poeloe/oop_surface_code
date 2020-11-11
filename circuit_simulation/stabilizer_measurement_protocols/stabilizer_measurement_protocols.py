@@ -185,6 +185,108 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
     return (dataframe, cut_off_reached), print_lines
 
 
+def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    ghz_success = False
+    while not ghz_success:
+        pbar.reset() if pbar is not None else None
+
+        qc.start_sub_circuit("AB")
+        success_ab = False
+        while not success_ab:
+            qc.create_bell_pair(11, 8)
+            success_ab = qc.single_selection(CZ_gate, 10, 7, retry=False)
+            if not success_ab:
+                continue
+            success_ab2 = False
+            while not success_ab2:
+                qc.create_bell_pair(10, 7)
+                success_ab2 = qc.single_selection(CNOT_gate, 9, 6, retry=False)
+                if not success_ab2:
+                    continue
+            success_ab = qc.single_selection_var(CY_gate, CminY_gate, 10, 7, retry=False)
+
+        pbar.update(20) if pbar is not None else None
+
+        qc.start_sub_circuit("CD")
+        success_cd = False
+        while not success_cd:
+            qc.create_bell_pair(5, 2)
+            success_cd = qc.single_selection(CZ_gate, 4, 1, retry=False)
+            if not success_cd:
+                continue
+            success_cd2 = False
+            while not success_cd2:
+                qc.create_bell_pair(4, 1)
+                success_cd2 = qc.single_selection(CZ_gate, 3, 0, retry=False)
+                if not success_cd2:
+                    continue
+            success_cd = qc.single_selection(CNOT_gate, 4, 1, retry=False)
+
+        pbar.update(20) if pbar is not None else None
+
+        # Step 3-5 from Table D.1 (Thesis Naomi Nickerson)
+        qc.start_sub_circuit("AC")
+        # Return success (even parity measurement). If False (uneven), X-gate must be drawn at second single dot
+        success_1 = qc.single_dot(CZ_gate, 10, 4, parity_check=False)
+        qc.start_sub_circuit("BD")
+        ghz_success = qc.single_dot(CZ_gate, 7, 1, draw_X_gate=not success_1, retry=False)
+        if not ghz_success:
+            continue
+
+        pbar.update(20) if pbar is not None else None
+
+        # Step 6-8 from Table D.1 (Thesis Naomi Nickerson)
+        qc.start_sub_circuit("AC", forced_level=True)
+        ghz_success_1 = qc.single_dot(CZ_gate, 10, 4, retry=False)
+        qc.start_sub_circuit("BD")
+        ghz_success_2 = qc.single_dot(CZ_gate, 7, 1, retry=False)
+        if any([not ghz_success_1, not ghz_success_2]):
+            ghz_success = False
+            continue
+
+        pbar.update(20) if pbar is not None else None
+
+    # Step 9 from Table D.1 (Thesis Naomi Nickerson)
+    # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=8, tqubit=16)
+    qc.measure(8, probabilistic=False)
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=11, tqubit=18)
+    qc.measure(11, probabilistic=False)
+
+    qc.start_sub_circuit("D")
+    qc.apply_gate(operation, cqubit=2, tqubit=12)
+    qc.measure(2, probabilistic=False)
+
+    qc.start_sub_circuit("C")
+    qc.apply_gate(operation, cqubit=5, tqubit=14)
+    qc.measure(5, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    pbar.update(10) if pbar is not None else None
+
+    if draw_circuit:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([18, 16, 14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
+
+    pbar.update(10) if pbar is not None else None
+
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (dataframe, cut_off_reached), print_lines
+
+
 def stringent(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
     ghz_success = False
     while not ghz_success:
