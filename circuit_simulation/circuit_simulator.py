@@ -1541,12 +1541,13 @@ class QuantumCircuit:
                 success = True
 
     @skip_if_cut_off_reached
-    def single_selection_var(self, operation1, operation2, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
-                         pg=None, retry=True, user_operation=True):
+    def single_selection_var(self, operation1, operation2, bell_qubit_1, bell_qubit_2, create_bell_pair=True,
+                             measure=True, noise=None, pn=None, pm=None, pg=None, retry=True, user_operation=True):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         while not success:
-            self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
+            if create_bell_pair:
+                self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
             self.apply_gate(operation1, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
                             user_operation=user_operation)
             self.apply_gate(operation2, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
