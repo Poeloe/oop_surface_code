@@ -1267,6 +1267,7 @@ class QuantumCircuit:
 
         return new_density_matrix
 
+    @handle_none_parameters
     def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
@@ -2015,13 +2016,12 @@ class QuantumCircuit:
                                                                              pm=pm_1 if pm_1 is not None else pm)
                 # TODO: Measuring qubits other than the first qubit does not yet work properly. Must be looked at
                 else:
-                    print("\nWarning: The measurement of a qubit that is not the first qubit of the density matrix is "
-                          "slow. The order of the density matrix is: {}. You want to measure qubit {}.".format(
-                        qubits, qubit))
-                    prob_0, density_matrix_0 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=0)
-                    prob_1, density_matrix_1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=1)
+                    prob_0, density_matrix_0 = self._measure_arbitrary_qubit(density_matrix, num_qubits=rel_num_qubits,
+                                                                             qubit=rel_qubit, measure=0, noise=noise,
+                                                                             pm=pm_1 if pm_1 is not None else pm)
+                    prob_1, density_matrix_1 = self._measure_arbitrary_qubit(density_matrix, num_qubits=rel_num_qubits,
+                                                                             qubit=rel_qubit, measure=1, noise=noise,
+                                                                             pm=pm_1 if pm_1 is not None else pm)
 
                 probs = [prob_0, prob_1]
                 if round(sum(probs), 10) != 1 and pm_1 is None:
@@ -2040,15 +2040,8 @@ class QuantumCircuit:
                     prob, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
                                                                              noise=noise, pm=pm)
                 else:
-                    print("\nWarning: The measurement of a qubit that is not the first qubit of the density matrix is "
-                          "slow. The order of the density matrix is: {}. You want to measure qubit {}.".format(
-                           qubits, qubit))
-                    prob, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=outcome_new)
-                    if noise:
-                        _, wrong_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                            outcome=outcome_new ^ 1)
-                        new_density_matrix = (1 - pm) * new_density_matrix + pm * wrong_density_matrix
+                    prob, new_density_matrix = self._measure_arbitrary_qubit(density_matrix, rel_num_qubits, rel_qubit,
+                                                                             measure=outcome_new, noise=noise, pm=pm)
 
                 probs = [prob, prob]
                 if prob == 0:
@@ -2072,6 +2065,12 @@ class QuantumCircuit:
             self._increase_duration(self.measurement_duration, [qubit])
 
         return measurement_outcomes
+
+    def _measure_arbitrary_qubit(self, density_matrix, num_qubits, qubit, measure=0, noise=None, pm=0.,
+                                 no_normalisation=False):
+        return self._operations.measurement_operations.measure_arbitrary_qubit(self, density_matrix, num_qubits,
+                                                                               qubit, measure, noise, pm,
+                                                                               no_normalisation=no_normalisation)
 
     def _get_measurement_outcome_probability(self, qubit, density_matrix, outcome, keep_qubit=False):
         """
