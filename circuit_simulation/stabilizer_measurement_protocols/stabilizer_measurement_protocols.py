@@ -63,6 +63,8 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_sub_circuit("B", [18, 9, 8, 7])
         qc.define_sub_circuit("C", [16, 6, 5, 4, 3])
         qc.define_sub_circuit("D", [14, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
+
+        return qc
     else:
         qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
@@ -245,7 +247,7 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
                 success_cd2 = qc.single_selection(CZ_gate, 4, 0, retry=False)
                 if not success_cd2:
                     continue
-            success_cd = qc.single_selection_var(CNOT_gate, CNOT_gate, 5, 1, create_Bell_pair=False, retry=False)
+            success_cd = qc.single_selection_var(CNOT_gate, CNOT_gate, 5, 1, create_bell_pair=False, retry=False)
 
         pbar.update(20) if pbar is not None else None
 
@@ -253,10 +255,10 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
         success_ac = False
         while not success_ac:
             success_ac2 = False
+            qc.create_bell_pair(12, 5)
             while not success_ac2:
                 qc.create_bell_pair(11, 4)
                 success_ac2 = qc.single_selection(CNOT_gate, 10, 3, retry=False)
-            qc.create_bell_pair(12, 5)
             success_ac = qc.single_selection_var(CY_gate, CminY_gate, 11, 4, create_bell_pair=False, retry=False)
             if not success_ac:
                 continue
@@ -273,6 +275,8 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
         qc.start_sub_circuit("C")
         qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)
         qc.start_sub_circuit("AC")
+        # qc._thread_safe_printing = False
+        # qc.draw_circuit()
         measurement_outcomes = qc.measure([12, 5])
         success = measurement_outcomes[0] == measurement_outcomes[1]
         if not success:
@@ -285,22 +289,9 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
         qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1)
         qc.start_sub_circuit("BD")
         measurement_outcomes2 = qc.measure([8, 1], basis="Z")
-        success = measurement_outcomes2[0] == measurement_outcomes2[1]
-        if not success:
-            ghz_success = False
-            continue
+        ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
         pbar.update(20) if pbar is not None else None
         pbar.update(20) if pbar is not None else None
-
-    # Step 9 from Table D.1 (Thesis Naomi Nickerson)
-    # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=9, tqubit=18)
-    qc.measure(9, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=13, tqubit=20)
-    qc.measure(13, probabilistic=False)
 
     qc.start_sub_circuit("D")
     qc.apply_gate(operation, cqubit=2, tqubit=14)
@@ -309,6 +300,14 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
     qc.start_sub_circuit("C")
     qc.apply_gate(operation, cqubit=6, tqubit=16)
     qc.measure(6, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=9, tqubit=18)
+    qc.measure(9, probabilistic=False)
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=13, tqubit=20)
+    qc.measure(13, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
 
