@@ -193,7 +193,6 @@ class TestErrorImplementation(unittest.TestCase):
         np.testing.assert_array_almost_equal(compare_matrix.toarray(), density_matrix_noise.toarray(), 2)
         self.assertLess(fid, 0.6)
 
-
 class TestMeasurement(unittest.TestCase):
 
     def test_measure_first_N_qubit(self):
@@ -212,21 +211,6 @@ class TestMeasurement(unittest.TestCase):
 
         correct_result_2 = np.array([[0.5, -0.5], [-0.5, 0.5]])
         np.testing.assert_array_equal(qc2.total_density_matrix()[0].toarray(), correct_result_2)
-
-    def test_measure_arbitrary_qubit(self):
-        qc = QC(3, 0)
-        qc.H(2)
-        qc.measure(2, outcome=0, basis='Z')
-
-        correct_result = KP(CT(ket_0, ket_0), CT(ket_0, ket_0), CT(ket_0, ket_0))
-        np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), correct_result.toarray())
-
-        qc = QC(3, 0)
-        qc.H(2)
-        qc.measure(2, outcome=1, basis='Z')
-
-        correct_result = KP(CT(ket_0, ket_0), CT(ket_0, ket_0), CT(ket_1, ket_1))
-        np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), correct_result.toarray())
 
     def test_measure_first_qubit_plus_x_basis(self):
         qc = QC(2, 1)

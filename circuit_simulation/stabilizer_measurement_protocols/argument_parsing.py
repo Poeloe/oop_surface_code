@@ -88,7 +88,7 @@ def compose_parser():
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=0)
+                        default=10e-3)
     parser.add_argument('-c',
                         '--color',
                         help='Specifies if the console output should display color. Optional',

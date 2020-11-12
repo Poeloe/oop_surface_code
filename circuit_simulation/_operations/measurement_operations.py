@@ -31,32 +31,6 @@ def measurement_first_qubit(density_matrix, measure=0, noise=None, pm=0., no_nor
     density_matrix_0 = density_matrix[:int(d / 2), :int(d / 2)]
     density_matrix_1 = density_matrix[int(d / 2):, int(d / 2):]
 
-    prob, temp_density_matrix = _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1,
-                                                                       measure=measure, noise=noise, pm=pm,
-                                                                       no_normalisation=no_normalisation)
-
-    return prob, temp_density_matrix
-
-
-def measure_arbitrary_qubit(self, density_matrix, num_qubits, qubit, measure=0, noise=None, pm=None,
-                            no_normalisation=False):
-    measurement_operator_0 = sp.csr_matrix([[1, 0], [0, 0]])
-    measurement_operator_1 = sp.csr_matrix([[0, 0], [0, 1]])
-
-    full_operator_0 = self.create_1_qubit_gate(measurement_operator_0, qubit, num_qubits=num_qubits)
-    full_operator_1 = self.create_1_qubit_gate(measurement_operator_1, qubit, num_qubits=num_qubits)
-
-    density_matrix_0 = full_operator_0 * CT(density_matrix, full_operator_0)
-    density_matrix_1 = full_operator_1 * CT(density_matrix, full_operator_1)
-
-    prob, temp_density_matrix = _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1,
-                                                                       measure=measure, noise=noise, pm=pm,
-                                                                       no_normalisation=no_normalisation)
-
-    return prob, temp_density_matrix
-
-
-def _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1, measure, no_normalisation, noise, pm):
     if measure == 0 and noise:
         temp_density_matrix = (1 - pm) * density_matrix_0 + pm * density_matrix_1
     elif noise:
@@ -65,9 +39,11 @@ def _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1, m
         temp_density_matrix = density_matrix_0
     else:
         temp_density_matrix = density_matrix_1
+
     prob = trace(temp_density_matrix)
     if prob != 0 and not no_normalisation:
         temp_density_matrix = temp_density_matrix / prob
+
     return prob, temp_density_matrix
 
 
