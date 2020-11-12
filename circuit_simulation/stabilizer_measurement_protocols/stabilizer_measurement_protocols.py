@@ -21,7 +21,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             thread_safe_printing=True, bell_creation_duration=bell_pair_creation_duration,
                             measurement_duration=measurement_duration, single_qubit_gate_lookup=lkt_1q,
                             two_qubit_gate_lookup=lkt_2q, decoherence=decoherence, pulse_duration=pulse_duration)
-        return qc
+
     elif protocol == 'duo_structure':
         qc = QuantumCircuit(14, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
@@ -37,7 +37,6 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
 
         qc.define_sub_circuit("AB", [0, 1, 2, 6, 8, 3, 4, 5, 10, 12], waiting_qubits=[6, 8, 10, 12])
 
-        return qc
     else:
         qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
@@ -64,7 +63,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_sub_circuit("C", [14, 5, 4, 3])
         qc.define_sub_circuit("D", [12, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
 
-        return qc
+    return qc
 
 
 def monolithic(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
