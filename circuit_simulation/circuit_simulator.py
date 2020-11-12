@@ -1173,7 +1173,7 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
-                   user_operation=True):
+                   reverse=False, user_operation=True):
         """
             General method to apply a two- or single-qubit gate to the circuit.
 
@@ -1211,7 +1211,7 @@ class QuantumCircuit:
             noise = noise and not self.no_single_qubit_error
             new_density_matrix = self._apply_1_qubit_gate(gate, tqubit, conj=conj, noise=noise, pg=pg)
         elif type(gate) == TwoQubitGate:
-            new_density_matrix = self._apply_2_qubit_gate(gate, cqubit, tqubit, noise=noise, pg=pg)
+            new_density_matrix = self._apply_2_qubit_gate(gate, cqubit, tqubit, noise=noise, pg=pg, reverse=reverse)
         else:
             raise ValueError("Gate object was not recognised. Please create an gate object to apply this gate.")
 
@@ -1375,7 +1375,7 @@ class QuantumCircuit:
                                                 Two-Qubit Gate Methods
         ---------------------------------------------------------------------------------------------------------     
     """
-    def _apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None):
+    def _apply_2_qubit_gate(self, gate, cqubit, tqubit, noise=None, pg=None, reverse=False):
         """
             Applies a two qubit gate according to the specified control and target qubits. This will update the density
             matrix of the system accordingly.
@@ -1409,7 +1409,10 @@ class QuantumCircuit:
 
         # Check if cqubit and tqubit belong to the same density matrix. If not they should fuse
         if not cqubit_density_matrix is tqubit_density_matrix:
-            self._correct_lookup_for_two_qubit_gate(cqubit, tqubit)
+            if not reverse:
+                self._correct_lookup_for_two_qubit_gate(cqubit, tqubit)
+            else:
+                self._correct_lookup_for_two_qubit_gate(tqubit, cqubit)
 
         # Since density matrices are fused if not equal, it is only necessary to get the (new) density matrix from
         # the lookup table by either one of the qubit indices
