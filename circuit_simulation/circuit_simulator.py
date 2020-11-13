@@ -200,11 +200,13 @@ class QuantumCircuit:
         elif init_type == 1:
             self._init_density_matrix_first_qubit_ket_p()
         elif init_type == 2:
-            self._init_density_matrix_bell_pair_state()
+            self._init_density_matrix_maximally_entangled_state()
         elif init_type == 3:
-            self._init_density_matrix_bell_pair_state(bell_type=2)
+            self._init_density_matrix_maximally_entangled_state(bell_type=2)
         elif init_type == 4:
             self._init_density_matrix_ket_p_and_CNOTS()
+        elif init_type == 5:
+            self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
 
         self._init_parameters = self._init_parameters_to_dict()
 
@@ -228,13 +230,11 @@ class QuantumCircuit:
 
         return self._quantum_circuit_init.quantum_circuit_init.init_density_matrix_first_qubit_ket_p(self)
 
-    def _init_density_matrix_bell_pair_state(self, bell_type=1, amount_qubits=8, draw=True):
+    def _init_density_matrix_maximally_entangled_state(self, bell_type=1, amount_qubits=8, draw=True):
         """ Realises init_type option 2. See class description for more info. """
 
-        return self._quantum_circuit_init.quantum_circuit_init.init_density_matrix_bell_pair_state(self,
-                                                                                                   bell_type,
-                                                                                                   amount_qubits,
-                                                                                                   draw)
+        return self._quantum_circuit_init.quantum_circuit_init\
+            .init_density_matrix_maximally_entangled_state(self, bell_type, amount_qubits, draw)
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
         """ Realises init_type option 3. See class description for more info. """
@@ -448,7 +448,8 @@ class QuantumCircuit:
                                                 SubQuantumCircuit Methods
         ---------------------------------------------------------------------------------------------------------
     """
-    def define_sub_circuit(self, name, qubits, waiting_qubits=None, concurrent_sub_circuits=None, involved_nodes=None):
+    def define_sub_circuit(self, name, qubits=None, waiting_qubits=None, concurrent_sub_circuits=None,
+                           involved_nodes=None):
         """
             Define a sub circuit for the QuantumCircuit object. Sub circuits can be used to emulate concurrent
             circuits. This can be useful when working with decoherence or to obtain the concurrent circuit drawing
@@ -485,6 +486,11 @@ class QuantumCircuit:
             raise ValueError("involved_nodes either contains nodes that do not exist or it could not be derived from "
                              "the name of the sub circuit. involved_nodes list for sub circuit '{}' contained: {}"
                              .format(name, involved_nodes))
+        if qubits is None:
+            qubits = []
+            for node in involved_nodes:
+                copy_qubits = copy(self.nodes[node])
+                qubits.extend(copy_qubits)
 
         sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects, involved_nodes)
 
@@ -2117,7 +2123,7 @@ class QuantumCircuit:
     def get_superoperator(self, qubits, proj_type, *, stabilizer_protocol=False, save_noiseless_density_matrix=False,
                           combine=True, most_likely=True, print_to_console=True, file_name_noiseless=None,
                           file_name_measerror=None, no_color=False, csv_file_name=None,
-                          use_exact_path=False):
+                          use_exact_path=False, idle_data_qubit=False):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -2178,7 +2184,8 @@ class QuantumCircuit:
                                                                       proj_type=proj_type,
                                                                       save=save_noiseless_density_matrix,
                                                                       file_name=file_name_noiseless,
-                                                                      qubits=qubits)
+                                                                      qubits=qubits,
+                                                                      idle_data_qubit=idle_data_qubit)
         measerror_density_matrix = self._get_noiseless_density_matrix(measure_error=True,
                                                                       stabilizer_protocol=stabilizer_protocol,
                                                                       proj_type=proj_type,
@@ -2209,7 +2216,7 @@ class QuantumCircuit:
 
             operators = [list(applied_gate.keys())[0] for applied_gate in combination]
 
-            if fid_me != 0 and not self.cut_off_time_reached:
+            if fid_me != 0 and not self.cut_off_time_reached and not idle_data_qubit:
                 superoperator.append(SuperoperatorElement(fid_me, True, operators, me_error_density_matrix))
             if fid_no_me != 0:
                 superoperator.append(SuperoperatorElement(fid_no_me, False, operators, error_density_matrix))
@@ -2232,7 +2239,7 @@ class QuantumCircuit:
         return QuantumCircuit(num_qubits, init)
 
     def _get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
-                                      file_name=None, qubits=None):
+                                      file_name=None, qubits=None, idle_data_qubit=None):
         """
             Private method to calculate the noiseless variant of the density matrix.
             It traverses the operations on the system by the hand of the '_user_operation_order' attribute. If the
@@ -2268,7 +2275,8 @@ class QuantumCircuit:
                                                                                       measure_error,
                                                                                       save,
                                                                                       file_name,
-                                                                                      qubits=qubits)
+                                                                                      qubits=qubits,
+                                                                                      idle_data_qubit=idle_data_qubit)
 
     def _file_name_from_circuit(self, measure_error=False, general_name="circuit", extension=""):
         """
@@ -2614,9 +2622,9 @@ class QuantumCircuit:
         elif self._init_type == 1:
             self._init_density_matrix_first_qubit_ket_p()
         elif self._init_type == 2:
-            self._init_density_matrix_bell_pair_state()
+            self._init_density_matrix_maximally_entangled_state()
         elif self._init_type == 3:
-            self._init_density_matrix_bell_pair_state(bell_type=2)
+            self._init_density_matrix_maximally_entangled_state(bell_type=2)
         elif self._init_type == 4:
             self._init_density_matrix_ket_p_and_CNOTS()
 
