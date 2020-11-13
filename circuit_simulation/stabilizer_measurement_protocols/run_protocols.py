@@ -104,12 +104,16 @@ def main_threaded(*, it, workers, fn, **kwargs):
                                    if fn and os.path.exists(fn + ".csv") else None)
     total_superoperator_failed = (pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if
                                   fn and os.path.exists(fn + "_failed.csv") else None)
+    total_superoperator_idle = (pd.read_csv(fn + "_idle.csv", sep=';', index_col=[0, 1]) if
+                                  fn and os.path.exists(fn + "_idle.csv") else None)
 
     # Combine the superoperator results obtained for each worker
-    for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
+    for (superoperator_succeed, superoperator_failed, superoperator_idle), print_line in zip(superoperator_results,
+                                                                                             print_lines_results):
         total_superoperator_succeed = _combine_superoperator_dataframes(total_superoperator_succeed,
                                                                         superoperator_succeed)
         total_superoperator_failed = _combine_superoperator_dataframes(total_superoperator_failed, superoperator_failed)
+        total_superoperator_idle = _combine_superoperator_dataframes(total_superoperator_idle, superoperator_idle)
         print(*print_line)
 
     # Save superoperator dataframe to csv if exists and requested by user
@@ -117,12 +121,15 @@ def main_threaded(*, it, workers, fn, **kwargs):
         total_superoperator_succeed.to_csv(fn + ".csv", sep=';')
     if total_superoperator_failed is not None and fn:
         total_superoperator_failed.to_csv(fn + "_failed.csv", sep=';')
+    if total_superoperator_idle is not None and fn:
+        total_superoperator_idle.to_csv(fn + "_idle.csv", sep=';')
 
 
 def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate_duration_file=None,
          **kwargs):
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
+    supop_dataframe_idle = None
     total_print_lines = []
 
     # Progress bar initialisation
@@ -160,6 +167,11 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
         # Run the user requested protocol
         (supop_dataframe, cut_off), print_lines = protocol_method(qc, pbar=pbar, **protocol_args)
 
+        # Check if possible additional idle data qubit superoperator is present
+        if type(supop_dataframe) == list:
+            supop_dataframe_idle = _combine_superoperator_dataframes(supop_dataframe_idle, supop_dataframe[1])
+            supop_dataframe = supop_dataframe[0]
+
         # Fuse the superoperator dataframes obtained in each iteration
         if cut_off:
             supop_dataframe_failed = _combine_superoperator_dataframes(supop_dataframe_failed, supop_dataframe)
@@ -168,7 +180,7 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
 
         total_print_lines.extend(print_lines)
 
-    return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines
+    return (supop_dataframe_succeed, supop_dataframe_failed, supop_dataframe_idle), total_print_lines
 
 
 if __name__ == "__main__":
@@ -233,12 +245,17 @@ if __name__ == "__main__":
             main_threaded(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, lkt_1q=lkt_1q, lkt_2q=lkt_2q, fn=fn,
                           progress_bar=progress_bar, gate_duration_file=gate_duration_file, workers=workers, **args)
         else:
-            (dataframe, cut_off), print_lines = main(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                                                     progress_bar=progress_bar, lkt_1q=lkt_1q, lkt_2q=lkt_2q,
-                                                     gate_duration_file=gate_duration_file, **args)
+            (normal, cut_off, idle), print_lines = main(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                                                        progress_bar=progress_bar, lkt_1q=lkt_1q, lkt_2q=lkt_2q,
+                                                        gate_duration_file=gate_duration_file, **args)
             print(*print_lines)
-            if filename and not args['print_run_order'] and os.path.exists(fn + ".csv"):
-                dataframe = _combine_superoperator_dataframes(pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1]),
-                                                              dataframe)
-            if fn:
-                dataframe.to_csv(fn + ".csv", sep=';')
+
+            # Save the superoperator to the according csv files (options: normal, cut-off, idle)
+            if filename and not args['print_run_order']:
+                for result, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
+                    fn = fn + fn_add
+                    if os.path.exists(fn):
+                        result = _combine_superoperator_dataframes(pd.read_csv(fn, sep=';', index_col=[0, 1]),
+                                                                   result)
+                    if result is not None:
+                        result.to_csv(fn,  sep=';')

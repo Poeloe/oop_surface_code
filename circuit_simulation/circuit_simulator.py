@@ -195,18 +195,7 @@ class QuantumCircuit:
         self._current_sub_circuit = None
         self._circuit_operations_ended = False
 
-        if init_type == 0:
-            self._init_density_matrix()
-        elif init_type == 1:
-            self._init_density_matrix_first_qubit_ket_p()
-        elif init_type == 2:
-            self._init_density_matrix_maximally_entangled_state()
-        elif init_type == 3:
-            self._init_density_matrix_maximally_entangled_state(bell_type=2)
-        elif init_type == 4:
-            self._init_density_matrix_ket_p_and_CNOTS()
-        elif init_type == 5:
-            self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
+        self._init_density_matrix()
 
         self._init_parameters = self._init_parameters_to_dict()
 
@@ -223,7 +212,19 @@ class QuantumCircuit:
 
     def _init_density_matrix(self):
         """ Realises init_type option 0. See class description for more info. """
-        return self._quantum_circuit_init.quantum_circuit_init.init_density_matrix(self)
+        init_type = self._init_type
+        if init_type == 0:
+            self._quantum_circuit_init.quantum_circuit_init.init_density_matrix(self)
+        elif init_type == 1:
+            self._init_density_matrix_first_qubit_ket_p()
+        elif init_type == 2:
+            self._init_density_matrix_maximally_entangled_state()
+        elif init_type == 3:
+            self._init_density_matrix_maximally_entangled_state(bell_type=2)
+        elif init_type == 4:
+            self._init_density_matrix_ket_p_and_CNOTS()
+        elif init_type == 5:
+            self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
 
     def _init_density_matrix_first_qubit_ket_p(self):
         """ Realises init_type option 1. See class description for more info. """
@@ -2228,7 +2229,8 @@ class QuantumCircuit:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type, file_name=csv_file_name,
-                                                                   use_exact_path=use_exact_path)
+                                                                   use_exact_path=use_exact_path,
+                                                                   idle_data_qubit=idle_data_qubit)
 
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
@@ -2617,16 +2619,8 @@ class QuantumCircuit:
             for qubit in self.qubits.values():
                 qubit.reset_waiting_time()
 
-        if self._init_type == 0:
-            self._init_density_matrix()
-        elif self._init_type == 1:
-            self._init_density_matrix_first_qubit_ket_p()
-        elif self._init_type == 2:
-            self._init_density_matrix_maximally_entangled_state()
-        elif self._init_type == 3:
-            self._init_density_matrix_maximally_entangled_state(bell_type=2)
-        elif self._init_type == 4:
-            self._init_density_matrix_ket_p_and_CNOTS()
+        self._init_density_matrix()
+
 
     def __repr__(self):
         return "\nQuantumCircuit object containing {} qubits\n".format(self.num_qubits)

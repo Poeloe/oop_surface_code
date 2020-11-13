@@ -627,9 +627,9 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pba
     stab_rep = "Z" if operation == CZ_gate else "X"
     _, dataframe = qc.get_superoperator([30, 26, 22, 18], stab_rep, no_color=(not color),
                                         stabilizer_protocol=False, print_to_console=to_console, use_exact_path=True)
-    _, _ = qc.get_superoperator([28, 24, 20, 16], stab_rep, no_color=(not color),
-                                stabilizer_protocol=True, print_to_console=to_console, use_exact_path=True,
-                                idle_data_qubit=4)
+    _, dataframe_idle = qc.get_superoperator([28, 24, 20, 16], stab_rep, no_color=(not color),
+                                             stabilizer_protocol=True, print_to_console=to_console, use_exact_path=True,
+                                             idle_data_qubit=4)
 
     pbar.update(10) if pbar is not None else None
 
@@ -638,4 +638,4 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pba
     cut_off_reached = qc.cut_off_time_reached
     qc.reset()
 
-    return (dataframe, cut_off_reached), print_lines
+    return ([dataframe, dataframe_idle], cut_off_reached), print_lines
