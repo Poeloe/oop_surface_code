@@ -543,7 +543,7 @@ def duo_structure(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar,
     cut_off_reached = qc.cut_off_time_reached
     qc.reset()
 
-    return (None, cut_off_reached), print_lines
+    return (dataframe, cut_off_reached), print_lines
 
 
 def duo_structure_2(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):

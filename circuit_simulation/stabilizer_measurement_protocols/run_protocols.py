@@ -253,9 +253,8 @@ if __name__ == "__main__":
             # Save the superoperator to the according csv files (options: normal, cut-off, idle)
             if filename and not args['print_run_order']:
                 for result, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
-                    fn = fn + fn_add
-                    if os.path.exists(fn):
-                        result = _combine_superoperator_dataframes(pd.read_csv(fn, sep=';', index_col=[0, 1]),
-                                                                   result)
+                    fn_new = fn + fn_add
+                    existing_file = pd.read_csv(fn_new, sep=';', index_col=[0, 1]) if os.path.exists(fn_new) else None
+                    result = _combine_superoperator_dataframes(result, existing_file)
                     if result is not None:
-                        result.to_csv(fn,  sep=';')
+                        result.to_csv(fn_new,  sep=';')
