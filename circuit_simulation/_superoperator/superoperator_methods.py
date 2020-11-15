@@ -9,7 +9,7 @@ import pandas as pd
 
 
 def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
-                                  file_name=None, qubits=None):
+                                  file_name=None, qubits=None, idle_data_qubit=None):
     """
         Private method to calculate the noiseless variant of the density matrix.
         It traverses the operations on the system by the hand of the '_user_operation_order' attribute. If the
@@ -42,8 +42,12 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
     if self.cut_off_time_reached:
         qc = self._return_QC_object(8, 2)
         return qc.get_combined_density_matrix([7, 5, 3, 1])[0]
-    if stabilizer_protocol:
+    if stabilizer_protocol and not idle_data_qubit:
         return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error)
+    if idle_data_qubit:
+        init_type = 2 if idle_data_qubit == 4 else 5
+        return self._return_QC_object(idle_data_qubit*2, init_type).total_density_matrix()[0]
+
     if file_name is None:
         file_name = self._absolute_file_path_from_circuit(measure_error)
 
@@ -75,7 +79,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
             method = getattr(qc_noiseless, operation)
             method(*parameters)
 
-    qc_noiseless.draw_circuit()
+    # qc_noiseless.draw_circuit()
 
     if save:
         sp.save_npz(file_name, qc_noiseless.get_combined_density_matrix(qubits)[0])

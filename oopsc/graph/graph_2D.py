@@ -306,6 +306,70 @@ class toric(object):
                           measurement_errors=measurement_errors_s2,
                           GHZ_success=self.superoperator.GHZ_success)
 
+    def stabilizer_cycle_three_superoperators(self, z=0):
+        self.set_qubit_states_to_state_previous_layer(z)
+
+        second_round_p_sup = self.superoperator.additional_superoperators[0]['p_before_meas']
+        second_round_s_sup = self.superoperator.additional_superoperators[0]['s_before_meas']
+        idle_superoperator = self.superoperator.sup_op_elements_idle
+        second_round_p_stab_1 = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
+                                 if (divmod(i, self.size/2)[0] % 2) == 0]
+        second_round_p_stab_2 = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
+                                 if (divmod(i, self.size/2)[0] % 2) == 1]
+        second_round_s_stab_1 = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
+                                 if (divmod(i, self.size/2)[0] % 2) == 0]
+        second_round_s_stab_2 = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
+                                 if (divmod(i, self.size/2)[0] % 2) == 1]
+
+        # First apply error and measure plaquette stabilizers in two rounds
+        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
+                                                            self.superoperator.sup_op_elements_p_before_meas)
+        self.measure_stab(stabs=self.superoperator.stabs_p1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_p1,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # Second round is split in two, where half the round is measured and half the qubits gets idle error
+        meas_errors_p2_1, _ = self.superoperator_error(second_round_p_stab_1, second_round_p_sup)
+        _, _ = self.superoperator_error(second_round_p_stab_2, idle_superoperator)
+
+        self.measure_stab(stabs=second_round_p_stab_1,
+                          z=z,
+                          measurement_errors=meas_errors_p2_1,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # Second part round two, now the other half is measured and the other half gets idle error
+        _, _ = self.superoperator_error(second_round_p_stab_1, idle_superoperator)
+        meas_errors_p2_2, _ = self.superoperator_error(second_round_p_stab_2, second_round_p_sup)
+        self.measure_stab(stabs=second_round_p_stab_2,
+                          z=z,
+                          measurement_errors=meas_errors_p2_2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        # The apply error and measure star stabilizers in two rounds (same as above)
+        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
+                                                            self.superoperator.sup_op_elements_s_before_meas)
+        self.measure_stab(stabs=self.superoperator.stabs_s1[z],
+                          z=z,
+                          measurement_errors=measurement_errors_s1,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        meas_errors_s2_1, _ = self.superoperator_error(second_round_s_stab_1, second_round_s_sup)
+        _, _ = self.superoperator_error(second_round_s_stab_2, idle_superoperator)
+
+        self.measure_stab(stabs=second_round_s_stab_1,
+                          z=z,
+                          measurement_errors=meas_errors_s2_1,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+        _, _ = self.superoperator_error(second_round_s_stab_1, idle_superoperator)
+        meas_errors_s2_2, _ = self.superoperator_error(second_round_s_stab_2, second_round_s_sup)
+        self.measure_stab(stabs=second_round_s_stab_2,
+                          z=z,
+                          measurement_errors=meas_errors_s2_2,
+                          GHZ_success=self.superoperator.GHZ_success)
+
+
     def stabilizer_cycle_with_superoperator_naomi_order(self, z=0):
         """
             Method applies qubit and measurement errors to the qubits for the specified layer (z).

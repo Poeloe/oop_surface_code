@@ -8,7 +8,7 @@ import numpy as np
 
 class Superoperator:
 
-    def __init__(self, file_name, GHZ_success=1.1):
+    def __init__(self, file_name, GHZ_success=1.1, file_name_idle=None, additional_superoperators=None):
         """
             Superoperator(file_name, graph, GHZ_success=1.1)
 
@@ -57,7 +57,10 @@ class Superoperator:
         """
         self.file_name = file_name
         self.file_name = file_name.replace('.csv', '')
+        self.file_name_idle = file_name_idle.replace('.csv', '') if file_name_idle is not None else None
         self._path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
+        self._path_to_file_idle = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name_idle + ".csv") \
+                                  if file_name_idle is not None else None
         self.GHZ_success = GHZ_success
 
         self.pg = None
@@ -72,15 +75,28 @@ class Superoperator:
         # Filled by the _convert_error_list method
         self.sup_op_elements_p = []
         self.sup_op_elements_s = []
+        self.sup_op_elements_idle = []
         self.sup_op_elements_p_before_meas = []
         self.sup_op_elements_s_before_meas = []
+
+        self.additional_superoperators = {}
 
         # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
         self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
         # self._get_stabilizer_rounds(graph)
         self._convert_error_list()
-        self._convert_second_round_elements()
+        self._convert_idle_csv_file_to_superoperator()
+        self._convert_elements_to_before_projection()
+
+        # Convert additional superoperators if present
+        if additional_superoperators is not None:
+            for id, superoperator in enumerate(additional_superoperators):
+                path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", superoperator + ".csv")
+                p, s = self._create_superoperator_elements(path_to_file, set_attributes=False)
+                p_before_meas, s_before_meas = self._convert_elements_to_before_projection(p, s, to_attributes=False)
+                self.additional_superoperators[id] = {'p': p, 's': s,
+                                                      'p_before_meas': p_before_meas, 's_before_meas': s_before_meas}
 
     def __repr__(self):
         return "Superoperator ({})".format(self.file_name)
@@ -146,13 +162,34 @@ class Superoperator:
         self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
 
     def _convert_csv_file_to_superoperator(self):
-        with open(self._path_to_file) as file:
+        self.sup_op_elements_p, self.sup_op_elements_s = self._create_superoperator_elements()
+
+        self._check_sum_probabilities()
+
+        # Sort the entries such that the most likely entries will be listed first
+        self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
+        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
+
+    def _convert_idle_csv_file_to_superoperator(self):
+        if self._path_to_file_idle is None:
+            return
+        self.sup_op_elements_idle, _ = self._create_superoperator_elements(self._path_to_file_idle,
+                                                                           set_attributes=False)
+
+    def _create_superoperator_elements(self, path_to_file=None, set_attributes=True):
+        if path_to_file is None:
+            path_to_file = self._path_to_file
+
+        sup_op_elements_p = []
+        sup_op_elements_s = []
+
+        with open(path_to_file) as file:
             data_frame = pd.read_csv(file, sep=';', float_precision='round_trip', index_col=[0, 1])
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
-            if 'GHZ_success' in data_frame and self.GHZ_success == 1.1:
+            if 'GHZ_success' in data_frame and self.GHZ_success == 1.1 and set_attributes:
                 self.GHZ_success = float(str(data_frame.GHZ_success[0]).replace(',', '.').replace(" ", ""))
-            self._set_superoperator_attributes_if_present(data_frame)
+            self._set_superoperator_attributes_if_present(data_frame) if set_attributes else None
 
             for index, row in data_frame.iterrows():
                 error_config = list(index[0])
@@ -160,14 +197,10 @@ class Superoperator:
                 p_prob = row['p']
                 s_prob = row['s']
 
-                self.sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config))
-                self.sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config))
+                sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config))
+                sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config))
 
-        self._check_sum_probabilities()
-
-        # Sort the entries such that the most likely entries will be listed first
-        self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
-        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
+        return sup_op_elements_p, sup_op_elements_s
 
     def _set_superoperator_attributes_if_present(self, data_frame):
         attributes = inspect.getmembers(self, lambda a:not(inspect.isroutine(a)))
@@ -188,21 +221,31 @@ class Superoperator:
                 .format(sum(self.sup_op_elements_p), 1.0 - sum(self.sup_op_elements_p),
                         sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
 
-    def _convert_second_round_elements(self):
+    def _convert_elements_to_before_projection(self, sup_op_elements_p=None, sup_op_elements_s=None,
+                                               to_attributes=True):
         """
-            This method creates the second round superoperator elements from the first round of superoperator elements.
-            As described in Naomi Nickerson's PhD Thesis, this second round superoperator elements are necessary since
-            the application is done after the measurement projection instead of before, which changes the original
-            (first round) superoperator elements accordingly.
+            This method creates the superoperator elements when superoperator is applied before measurement projection.
+            As described in Naomi Nickerson's PhD Thesis, this is necessary when error is applied before measurement
+            projection instead of after, which changes the original superoperator elements accordingly.
         """
-        self.sup_op_elements_p_before_meas = copy.deepcopy(self.sup_op_elements_p)
-        self.sup_op_elements_s_before_meas = copy.deepcopy(self.sup_op_elements_s)
+        if sup_op_elements_s is sup_op_elements_p is None:
+            sup_op_elements_p = self.sup_op_elements_p
+            sup_op_elements_s = self.sup_op_elements_s
 
-        for sup_op_el_p2, sup_op_el_s2 in zip(self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas):
+        sup_op_elements_p_before_meas = copy.deepcopy(sup_op_elements_p)
+        sup_op_elements_s_before_meas = copy.deepcopy(sup_op_elements_s)
+
+        for sup_op_el_p2, sup_op_el_s2 in zip(sup_op_elements_p_before_meas, sup_op_elements_s_before_meas):
             if (sup_op_el_p2.error_array.count("Y") + sup_op_el_p2.error_array.count("X")) % 2 == 1:
                 sup_op_el_p2.lie = not sup_op_el_p2.lie
             if (sup_op_el_s2.error_array.count("Y") + sup_op_el_s2.error_array.count("Z")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
+
+        if to_attributes:
+            self.sup_op_elements_p_before_meas = copy.deepcopy(sup_op_elements_p_before_meas)
+            self.sup_op_elements_s_before_meas = copy.deepcopy(sup_op_elements_s_before_meas)
+
+        return sup_op_elements_p_before_meas, sup_op_elements_s_before_meas
 
     def set_stabilizer_rounds(self, graph):
         """

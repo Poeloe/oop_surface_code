@@ -29,7 +29,7 @@ def init_density_matrix_first_qubit_ket_p(self):
     return density_matrices
 
 
-def init_density_matrix_bell_pair_state(self, bell_type=1, amount_qubits=8, draw=True):
+def init_density_matrix_maximally_entangled_state(self, bell_type=1, amount_qubits=8, draw=True):
     """ Realises init_type option 2 or 3. See class description for more info. """
 
     density_matrices = []

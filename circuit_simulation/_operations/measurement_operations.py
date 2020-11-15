@@ -31,6 +31,32 @@ def measurement_first_qubit(density_matrix, measure=0, noise=None, pm=0., no_nor
     density_matrix_0 = density_matrix[:int(d / 2), :int(d / 2)]
     density_matrix_1 = density_matrix[int(d / 2):, int(d / 2):]
 
+    prob, temp_density_matrix = _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1,
+                                                                       measure=measure, noise=noise, pm=pm,
+                                                                       no_normalisation=no_normalisation)
+
+    return prob, temp_density_matrix
+
+
+def measure_arbitrary_qubit(self, density_matrix, num_qubits, qubit, measure=0, noise=None, pm=None,
+                            no_normalisation=False):
+    measurement_operator_0 = sp.csr_matrix([[1, 0], [0, 0]])
+    measurement_operator_1 = sp.csr_matrix([[0, 0], [0, 1]])
+
+    full_operator_0 = self.create_1_qubit_gate(measurement_operator_0, qubit, num_qubits=num_qubits)
+    full_operator_1 = self.create_1_qubit_gate(measurement_operator_1, qubit, num_qubits=num_qubits)
+
+    density_matrix_0 = full_operator_0 * CT(density_matrix, full_operator_0)
+    density_matrix_1 = full_operator_1 * CT(density_matrix, full_operator_1)
+
+    prob, temp_density_matrix = _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1,
+                                                                       measure=measure, noise=noise, pm=pm,
+                                                                       no_normalisation=no_normalisation)
+
+    return prob, temp_density_matrix
+
+
+def _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1, measure, no_normalisation, noise, pm):
     if measure == 0 and noise:
         temp_density_matrix = (1 - pm) * density_matrix_0 + pm * density_matrix_1
     elif noise:
@@ -39,11 +65,9 @@ def measurement_first_qubit(density_matrix, measure=0, noise=None, pm=0., no_nor
         temp_density_matrix = density_matrix_0
     else:
         temp_density_matrix = density_matrix_1
-
     prob = trace(temp_density_matrix)
     if prob != 0 and not no_normalisation:
         temp_density_matrix = temp_density_matrix / prob
-
     return prob, temp_density_matrix
 
 
@@ -77,15 +101,19 @@ def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qub
             Outcome for which the probability and resulting density matrix should be calculated
     """
     d = density_matrix.shape[0]
-    dimension_block = int(d / (2 ** (qubit + 1)))
+    # Dimension of the chess pattern tile in the density matrix that contain values of the to be measure qubit
+    dim_tile = int(d / (2 ** (qubit + 1)))
+
+    # Get the non zero rows and columns of the sparse matrix.
     non_zero_rows = density_matrix.nonzero()[0]
     non_zero_columns = density_matrix.nonzero()[1]
 
+    # Keeps the qubit in the density matrix. It is probably faster to use the measurement operators method for this
     if keep_qubit:
         new_density_matrix = sp.lil_matrix(copy.copy(density_matrix))
-        start = 0 if outcome == 1 else dimension_block
-        rows_columns_to_zero = [i+j for i in range(start, d, dimension_block * 2)
-                                for j in range(dimension_block)]
+        start = 0 if outcome == 1 else dim_tile
+        rows_columns_to_zero = [i+j for i in range(start, d, dim_tile * 2)
+                                for j in range(dim_tile)]
         non_zero_rows_unique = np.array(list(set(rows_columns_to_zero).intersection(non_zero_rows)))
         non_zero_columns_unique = np.array(list(set(rows_columns_to_zero).intersection(non_zero_columns)))
         if non_zero_columns_unique.size != 0:
@@ -99,30 +127,38 @@ def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qub
 
         new_density_matrix = sp.csr_matrix(new_density_matrix)
     else:
+        # Create the new matrix that will be the resulting density matrix after the measurement (without the
+        # measured qubit) which will be half the size of the original density matrix
         new_density_matrix = sp.lil_matrix((int(d/2), int(d/2)), dtype=density_matrix.dtype)
-        start = 0 if outcome == 0 else dimension_block
-        surviving_columns_rows = [i+j for i in range(start, d, dimension_block * 2)
-                                  for j in range(dimension_block)]
+
+        # Start of the chess pattern. If 0 outcome is measured, one needs to keep the 'white' tiles of the chess
+        # board. When 1 is measured one needs the 'black' tiles.
+        start = 0 if outcome == 0 else dim_tile
+
+        # Find the rows in the density matrix that are kept, keeping the chess pattern and dimension of the tiles
+        # into account
+        surviving_columns_rows = [i+j for i in range(start, d, dim_tile * 2) for j in range(dim_tile)]
+
+        # Get the rows and columns, that contain non-zero elements, that intersect with the rows and columns of the
+        # tiles that should be kept
         non_zero_rows_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_rows)))
         non_zero_columns_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_columns)))
+
         if non_zero_columns_unique.size != 0:
             for row in non_zero_rows_unique:
-                if (outcome == 0 and ((row/dimension_block) % 2 == 0)) or \
-                   (outcome == 1 and ((row/dimension_block) % 2 == 1)):
-                    new_row = int(row/2) if row not in [i for i in range(dimension_block)] else row
-                else:
-                    new_row = int(row/2) + (row % 2)
+                # Each row and column should shift, since the density matrix is half the size. This collapse is equal
+                # for outcome=0 to removing all the black tiles of the chess pattern and connecting the white tiles
+                # after. For outcome=1, this is the same but then removing the white tiles.
+                multiplier = divmod(row, dim_tile*2)[0] if outcome == 0 else divmod(row, dim_tile*2)[0] + 1
+                new_row = row - (multiplier * dim_tile) if multiplier > 0 else row
 
                 column_indices = [i for i, e in enumerate(non_zero_rows) if e == row]
                 valid_columns = [c for c in non_zero_columns[column_indices] if c in surviving_columns_rows]
                 new_columns = []
                 for column in valid_columns:
-                    if (outcome == 0 and ((column/dimension_block) % 2 == 0)) or \
-                       (outcome == 1 and ((column/dimension_block) % 2 == 1)):
-                        new_columns.append(int(column / 2) if column not in [i for i in range(dimension_block)] else
-                                           column)
-                    else:
-                        new_columns.append(int(column / 2) + (column % 2))
+                    multiplier = (divmod(column, dim_tile*2)[0] if outcome == 0 else divmod(column, dim_tile*2)[0] + 1)
+                    new_columns.append(column - (multiplier * dim_tile) if multiplier > 0 else column)
+
                 new_density_matrix[new_row, new_columns] = density_matrix[row, valid_columns]
 
     prob = trace(new_density_matrix)
