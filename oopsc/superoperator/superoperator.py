@@ -98,7 +98,7 @@ class Superoperator:
 
     def _csv_to_superoperator(self, path_to_file=None, set_attributes=False, check_sum=False):
         if path_to_file is None:
-            return
+            return None, None
 
         reader = pd.read_csv(path_to_file, sep=";", float_precision='round_trip')
 
