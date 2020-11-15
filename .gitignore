@@ -35,6 +35,8 @@ cartesiusdata
 !expedient*.csv
 !stringent*.csv
 !monolithic*.csv
+!duo_structure*.csv
+!idle.csv
 test_scripts/
 old_files/
 !gate_lookup_tables/
