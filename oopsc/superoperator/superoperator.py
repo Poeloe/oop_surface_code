@@ -72,31 +72,24 @@ class Superoperator:
         self.ts = None
         self.p_bell = None
 
-        # Filled by the _convert_error_list method
-        self.sup_op_elements_p = []
-        self.sup_op_elements_s = []
-        self.sup_op_elements_idle = []
-        self.sup_op_elements_p_before_meas = []
-        self.sup_op_elements_s_before_meas = []
-
-        self.additional_superoperators = {}
-
-        # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
-        self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
-
-        # self._get_stabilizer_rounds(graph)
-        self._convert_error_list()
-        self._convert_idle_csv_file_to_superoperator()
-        self._convert_elements_to_before_projection()
+        self.sup_op_elements_p, self.sup_op_elements_s = self._csv_to_superoperator(path_to_file=self._path_to_file,
+                                                                                    check_sum=True, set_attributes=True)
+        self.sup_op_elements_idle = self._csv_to_superoperator(path_to_file=self._path_to_file_idle)[0]
+        self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas = self\
+            ._convert_elements_to_before_projection()
 
         # Convert additional superoperators if present
+        self.additional_superoperators = {}
         if additional_superoperators is not None:
             for id, superoperator in enumerate(additional_superoperators):
                 path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", superoperator + ".csv")
-                p, s = self._create_superoperator_elements(path_to_file, set_attributes=False)
-                p_before_meas, s_before_meas = self._convert_elements_to_before_projection(p, s, to_attributes=False)
+                p, s = self._csv_to_superoperator(path_to_file)
+                p_before_meas, s_before_meas = self._convert_elements_to_before_projection(p, s)
                 self.additional_superoperators[id] = {'p': p, 's': s,
                                                       'p_before_meas': p_before_meas, 's_before_meas': s_before_meas}
+
+        # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
+        self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
     def __repr__(self):
         return "Superoperator ({})".format(self.file_name)
@@ -104,7 +97,50 @@ class Superoperator:
     def __str__(self):
         return self.__repr__()
 
-    def _convert_error_list(self):
+    def _csv_to_superoperator(self, path_to_file=None, set_attributes=False, check_sum=False):
+        if path_to_file is None:
+            return
+
+        reader = pd.read_csv(path_to_file, sep=";", float_precision='round_trip')
+
+        if 's' in reader:
+            sup_op_elements_p, sup_op_elements_s = self._get_elements_superoperator(
+                path_to_file=path_to_file, set_attributes=set_attributes)
+        else:
+            sup_op_elements_p, sup_op_elements_s = self._get_elements_superoperator_old(
+                path_to_file=path_to_file, set_attributes=set_attributes)
+
+        if check_sum:
+            self._check_sum_probabilities(sup_op_elements_p, sup_op_elements_s)
+
+        sup_op_elements_p = sorted(sup_op_elements_p, reverse=True)
+        sup_op_elements_s = sorted(sup_op_elements_s, reverse=True)
+
+        return sup_op_elements_p, sup_op_elements_s
+
+    def _get_elements_superoperator(self, path_to_file=None, set_attributes=True):
+        sup_op_elements_p = []
+        sup_op_elements_s = []
+        with open(path_to_file) as file:
+            data_frame = pd.read_csv(file, sep=';', float_precision='round_trip', index_col=[0, 1])
+
+            # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
+            if 'GHZ_success' in data_frame and self.GHZ_success == 1.1 and set_attributes:
+                self.GHZ_success = float(str(data_frame.GHZ_success[0]).replace(',', '.').replace(" ", ""))
+            self._set_superoperator_attributes_if_present(data_frame) if set_attributes else None
+
+            for index, row in data_frame.iterrows():
+                error_config = list(index[0])
+                lie = index[1]
+                p_prob = row['p']
+                s_prob = row['s']
+
+                sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config))
+                sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config))
+
+        return sup_op_elements_p, sup_op_elements_s
+
+    def _get_elements_superoperator_old(self, path_to_file, set_attributes=False):
         """
             Retrieves the list of SuperoperatorElements for both the stabilizer types from the supplied csv file
             name.
@@ -133,17 +169,16 @@ class Superoperator:
             0.9509;     0    ;  IIII   ;    0.950 ;    0    ;   IIII   ;    0.99       ;  0.01;   0.01;  0.1;
             0.0384;     0    ;  IIIX   ;    0.038 ;    0    ;   IIIX   ;               ;      ;       ;      ;
         """
-        with open(self._path_to_file) as file:
+        sup_op_elements_p = []
+        sup_op_elements_s = []
+        with open(path_to_file) as file:
             reader = pd.read_csv(file, sep=";", float_precision='round_trip')
-
-            if 's' in reader:
-                self._convert_csv_file_to_superoperator()
-                return
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
             if 'GHZ_success' in reader and self.GHZ_success == 1.1:
                 self.GHZ_success = float(str(reader.GHZ_success[0]).replace(',', '.').replace(" ", ""))
-            self._set_superoperator_attributes_if_present(reader)
+
+            self._set_superoperator_attributes_if_present(reader) if set_attributes else None
 
             for i in range(len(list(reader.p_prob))):
                 # Do some parsing operations on the entries to ensure proper form
@@ -152,53 +187,8 @@ class Superoperator:
                 p_error = [ch for ch in reader.p_error[i].replace(" ", "")]
                 s_error = [ch for ch in reader.s_error[i].replace(" ", "")]
 
-                self.sup_op_elements_p.append(SuperoperatorElement(p_prob, bool(int(reader.p_lie[i])), p_error))
-                self.sup_op_elements_s.append(SuperoperatorElement(s_prob, bool(int(reader.s_lie[i])), s_error))
-
-        self._check_sum_probabilities()
-
-        # Sort the entries such that the most likely entries will be listed first
-        self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
-        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
-
-    def _convert_csv_file_to_superoperator(self):
-        self.sup_op_elements_p, self.sup_op_elements_s = self._create_superoperator_elements()
-
-        self._check_sum_probabilities()
-
-        # Sort the entries such that the most likely entries will be listed first
-        self.sup_op_elements_p = sorted(self.sup_op_elements_p, reverse=True)
-        self.sup_op_elements_s = sorted(self.sup_op_elements_s, reverse=True)
-
-    def _convert_idle_csv_file_to_superoperator(self):
-        if self._path_to_file_idle is None:
-            return
-        self.sup_op_elements_idle, _ = self._create_superoperator_elements(self._path_to_file_idle,
-                                                                           set_attributes=False)
-
-    def _create_superoperator_elements(self, path_to_file=None, set_attributes=True):
-        if path_to_file is None:
-            path_to_file = self._path_to_file
-
-        sup_op_elements_p = []
-        sup_op_elements_s = []
-
-        with open(path_to_file) as file:
-            data_frame = pd.read_csv(file, sep=';', float_precision='round_trip', index_col=[0, 1])
-
-            # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
-            if 'GHZ_success' in data_frame and self.GHZ_success == 1.1 and set_attributes:
-                self.GHZ_success = float(str(data_frame.GHZ_success[0]).replace(',', '.').replace(" ", ""))
-            self._set_superoperator_attributes_if_present(data_frame) if set_attributes else None
-
-            for index, row in data_frame.iterrows():
-                error_config = list(index[0])
-                lie = index[1]
-                p_prob = row['p']
-                s_prob = row['s']
-
-                sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config))
-                sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config))
+                sup_op_elements_p.append(SuperoperatorElement(p_prob, bool(int(reader.p_lie[i])), p_error))
+                sup_op_elements_s.append(SuperoperatorElement(s_prob, bool(int(reader.s_lie[i])), s_error))
 
         return sup_op_elements_p, sup_op_elements_s
 
@@ -211,18 +201,17 @@ class Superoperator:
             if a in data_frame:
                 setattr(self, a, round(float(str(data_frame[a][0]).replace(",", ".").replace(" ", "")), 9))
 
-    def _check_sum_probabilities(self):
+    def _check_sum_probabilities(self, sup_op_elements_p, sup_op_elements_s):
         # Check if the probabilities add up to 1 to ensure a valid decomposition
-        if round(sum(self.sup_op_elements_p), 4) != 1.0 or round(sum(self.sup_op_elements_s), 4) != 1.0:
+        if round(sum(sup_op_elements_p), 4) != 1.0 or round(sum(sup_op_elements_s), 4) != 1.0:
             raise ValueError(
                 "Expected joint probabilities of the superoperator to add up to one, instead it was {} for"
                 "the plaquette errors (difference = {}) and {} for the star errors (difference = {}). "
                 "Check your superoperator csv."
-                .format(sum(self.sup_op_elements_p), 1.0 - sum(self.sup_op_elements_p),
-                        sum(self.sup_op_elements_s), 1.0 - sum(self.sup_op_elements_s)))
+                .format(sum(sup_op_elements_p), 1.0 - sum(sup_op_elements_p),
+                        sum(sup_op_elements_s), 1.0 - sum(sup_op_elements_s)))
 
-    def _convert_elements_to_before_projection(self, sup_op_elements_p=None, sup_op_elements_s=None,
-                                               to_attributes=True):
+    def _convert_elements_to_before_projection(self, sup_op_elements_p=None, sup_op_elements_s=None):
         """
             This method creates the superoperator elements when superoperator is applied before measurement projection.
             As described in Naomi Nickerson's PhD Thesis, this is necessary when error is applied before measurement
@@ -240,10 +229,6 @@ class Superoperator:
                 sup_op_el_p2.lie = not sup_op_el_p2.lie
             if (sup_op_el_s2.error_array.count("Y") + sup_op_el_s2.error_array.count("Z")) % 2 == 1:
                 sup_op_el_s2.lie = not sup_op_el_s2.lie
-
-        if to_attributes:
-            self.sup_op_elements_p_before_meas = copy.deepcopy(sup_op_elements_p_before_meas)
-            self.sup_op_elements_s_before_meas = copy.deepcopy(sup_op_elements_s_before_meas)
 
         return sup_op_elements_p_before_meas, sup_op_elements_s_before_meas
 
