@@ -53,7 +53,7 @@ def N_dephasing_channel(self, tqubit, density_matrix, num_qubits, p):
     return (1 - p) * density_matrix + p * (Z_gate_full * density_matrix * Z_gate_full)
 
 
-def N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times=1):
+def N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times=1, SWAP=False):
     """
         Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -71,7 +71,12 @@ def N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times=1
             Density matrix to which the noise should be applied to.
         num_qubits : int
             Number of qubits of which the density matrix is composed.
+        times : int
+            Amount of application of the noise to the density matrix.
+        SWAP : bool
+            If used for the efficient swap gate, then an additional pre factor is necessary (two qubit gate error)
     """
+    factor = 1 if not SWAP else 4/5
     x_full = self._create_1_qubit_gate(X_gate, tqubit, num_qubits=num_qubits)
     z_full = self._create_1_qubit_gate(Z_gate, tqubit, num_qubits=num_qubits)
     y_full = self._create_1_qubit_gate(Y_gate, tqubit, num_qubits=num_qubits)
@@ -82,11 +87,11 @@ def N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times=1
         for gate in gates:
             # No CT used (so no 'A * CT(rho, A)' for speed-up), since X, Y and Z gates are symmetric
             summed_matrix += gate * (density_matrix * gate)
-        density_matrix = (1-pg) * density_matrix + (pg/3) * summed_matrix
+        density_matrix = (1-factor*pg) * density_matrix + factor*(pg/3) * summed_matrix
     return density_matrix
 
 
-def N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits):
+def N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits, times=1):
     """
         Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -108,14 +113,16 @@ def N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits):
             Density matrix to which the noise should be applied to.
         num_qubits : int
             Number of qubits of which the density matrix is composed.
+        times : int
+            Amount of times the error should be applied to the density matrix
     """
-    new_density_matrix = ((1 - pg) * density_matrix +
-                                       (pg / 15) * _double_sum_pauli_error(self,
-                                                                           cqubit,
-                                                                           tqubit,
-                                                                           density_matrix,
-                                                                           num_qubits=num_qubits))
-    return new_density_matrix
+    for _ in range(times):
+        density_matrix = ((1 - pg) * density_matrix + (pg / 15) * _double_sum_pauli_error(self,
+                                                                                          cqubit,
+                                                                                          tqubit,
+                                                                                          density_matrix,
+                                                                                          num_qubits=num_qubits))
+    return density_matrix
 
 
 def N_network(density_matrix, pn, network_noise_type):

@@ -830,9 +830,11 @@ class QuantumCircuit:
             self._uninitialised_qubits.extend(qubits)
             self._uninitialised_qubits = list(set(self._uninitialised_qubits))
         if update_type.lower() == 'swap':
+            # Get the initialisation state of the qubits that are swapped
             qubit_1_state = qubits[0] in self._uninitialised_qubits
             qubit_2_state = qubits[1] in self._uninitialised_qubits
 
+            # If the initialisation state of the qubits that are swapped is different, then this should be swapped too
             if qubit_1_state != qubit_2_state:
                 uninitialised_qubit = [qubit_1_state, qubit_2_state].index(True)
                 index = self._uninitialised_qubits.index(qubits[uninitialised_qubit])
@@ -1274,6 +1276,7 @@ class QuantumCircuit:
 
         return new_density_matrix
 
+    @handle_none_parameters
     def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
@@ -1434,8 +1437,9 @@ class QuantumCircuit:
         new_density_matrix = two_qubit_gate.dot(CT(density_matrix, two_qubit_gate))
 
         if noise:
+            times = 2 if gate.name.lower() == 'swap' else 1
             new_density_matrix = self._N_two_qubit_gate(pg, rel_cqubit, rel_tqubit, new_density_matrix,
-                                                        num_qubits=rel_num_qubits)
+                                                        num_qubits=rel_num_qubits, times=times)
 
         return new_density_matrix
 
@@ -1779,7 +1783,7 @@ class QuantumCircuit:
         ---------------------------------------------------------------------------------------------------------  
     """
 
-    def _N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times=1):
+    def _N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times=1, SWAP=False):
         """
             Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -1798,9 +1802,9 @@ class QuantumCircuit:
             num_qubits : int
                 Number of qubits of which the density matrix is composed.
         """
-        return self._noise.noise_maps.N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times)
+        return self._noise.noise_maps.N_depolarising_channel(self, pg, tqubit, density_matrix, num_qubits, times, SWAP)
 
-    def _N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits):
+    def _N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits, times=1):
         """
             Private method to apply noise to the single qubit gates. This is done according to the equation
 
@@ -1821,7 +1825,7 @@ class QuantumCircuit:
             num_qubits : int
                 Number of qubits of which the density matrix is composed.
         """
-        return self._noise.noise_maps.N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits)
+        return self._noise.noise_maps.N_two_qubit_gate(self, pg, cqubit, tqubit, density_matrix, num_qubits, times)
 
     def _N_network(self, density_matrix, pn, network_noise_type):
         """
@@ -2229,8 +2233,7 @@ class QuantumCircuit:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type, file_name=csv_file_name,
-                                                                   use_exact_path=use_exact_path,
-                                                                   idle_data_qubit=idle_data_qubit)
+                                                                   use_exact_path=use_exact_path)
 
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
