@@ -55,7 +55,6 @@ class Superoperator:
                     A dictionary with the z layer a key and the value a list of the stabilizers that are involved in
                     the second round of star stabilizer measurements for that layer.
         """
-        self.file_name = file_name
         self.file_name = file_name.replace('.csv', '')
         self.file_name_idle = file_name_idle.replace('.csv', '') if file_name_idle is not None else None
         self._path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
@@ -99,7 +98,7 @@ class Superoperator:
 
     def _csv_to_superoperator(self, path_to_file=None, set_attributes=False, check_sum=False):
         if path_to_file is None:
-            return
+            return None, None
 
         reader = pd.read_csv(path_to_file, sep=";", float_precision='round_trip')
 
