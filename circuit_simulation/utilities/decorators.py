@@ -47,7 +47,7 @@ def skip_if_cut_off_reached(func=None, *, run_once=False):
     def should_run_once(self):
         nonlocal run_once_funcs
         nonlocal run_once
-        old_value = None
+        old_value = SKIP()
         if run_once:
             if func.__name__ not in run_once_funcs:
                 run_once_funcs[func.__name__] = 1
@@ -91,3 +91,8 @@ def skip_if_cut_off_reached(func=None, *, run_once=False):
         return retval
     return determine_skip
 
+
+class SKIP:
+
+    def __init__(self):
+        self.name = "SKIP"

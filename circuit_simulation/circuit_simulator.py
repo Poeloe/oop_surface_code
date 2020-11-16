@@ -17,7 +17,7 @@ from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
-from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached
+from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached, SKIP
 from copy import copy
 
 
@@ -137,7 +137,7 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
                  bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=1000000):
+                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf):
 
         # Basic attributes
         self.num_qubits = num_qubits
@@ -1549,7 +1549,7 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
+                if type(measurement_outcomes) == SKIP:
                     return
                 success = measurement_outcomes[0] == measurement_outcomes[1]
                 if not retry:
@@ -1571,7 +1571,7 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
+                if type(measurement_outcomes) == SKIP:
                     return
                 return measurement_outcomes[0] == measurement_outcomes[1]
             else:
@@ -1591,7 +1591,7 @@ class QuantumCircuit:
                                   pm=pm, pg=pg, user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1],
                                                 noise=noise, pm=pm, user_operation=user_operation)
-            if measurement_outcomes is None:
+            if type(measurement_outcomes) == SKIP:
                 return
             success = (measurement_outcomes[0] == measurement_outcomes[1] and
                        measurement_outcomes[2] == measurement_outcomes[3])
@@ -1617,7 +1617,7 @@ class QuantumCircuit:
                 measurement_outcomes = self.measure([qubit_1, qubit_2], noise=noise, pm=pm,
                                                     user_operation=user_operation)
                 # If measurement_outcomes is None the cut-off time is reached and method should return
-                if measurement_outcomes is None:
+                if type(measurement_outcomes) == SKIP:
                     return
                 parity.append(measurement_outcomes[0] == measurement_outcomes[1])
             return all(parity)
@@ -1647,7 +1647,7 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
+                if type(measurement_outcomes) == SKIP:
                     return
                 success = measurement_outcomes[0] == measurement_outcomes[1]
 
@@ -1695,7 +1695,7 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
+                if type(measurement_outcomes) == SKIP:
                     return
                 success = measurement_outcomes[0] == measurement_outcomes[1]
 
@@ -1731,7 +1731,7 @@ class QuantumCircuit:
                                                              user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
-            if measurement_outcomes is None:
+            if type(measurement_outcomes) == SKIP:
                 return
             success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
 
@@ -1763,7 +1763,7 @@ class QuantumCircuit:
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
-            if measurement_outcomes is None:
+            if type(measurement_outcomes) == SKIP:
                 return
             success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
 
