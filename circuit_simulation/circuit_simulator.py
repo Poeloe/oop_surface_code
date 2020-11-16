@@ -844,8 +844,8 @@ class QuantumCircuit:
                                                 Setter and getter Methods
         ---------------------------------------------------------------------------------------------------------
     """
-
-    def set_qubit_states(self, qubit_dict, user_operation=True):
+    @handle_none_parameters
+    def set_qubit_states(self, qubit_dict, p_prep=0, noise=None, user_operation=True):
         """
         qc.set_qubit_states(dict)
 
@@ -874,6 +874,9 @@ class QuantumCircuit:
             _, _, _, rel_num_qubits = self._get_qubit_relative_objects(tqubit)
             if rel_num_qubits > 1 or tqubit >= self.num_qubits:
                 raise ValueError("Qubit is not suitable to set state for.")
+
+            if noise and p_prep > 0:
+                state = self._N_preparation(state, p_prep)
 
             self._qubit_array[tqubit] = state
             self._qubit_density_matrix_lookup[tqubit] = (CT(state), [tqubit])
