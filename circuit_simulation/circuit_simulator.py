@@ -1549,8 +1549,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
+                # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
-                    return
+                    return measurement_outcomes
                 success = measurement_outcomes[0] == measurement_outcomes[1]
                 if not retry:
                     return success
@@ -1571,8 +1572,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
+                # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
-                    return
+                    return measurement_outcomes
                 return measurement_outcomes[0] == measurement_outcomes[1]
             else:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
@@ -1591,8 +1593,9 @@ class QuantumCircuit:
                                   pm=pm, pg=pg, user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1],
                                                 noise=noise, pm=pm, user_operation=user_operation)
+            # If loop necessary for proper cut-off handling
             if type(measurement_outcomes) == SKIP:
-                return
+                return measurement_outcomes
             success = (measurement_outcomes[0] == measurement_outcomes[1] and
                        measurement_outcomes[2] == measurement_outcomes[3])
             if not retry:
@@ -1616,9 +1619,9 @@ class QuantumCircuit:
                     self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 measurement_outcomes = self.measure([qubit_1, qubit_2], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                # If measurement_outcomes is None the cut-off time is reached and method should return
+                # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
-                    return
+                    return measurement_outcomes
                 parity.append(measurement_outcomes[0] == measurement_outcomes[1])
             return all(parity)
 
@@ -1647,8 +1650,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
+                # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
-                    return
+                    return measurement_outcomes
                 success = measurement_outcomes[0] == measurement_outcomes[1]
 
                 if draw_X_gate and self._sub_circuits and not drawn:
@@ -1695,8 +1699,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
+                # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
-                    return
+                    return measurement_outcomes
                 success = measurement_outcomes[0] == measurement_outcomes[1]
 
                 if draw_X_gate and self._sub_circuits and not drawn:
@@ -1731,8 +1736,9 @@ class QuantumCircuit:
                                                              user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
+            # If loop necessary for proper cut-off handling
             if type(measurement_outcomes) == SKIP:
-                return
+                return measurement_outcomes
             success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
 
             if draw_X_gate and self._sub_circuits and not drawn:
@@ -1763,8 +1769,9 @@ class QuantumCircuit:
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
+            # If loop necessary for proper cut-off handling
             if type(measurement_outcomes) == SKIP:
-                return
+                return measurement_outcomes
             success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
 
             if draw_X_gate and self._sub_circuits and not drawn:
