@@ -2485,6 +2485,9 @@ class QuantumCircuit:
         return self._superoperator.superoperator_methods.superoperator_to_dataframe(self, superoperator, proj_type,
                                                                                     file_name, use_exact_path)
 
+    def get_state_fidelity(self, qubits, compare_matrix=None):
+        return self._superoperator.superoperator_methods.get_state_fidelity(self, qubits, compare_matrix)
+
     """
         ----------------------------------------------------------------------------------------------------------
                                             Circuit drawing Methods
