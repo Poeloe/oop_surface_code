@@ -37,6 +37,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
 
         qc.define_sub_circuit("AB", waiting_qubits=[6, 8, 10, 12])
 
+        return qc
     elif protocol == 'duo_structure_2':
         qc = QuantumCircuit(32, 5, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             thread_safe_printing=False, probabilistic=probabilistic, T1_lde=2,
@@ -102,10 +103,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_node("A", qubits=[14, 11, 10, 9, 8, 7, 6], electron_qubits=6, data_qubits=14)
         qc.define_node("B", qubits=[12, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=12)
 
-        qc.define_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[10, 4, 14, 12])
+        qc.define_sub_circuit("AB", waiting_qubits=[10, 4, 14, 12])
 
-        qc.define_sub_circuit("A", [14, 11, 10, 9, 8, 7, 6])
-        qc.define_sub_circuit("B", [12, 5, 4, 3, 2, 1, 0], concurrent_sub_circuits=["A"])
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B", concurrent_sub_circuits=["A"])
 
         return qc
     else:
@@ -268,21 +269,13 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
     qc.append_print_lines("\n ")
     qc.append_print_lines("Measurement outcomes are {}".format(measurement_outcomes))
 
-    qc.start_sub_circuit("D")
-    qc.apply_gate(operation, cqubit=2, tqubit=14)
-    qc.measure(2, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.apply_gate(operation, cqubit=6, tqubit=16)
-    qc.measure(6, probabilistic=False)
-
     qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=9, tqubit=18)
-    qc.measure(9, probabilistic=False)
+    qc.apply_gate(operation, cqubit=5, tqubit=12)
+    qc.measure(5, probabilistic=False)
 
     qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=13, tqubit=20)
-    qc.measure(13, probabilistic=False)
+    qc.apply_gate(operation, cqubit=11, tqubit=14)
+    qc.measure(11, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
 
@@ -292,7 +285,7 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    _, dataframe = qc.get_superoperator([20, 18, 16, 14], stab_rep, no_color=(not color), stabilizer_protocol=True,
+    _, dataframe = qc.get_superoperator([14, 12], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console, use_exact_path=True)
 
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
