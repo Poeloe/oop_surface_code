@@ -5,10 +5,11 @@ from circuit_simulation.gates.gates import *
 from circuit_simulation._superoperator.superoperator import SuperoperatorElement
 from itertools import combinations, product, combinations_with_replacement
 from circuit_simulation.termcolor.termcolor import colored
+from circuit_simulation.basic_operations.basic_operations import fidelity_elementwise
 import pandas as pd
 
 
-def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
+def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=True,
                                   file_name=None, qubits=None, idle_data_qubit=None):
     """
         Private method to calculate the noiseless variant of the density matrix.
@@ -74,7 +75,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
             qc_noiseless.apply_gate(parameters[0], parameters[1], parameters[2])
         elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
-            qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
+            qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=True)
         else:
             method = getattr(qc_noiseless, operation)
             method(*parameters)
@@ -109,6 +110,14 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
     qc.measure([0], outcome=0 if not measure_error else 1)
 
     return qc.get_combined_density_matrix([1])[0]
+
+
+def get_state_fidelity(self, qubits, compare_matrix=None):
+    if compare_matrix is None:
+        compare_matrix = get_noiseless_density_matrix(self, qubits=qubits)
+
+    noisy_matrix = self.get_combined_density_matrix(qubits)[0]
+    return fidelity_elementwise(compare_matrix, noisy_matrix)
 
 
 def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
