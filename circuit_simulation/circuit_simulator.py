@@ -19,6 +19,7 @@ import math
 import random
 from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached, SKIP
 from copy import copy
+import pickle
 
 
 class QuantumCircuit:
@@ -443,6 +444,13 @@ class QuantumCircuit:
                 density_matrices.append(density_matrix)
                 skip_qubits.extend(qubits)
         return KP(*density_matrices), skip_qubits
+
+    def export_density_matrix(self, location, density_matrix=None):
+        if density_matrix is None:
+            density_matrix = self.total_density_matrix()
+
+        with open(location, 'wb') as file_location:
+            pickle.dump(density_matrix, file_location)
 
     """
         ---------------------------------------------------------------------------------------------------------
