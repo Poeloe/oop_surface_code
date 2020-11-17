@@ -362,6 +362,24 @@ class TestMeasurement(unittest.TestCase):
             bell_matrix = 1/2 * np.array([[1, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 1]])
             np.testing.assert_array_equal(qc._qubit_density_matrix_lookup[5][0].toarray(), bell_matrix)
 
+    def test_measurement_arbitrary_qubit_1(self):
+        qc = QC(4, 0)
+        qc.X(2)
+        outcome = qc.measure(2, basis='Z', probabilistic=True)
+        resulting_matrix = np.array([[0, 0], [0, 1]])
+
+        self.assertEqual(outcome[0], 1)
+        np.testing.assert_array_equal(qc.get_combined_density_matrix([2])[0].toarray(), resulting_matrix)
+
+    def test_measurement_arbitrary_qubit(self):
+        qc = QC(4, 0)
+        qc.H(2)
+        outcome = qc.measure(2, basis='X', probabilistic=True)
+        resulting_matrix = np.array([[1/2, 1/2], [1/2, 1/2]])
+
+        self.assertEqual(outcome[0], 0)
+        np.testing.assert_array_almost_equal(qc.get_combined_density_matrix([2])[0].toarray(), resulting_matrix)
+
 
 class TestSeparatedDensityMatrices(unittest.TestCase):
 
