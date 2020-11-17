@@ -2047,9 +2047,9 @@ class QuantumCircuit:
                                                                              pm=pm_1 if pm_1 is not None else pm)
                 # TODO: Measuring qubits other than the first qubit does not yet work properly. Must be looked at
                 else:
-                    print("\nWarning: The measurement of a qubit that is not the first qubit of the density matrix is "
-                          "slow. The order of the density matrix is: {}. You want to measure qubit {}.".format(
-                        qubits, qubit))
+                    self.append_print_lines("\nWarning: The measurement of a qubit that is not the first qubit of the "
+                                            "density matrix is slow. The order of the density matrix is: {}. You want "
+                                            "to measure qubit {}.".format(qubits, qubit))
                     prob_0, density_matrix_0 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                          outcome=0)
                     prob_1, density_matrix_1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
@@ -2072,9 +2072,9 @@ class QuantumCircuit:
                     prob, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
                                                                              noise=noise, pm=pm)
                 else:
-                    print("\nWarning: The measurement of a qubit that is not the first qubit of the density matrix is "
-                          "slow. The order of the density matrix is: {}. You want to measure qubit {}.".format(
-                           qubits, qubit))
+                    self.append_print_lines("\nWarning: The measurement of a qubit that is not the first qubit of the "
+                                            "density matrix is slow. The order of the density matrix is: {}. You want "
+                                            "to measure qubit {}.".format(qubits, qubit))
                     prob, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
                                                                                          outcome=outcome_new)
                     if noise:
