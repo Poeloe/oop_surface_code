@@ -137,8 +137,8 @@ def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qub
 
         # Find the rows in the density matrix that are kept, keeping the chess pattern and dimension of the tiles
         # into account
-        surviving_columns_rows = [i+j for i in range(start, d, dim_tile * 2)
-                                  for j in range(dim_tile)]
+        surviving_columns_rows = [i+j for i in range(start, d, dim_tile * 2) for j in range(dim_tile)]
+
         # Get the rows and columns, that contain non-zero elements, that intersect with the rows and columns of the
         # tiles that should be kept
         non_zero_rows_unique = np.array(list(set(surviving_columns_rows).intersection(non_zero_rows)))
@@ -147,7 +147,7 @@ def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qub
         if non_zero_columns_unique.size != 0:
             for row in non_zero_rows_unique:
                 # Each row and column should shift, since the density matrix is half the size. This collapse is equal
-                # for outcome=0 to removing all the black tiles of the chess pattern and connecting the black tiles
+                # for outcome=0 to removing all the black tiles of the chess pattern and connecting the white tiles
                 # after. For outcome=1, this is the same but then removing the white tiles.
                 multiplier = divmod(row, dim_tile*2)[0] if outcome == 0 else divmod(row, dim_tile*2)[0] + 1
                 new_row = row - (multiplier * dim_tile) if multiplier > 0 else row

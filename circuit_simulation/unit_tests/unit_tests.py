@@ -81,7 +81,7 @@ class TestQuantumCircuitInit(unittest.TestCase):
         np.testing.assert_array_equal(matrix_67.toarray(), density_matrix)
 
 
-class TestQuantumCircuitGates(unittest.TestCase):
+class TestQuantumCircuitGateCreation(unittest.TestCase):
 
     def test_one_qubit_gate_X(self):
         qc = QC(2, 0)
@@ -152,6 +152,56 @@ class TestQuantumCircuitGates(unittest.TestCase):
         np.testing.assert_array_equal(gate_result.toarray(), SWAP_gate.matrix)
 
 
+class TestGateApplication(unittest.TestCase):
+
+    def test_apply_X_gate(self):
+        qc = QC(1, 0)
+        qc.X(0)
+        np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), np.array([[0, 0], [0, 1]]))
+
+    def test_apply_SWAP_gate(self):
+        qc = QC(2, 0)
+        qc.X(0)
+        qc.SWAP(0, 1, efficient=False)
+
+        np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), np.array([[0, 0, 0, 0], [0, 1, 0, 0],
+                                                                                        [0, 0, 0, 0], [0, 0, 0, 0]]))
+
+    def test_apply_SWAP_gate_efficient(self):
+        qc = QC(2, 0)
+        qc.X(0)
+        qc.SWAP(0, 1, efficient=True)
+
+        np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), np.array([[0, 0, 0, 0], [0, 1, 0, 0],
+                                                                                        [0, 0, 0, 0], [0, 0, 0, 0]]))
+
+    def test_apply_SWAP_on_one_half_bell_pair(self):
+        qc = QC(3, 0, noise=True, pn=0.1)
+        qc.CNOT(0, 1)
+        qc.CNOT(1, 0)
+        qc.CNOT(0, 1, noise=False)
+
+        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2.SWAP(0, 1, efficient=False)
+
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
+                                             qc2.total_density_matrix()[0].toarray())
+
+    def test_apply_SWAP_efficient_on_one_half_bell_pair(self):
+        qc = QC(2, 0, noise=True, pn=0.1)
+        qc.CNOT(0, 1)
+        qc.CNOT(1, 0)
+        qc.CNOT(0, 1, noise=False)
+        qc.measure(0)
+
+        qc2 = QC(2, 0, noise=True, pn=0.1)
+        qc2.SWAP(1, 0, efficient=True)
+        qc2.measure(0)
+
+        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
+                                             qc2.total_density_matrix()[0].toarray())
+
+
 class TestErrorImplementation(unittest.TestCase):
 
     def test_single_gate_error(self):
@@ -192,6 +242,7 @@ class TestErrorImplementation(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(compare_matrix.toarray(), density_matrix_noise.toarray(), 2)
         self.assertLess(fid, 0.6)
+
 
 class TestMeasurement(unittest.TestCase):
 
@@ -314,13 +365,13 @@ class TestMeasurement(unittest.TestCase):
 
 class TestSeparatedDensityMatrices(unittest.TestCase):
 
-    def testDensityMatrixInit(self):
+    def test_density_matrix_init(self):
         qc = QC(10, 0)
         for qubit, (density_matrix, qubits) in qc._qubit_density_matrix_lookup.items():
             np.testing.assert_array_equal(sp.csr_matrix([[1, 0], [0, 0]]).toarray(), density_matrix.toarray())
             self.assertListEqual([qubit], qubits)
 
-    def testTwoQubitGateFusion(self):
+    def test_two_qubit_gate_fusion(self):
         qc = QC(10, 0)
         qc.apply_gate(CNOT_gate, cqubit=0, tqubit=1)
 
@@ -331,7 +382,7 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         # Qubits must be fused in the order control qubits + target qubits
         self.assertEqual(qubits_0, [0, 1])
 
-    def testBellPairFusion(self):
+    def test_bell_pair_fusion(self):
         qc = QC(5, 0)
         qc.create_bell_pair(0, 1)
 
@@ -342,7 +393,7 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         # Second qubit of 'create_bell_pair' should be the first qubit in the density matrix
         self.assertEqual(qubits_0, [1, 0])
 
-    def testSWAP(self):
+    def test_SWAP(self):
         qc = QC(5, 0)
         qc.X(0)
         qc.SWAP(0, 1)
@@ -354,7 +405,7 @@ class TestSeparatedDensityMatrices(unittest.TestCase):
         self.assertEqual(qubits_0, [0])
         self.assertEqual(qubits_1, [1])
 
-    def testSWAPBellPair(self):
+    def test_SWAP_bell_pair(self):
         qc = QC(5, 0)
         qc.create_bell_pair(0, 1)
         qc.SWAP(0, 2)

@@ -156,14 +156,16 @@ class toric(go.toric):
             networked_architecture : bool, optional, default=False
                 If True, stabilizers measurements will be handled such that it mimics the situation for a surface code
                 with a networked architecture.
-
-
         """
         self.superoperator = superoperator
         self.superoperator.set_stabilizer_rounds(self)
         for z in range(self.cycles)[:-1]:
             if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
+            elif self.superoperator.sup_op_elements_idle and self.superoperator.additional_superoperators:
+                self.stabilizer_cycle_three_superoperators(z)
+            elif self.superoperator.sup_op_elements_idle:
+                pass
             else:
                 self.stabilizer_cycle_with_superoperator(z)
 
