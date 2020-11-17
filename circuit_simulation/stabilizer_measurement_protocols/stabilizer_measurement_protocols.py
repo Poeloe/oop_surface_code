@@ -65,6 +65,25 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_sub_circuit("D", [14, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
 
         return qc
+    elif protocol == 'single_cliffords':
+        qc = QuantumCircuit(16, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                            thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
+                            decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
+                            T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
+                            bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
+                            single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
+                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
+                            network_noise_type=network_noise_type)
+
+        qc.define_node("A", qubits=[14, 11, 10, 9, 8, 7, 6], electron_qubits=6, data_qubits=14)
+        qc.define_node("B", qubits=[12, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=12)
+
+        qc.define_sub_circuit("AB", [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 14, 12], waiting_qubits=[10, 4, 14, 12])
+
+        qc.define_sub_circuit("A", [14, 11, 10, 9, 8, 7, 6])
+        qc.define_sub_circuit("B", [12, 5, 4, 3, 2, 1, 0], concurrent_sub_circuits=["A"])
+
+        return qc
     else:
         qc = QuantumCircuit(20, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
                             thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
@@ -203,6 +222,56 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
                                         print_to_console=to_console, use_exact_path=True)
 
     pbar.update(10) if pbar is not None else None
+
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (dataframe, cut_off_reached), print_lines
+
+
+def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
+
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(5, 11)
+    qc.create_bell_pair(4, 10)
+    qc.apply_gate(H_gate, 5)
+    qc.apply_gate(CNOT_gate, cqubit=10, tqubit=11)
+    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=5)
+    measurement_outcomes = qc.measure([10, 4])
+    # qc.draw_circuit()
+    qc.append_print_lines(T*(qc.get_combined_density_matrix([11, 5])[0])*T.transpose())
+    qc.append_print_lines("\n ")
+    qc.append_print_lines("Measurement outcomes are {}".format(measurement_outcomes))
+
+    qc.start_sub_circuit("D")
+    qc.apply_gate(operation, cqubit=2, tqubit=14)
+    qc.measure(2, probabilistic=False)
+
+    qc.start_sub_circuit("C")
+    qc.apply_gate(operation, cqubit=6, tqubit=16)
+    qc.measure(6, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=9, tqubit=18)
+    qc.measure(9, probabilistic=False)
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=13, tqubit=20)
+    qc.measure(13, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    if draw_circuit:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([20, 18, 16, 14], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
 
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
