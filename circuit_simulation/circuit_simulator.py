@@ -226,6 +226,8 @@ class QuantumCircuit:
             self._init_density_matrix_ket_p_and_CNOTS()
         elif init_type == 5:
             self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
+        elif init_type == 6:
+            self._init_density_matrix_maximally_entangled_state(amount_qubits=4)
 
     def _init_density_matrix_first_qubit_ket_p(self):
         """ Realises init_type option 1. See class description for more info. """
