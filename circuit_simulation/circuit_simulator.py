@@ -552,6 +552,9 @@ class QuantumCircuit:
                 else:
                     self._apply_decoherence_to_fastest_sub_circuits()
                 self._draw_order.append(["LEVEL", None, None])
+                # Reset all the sub_circuits when all ran or when a forced level is requested
+                [sub_circuit.reset() for sub_circuit in current_sub_circuit.concurrent_sub_circuits
+                 + [current_sub_circuit]]
 
         started_sub_circuit.reset()
         self._current_sub_circuit = started_sub_circuit
