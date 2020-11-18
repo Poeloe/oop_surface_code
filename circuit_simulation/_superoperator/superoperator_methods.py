@@ -7,6 +7,7 @@ from itertools import combinations, product, combinations_with_replacement
 from circuit_simulation.termcolor.termcolor import colored
 from circuit_simulation.basic_operations.basic_operations import fidelity_elementwise
 import pandas as pd
+import math
 
 
 def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=True,
@@ -112,12 +113,27 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
     return qc.get_combined_density_matrix([1])[0]
 
 
-def get_state_fidelity(self, qubits, compare_matrix=None):
-    if compare_matrix is None:
+def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
+    if qubits is None and compare_matrix is None:
+        qubits = self.get_ghz_qubits()
+
+        # Create ghz state with the weight equal to the amount of ghz qubits
+        ghz_state = sp.lil_matrix((2**len(qubits), 2**len(qubits)))
+        ghz_state[0, 0] = 1/2; ghz_state[0, 2**len(qubits)-1] = 1/2
+        ghz_state[2**len(qubits)-1, 0] = 1/2; ghz_state[2**len(qubits)-1, 2**len(qubits)-1] = 1/2
+
+        compare_matrix = ghz_state
+
+    elif compare_matrix is None:
         compare_matrix = get_noiseless_density_matrix(self, qubits=qubits)
 
     noisy_matrix = self.get_combined_density_matrix(qubits)[0]
-    return fidelity_elementwise(compare_matrix, noisy_matrix)
+    fidelity = fidelity_elementwise(compare_matrix, noisy_matrix)
+
+    if set_ghz_fidelity:
+        self.ghz_fidelity = fidelity
+
+    return fidelity
 
 
 def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
@@ -330,7 +346,7 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
 
         index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
         columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration']
+                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration', 'ghz_fidelity']
         data = pd.DataFrame(0., index=index, columns=columns)
         data.iloc[0, data.columns.get_loc('pg')] = self.pg
         data.iloc[0, data.columns.get_loc('pm')] = self.pm
@@ -344,6 +360,7 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
         data.iloc[0, data.columns.get_loc('avg_lde')] = 0
         data.iloc[0, data.columns.get_loc('avg_duration')] = 0
         data.iloc[0, data.columns.get_loc("written_to")] = 0
+        data.iloc[0, data.columns.get_loc("ghz_fidelity")] = self.ghz_fidelity if self.ghz_fidelity is not None else 0
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
@@ -366,31 +383,24 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
             else:
                 data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
 
-    if 'written_to' in data:
-        data.iloc[0, data.columns.get_loc("written_to")] += 1.0
-    else:
-        data['written_to'] = 0
-        data.iloc[0, data.columns.get_loc("written_to")] = 1
+    for column_name in ['written_to', 'total_duration', 'lde_attempts', 'ghz_fidelity', 'avg_duration', 'avg_lde']:
+        if column_name not in data:
+            data[column_name] = 0
+    # Prepare ghz_fidelity value, such that the average is eventually obtained (part 1)
+    data.iloc[0, data.columns.get_loc("ghz_fidelity")] = (self.ghz_fidelity if self.ghz_fidelity is not None else 0) \
+                                                         + (data.iloc[0, data.columns.get_loc("ghz_fidelity")] *
+                                                            data.iloc[0, data.columns.get_loc("written_to")])
 
-    if 'total_duration' in data:
-        data.iloc[0, data.columns.get_loc("total_duration")] += self.total_duration
-    else:
-        data['total_duration'] = 0
-        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
-
-    if 'avg_duration' in data:
-        data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
-                                                              data.iloc[0, data.columns.get_loc("written_to")])
-
-    if 'lde_attempts' in data:
-        data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
-    else:
-        data['lde_attempts'] = 0
-        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
-
-    if 'avg_lde' in data:
-        data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
-                                                         data.iloc[0, data.columns.get_loc("written_to")])
+    data.iloc[0, data.columns.get_loc("written_to")] += 1.0
+    data.iloc[0, data.columns.get_loc("total_duration")] += self.total_duration
+    data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
+                                                          data.iloc[0, data.columns.get_loc("written_to")])
+    data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
+    data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
+                                                     data.iloc[0, data.columns.get_loc("written_to")])
+    # Obtain the average ghz value by dividing it to the total amount of written to (part 2)
+    data.iloc[0, data.columns.get_loc("ghz_fidelity")] = (data.iloc[0, data.columns.get_loc("ghz_fidelity")] /
+                                                          data.iloc[0, data.columns.get_loc("written_to")])
     # Remove rows that contain only zero probability
     data = data[(data.T != 0).any()]
 

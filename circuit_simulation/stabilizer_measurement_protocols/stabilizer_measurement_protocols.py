@@ -71,10 +71,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
                             network_noise_type=network_noise_type)
 
-        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18)
-        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16)
-        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14)
-        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12)
+        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18, ghz_qubits=11)
+        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16, ghz_qubits=8)
+        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubits=5)
+        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubits=2)
 
         qc.define_sub_circuit("AB", waiting_qubits=[10, 7, 18, 16])
         qc.define_sub_circuit("CD", waiting_qubits=[4, 1, 14, 12], concurrent_sub_circuits="AB")
@@ -165,6 +165,8 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
         pbar.update(20) if pbar is not None else None
 
+    ghz_fidelity = qc.get_state_fidelity()
+
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -198,6 +200,7 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
     pbar.update(10) if pbar is not None else None
 
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(ghz_fidelity))
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached

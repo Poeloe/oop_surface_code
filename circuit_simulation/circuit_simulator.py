@@ -145,6 +145,8 @@ class QuantumCircuit:
         self.d = 2 ** num_qubits
         self.qubits = None
         self.nodes = None
+        self.ghz_qubits = None
+        self.ghz_fidelity = None
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
@@ -592,7 +594,7 @@ class QuantumCircuit:
         if total:
             self._circuit_operations_ended = True
 
-    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None):
+    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, ghz_qubits=None):
         """
             Defines a node for the QuantumCircuit object. This is especially useful when working with a networked
             architecture. For now it is assumed that one uses an NV-center as a node.
@@ -610,6 +612,8 @@ class QuantumCircuit:
             self.nodes = {}
         if self.qubits is None:
             self.qubits = {}
+        if self.ghz_qubits is None:
+            self.ghz_qubits = {}
 
         if electron_qubits is None:
             electron_qubits = []
@@ -621,17 +625,25 @@ class QuantumCircuit:
         elif type(data_qubits) == int:
             data_qubits = [data_qubits]
 
+        if ghz_qubits is None:
+            ghz_qubits = []
+        elif type(ghz_qubits) == int:
+            ghz_qubits = [ghz_qubits]
+
         self.nodes.update({name: qubits})
         for qubit in qubits:
             qubit_type = 'e' if qubit in electron_qubits else 'n'
             is_data_qubit = qubit in data_qubits
+            is_ghz_qubit = qubit in ghz_qubits
             T1_idle = self.T1_idle if qubit_type == 'n' else self.T1_idle_electron
             T2_idle = self.T2_idle if qubit_type == 'n' else self.T2_idle_electron
             T1_lde = self.T1_lde if qubit_type == 'n' else None
             T2_lde = self.T2_lde if qubit_type == 'n' else None
             q = Qubit(self, qubit, qubit_type, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde, T2_lde=T2_lde,
-                      is_data_qubit=is_data_qubit)
+                      is_data_qubit=is_data_qubit, is_ghz_qubit=is_ghz_qubit)
             self.qubits[qubit] = q
+            if is_ghz_qubit:
+                self.ghz_qubits[qubit] = q
 
     def get_node_qubits(self, qubit):
         """
@@ -648,6 +660,9 @@ class QuantumCircuit:
             if qubit in node_qubits:
                 return node_qubits
         return []
+
+    def get_ghz_qubits(self):
+        return list(self.ghz_qubits.keys())
 
     def get_node_name_from_qubit(self, qubit):
         """
@@ -2488,8 +2503,9 @@ class QuantumCircuit:
         return self._superoperator.superoperator_methods.superoperator_to_dataframe(self, superoperator, proj_type,
                                                                                     file_name, use_exact_path)
 
-    def get_state_fidelity(self, qubits, compare_matrix=None):
-        return self._superoperator.superoperator_methods.get_state_fidelity(self, qubits, compare_matrix)
+    def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
+        return self._superoperator.superoperator_methods.get_state_fidelity(self, qubits, compare_matrix,
+                                                                            set_ghz_fidelity)
 
     """
         ----------------------------------------------------------------------------------------------------------
