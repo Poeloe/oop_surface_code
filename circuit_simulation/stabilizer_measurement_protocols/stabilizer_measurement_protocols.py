@@ -165,7 +165,7 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
         pbar.update(20) if pbar is not None else None
 
-    ghz_fidelity = qc.get_state_fidelity()
+    qc.get_state_fidelity()
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
@@ -200,7 +200,7 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
     pbar.update(10) if pbar is not None else None
 
-    qc.append_print_lines("\nGHZ fidelity: {}\n".format(ghz_fidelity))
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
