@@ -213,6 +213,10 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
         pbar.update(20) if pbar is not None else None
 
+    print(qc.get_state_fidelity([11],
+                                CT(1 / math.sqrt(2) * (ket_0 * ket_0 * ket_0 * ket_0 + ket_1 * ket_1 * ket_1 * ket_1))))
+
+
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -344,8 +348,6 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             while not success_ab2:
                 qc.create_bell_pair(12, 8)
                 success_ab2 = qc.single_selection(CNOT_gate, 11, 7, retry=False)
-                if not success_ab2:
-                    continue
             success_ab = qc.single_selection_var(CY_gate, CminY_gate, 12, 8, create_bell_pair=False, retry=False)
 
         pbar.update(20) if pbar is not None else None
@@ -361,8 +363,6 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             while not success_cd2:
                 qc.create_bell_pair(5, 1)
                 success_cd2 = qc.single_selection(CZ_gate, 4, 0, retry=False)
-                if not success_cd2:
-                    continue
             success_cd = qc.single_selection_var(CNOT_gate, CNOT_gate, 5, 1, create_bell_pair=False, retry=False)
 
         pbar.update(20) if pbar is not None else None
@@ -386,28 +386,31 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             qc.create_bell_pair(8, 1)
             success_bd = qc.single_selection(CZ_gate, 7, 0, retry=False)
 
-        qc.start_sub_circuit("A")
+        qc.start_sub_circuit("AC", forced_level=True)
         qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)
-        qc.start_sub_circuit("C")
+        # qc.start_sub_circuit("C")
         qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)
-        qc.start_sub_circuit("AC")
+        # qc.start_sub_circuit("AC")
         # qc._thread_safe_printing = False
         # qc.draw_circuit()
-        measurement_outcomes = qc.measure([12, 5])
+        measurement_outcomes = qc.measure([12, 5], basis="Z")
         success = measurement_outcomes[0] == measurement_outcomes[1]
+        qc.start_sub_circuit("AB")
         if not success:
-            qc.start_sub_circuit("AB")
             qc.X(13)
             qc.X(9)
-        qc.start_sub_circuit("B")
-        qc.apply_gate(CNOT_gate, cqubit=9, tqubit=8)
-        qc.start_sub_circuit("D")
-        qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1)
         qc.start_sub_circuit("BD")
-        measurement_outcomes2 = qc.measure([8, 1], basis="Z")
+        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8)
+        # qc.start_sub_circuit("D")
+        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)
+        # qc.start_sub_circuit("BD")
+        measurement_outcomes2 = qc.measure([8, 1])
         ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
         pbar.update(20) if pbar is not None else None
         pbar.update(20) if pbar is not None else None
+
+    print(qc.get_state_fidelity([13],
+                                CT(1 / math.sqrt(2) * (ket_0 * ket_0 * ket_0 * ket_0 + ket_1 * ket_1 * ket_1 * ket_1))))
 
     qc.start_sub_circuit("D")
     qc.apply_gate(operation, cqubit=2, tqubit=14)
