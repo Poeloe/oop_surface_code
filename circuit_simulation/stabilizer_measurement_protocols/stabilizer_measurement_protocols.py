@@ -1,8 +1,9 @@
 from circuit_simulation.circuit_simulator import *
 import pickle
+PBAR = None
 
 
-def create_quantum_circuit(protocol, **kwargs):
+def create_quantum_circuit(protocol, pbar, **kwargs):
     """
         Initialises a QuantumCircuit object corresponding to the protocol requested.
 
@@ -14,6 +15,9 @@ def create_quantum_circuit(protocol, **kwargs):
         For other parameters, please see QuantumCircuit class for more information
 
     """
+    global PBAR
+    PBAR = pbar
+
     if protocol == 'monolithic':
         kwargs.pop('basis_transformation_noise')
         kwargs.pop('no_single_qubit_error')
@@ -64,7 +68,7 @@ def create_quantum_circuit(protocol, **kwargs):
     return qc
 
 
-def monolithic(qc: QuantumCircuit, *, operation, pbar):
+def monolithic(qc: QuantumCircuit, *, operation):
     qc.set_qubit_states({0: ket_p})
     qc.apply_gate(operation, cqubit=0, tqubit=1)
     qc.apply_gate(operation, cqubit=0, tqubit=3)
@@ -72,13 +76,15 @@ def monolithic(qc: QuantumCircuit, *, operation, pbar):
     qc.apply_gate(operation, cqubit=0, tqubit=7)
     qc.measure(0, probabilistic=False)
 
-    pbar.update(50) if pbar is not None else None
+    PBAR.update(50) if PBAR is not None else None
+
+    return [1, 3, 5, 7]
 
 
-def expedient(qc: QuantumCircuit, *, operation, pbar):
+def expedient(qc: QuantumCircuit, *, operation):
     ghz_success = False
     while not ghz_success:
-        pbar.reset() if pbar is not None else None
+        PBAR.reset() if PBAR is not None else None
 
         # Step 1-2 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AB")
@@ -90,7 +96,7 @@ def expedient(qc: QuantumCircuit, *, operation, pbar):
                 continue
             success_ab = qc.double_selection(CNOT_gate, 10, 7, retry=False)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 1-2 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("CD")
@@ -102,7 +108,7 @@ def expedient(qc: QuantumCircuit, *, operation, pbar):
                 continue
             success_cd = qc.double_selection(CNOT_gate, 4, 1, retry=False)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 3-5 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC")
@@ -113,7 +119,7 @@ def expedient(qc: QuantumCircuit, *, operation, pbar):
         if not ghz_success:
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 6-8 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC", forced_level=True)
@@ -124,7 +130,7 @@ def expedient(qc: QuantumCircuit, *, operation, pbar):
             ghz_success = False
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
     qc.get_state_fidelity()
 
@@ -148,13 +154,13 @@ def expedient(qc: QuantumCircuit, *, operation, pbar):
 
     qc.end_current_sub_circuit(total=True)
 
-    pbar.update(10) if pbar is not None else None
+    PBAR.update(10) if PBAR is not None else None
 
 
-def stringent(qc, *, operation, pbar):
+def stringent(qc, *, operation):
     ghz_success = False
     while not ghz_success:
-        pbar.reset() if pbar is not None else None
+        PBAR.reset() if PBAR is not None else None
 
         # Step 1-8 from Table D.2 (Thesis Naomi Nickerson)
         success_ab = False
@@ -175,7 +181,7 @@ def stringent(qc, *, operation, pbar):
             if not success_ab:
                 continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 1-8 from Table D.2 (Thesis Naomi Nickerson)
         success_cd = False
@@ -196,7 +202,7 @@ def stringent(qc, *, operation, pbar):
             if not success_cd:
                 continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 9-11 from Table D.2 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC")
@@ -208,7 +214,7 @@ def stringent(qc, *, operation, pbar):
             ghz_success = False
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 12-14 from Table D.2 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC", forced_level=True)
@@ -219,7 +225,7 @@ def stringent(qc, *, operation, pbar):
             ghz_success = False
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
     # Step 15 from Table D.2 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
@@ -241,13 +247,13 @@ def stringent(qc, *, operation, pbar):
 
     qc.end_current_sub_circuit(total=True)
 
-    pbar.update(10) if pbar is not None else None
+    PBAR.update(10) if PBAR is not None else None
 
 
-def expedient_swap(qc, *, operation, pbar):
+def expedient_swap(qc, *, operation):
     ghz_success = False
     while not ghz_success:
-        pbar.reset() if pbar is not None else None
+        PBAR.reset() if PBAR is not None else None
 
         qc.start_sub_circuit("AB")
         success_ab = False
@@ -260,7 +266,7 @@ def expedient_swap(qc, *, operation, pbar):
                 continue
             success_ab = qc.double_selection_swap(CNOT_gate, 9, 6)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         qc.start_sub_circuit("CD")
         success_cd = False
@@ -273,7 +279,7 @@ def expedient_swap(qc, *, operation, pbar):
                 continue
             success_cd = qc.double_selection_swap(CNOT_gate, 3, 0)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         qc.start_sub_circuit('AC')
         success_1 = qc.single_dot_swap(CZ_gate, 9, 3, parity_check=False)
@@ -282,7 +288,7 @@ def expedient_swap(qc, *, operation, pbar):
         if not ghz_success:
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         qc.start_sub_circuit('AC', forced_level=True)
         ghz_success_1 = qc.single_dot_swap(CZ_gate, 9, 3, retry=False)
@@ -292,7 +298,7 @@ def expedient_swap(qc, *, operation, pbar):
             ghz_success = False
             continue
 
-    pbar.update(20) if pbar is not None else None
+    PBAR.update(20) if PBAR is not None else None
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -317,13 +323,13 @@ def expedient_swap(qc, *, operation, pbar):
 
     qc.end_current_sub_circuit(total=True)
 
-    pbar.update(10) if pbar is not None else None
+    PBAR.update(10) if PBAR is not None else None
 
 
-def stringent_swap(qc, *, operation, pbar):
+def stringent_swap(qc, *, operation):
     ghz_success = False
     while not ghz_success:
-        pbar.reset() if pbar is not None else None
+        PBAR.reset() if PBAR is not None else None
 
         qc.start_sub_circuit("AB")
         success_ab = False
@@ -339,7 +345,7 @@ def stringent_swap(qc, *, operation, pbar):
                 continue
             success_ab = qc.double_dot_swap(CNOT_gate, 9, 6)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         qc.start_sub_circuit("CD")
         success_cd = False
@@ -355,7 +361,7 @@ def stringent_swap(qc, *, operation, pbar):
                 continue
             success_cd = qc.double_dot_swap(CNOT_gate, 3, 0)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         qc.start_sub_circuit("AC")
         success, single_selection_success = qc.double_dot_swap(CZ_gate, 9, 3, parity_check=False)
@@ -365,7 +371,7 @@ def stringent_swap(qc, *, operation, pbar):
             ghz_success = False
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         qc.start_sub_circuit("AC", forced_level=True)
         ghz_success_1 = qc.double_dot_swap(CZ_gate, 9, 3, retry=False)
@@ -375,7 +381,7 @@ def stringent_swap(qc, *, operation, pbar):
             ghz_success = False
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.start_sub_circuit("B")
@@ -400,10 +406,10 @@ def stringent_swap(qc, *, operation, pbar):
 
     qc.end_current_sub_circuit(total=True)
 
-    pbar.update(10) if pbar is not None else None
+    PBAR.update(10) if PBAR is not None else None
 
 
-def duo_structure(qc: QuantumCircuit, *, operation, pbar):
+def duo_structure(qc: QuantumCircuit, *, operation):
     qc.start_sub_circuit("AB")
     qc.create_bell_pair(2, 5)
     qc.double_selection(CZ_gate, 1, 4)
@@ -415,13 +421,14 @@ def duo_structure(qc: QuantumCircuit, *, operation, pbar):
     qc.measure([5, 2], probabilistic=False)
     qc.end_current_sub_circuit(total=True)
 
-    pbar.update(50) if pbar is not None else None
+    PBAR.update(50) if PBAR is not None else None
 
 
-def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
+# noinspection PyUnresolvedReferences
+def duo_structure_2(qc: QuantumCircuit, *, operation):
     ghz_success = False
     while not ghz_success:
-        pbar.reset() if pbar is not None else None
+        PBAR.reset() if PBAR is not None else None
 
         # Step 1-2 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AB")
@@ -433,7 +440,7 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
                 continue
             success_ab = qc.double_selection(CNOT_gate, 14, 10, retry=False)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 1-2 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("CD")
@@ -445,7 +452,7 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
                 continue
             success_cd = qc.double_selection(CNOT_gate, 6, 2, retry=False)
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 3-5 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC")
@@ -456,7 +463,7 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
         if not ghz_success:
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
         # Step 6-8 from Table D.1 (Thesis Naomi Nickerson)
         qc.start_sub_circuit("AC", forced_level=True)
@@ -467,7 +474,7 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
             ghz_success = False
             continue
 
-        pbar.update(20) if pbar is not None else None
+        PBAR.update(20) if PBAR is not None else None
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
@@ -489,6 +496,6 @@ def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
 
     qc.end_current_sub_circuit(total=True)
 
-    pbar.update(10) if pbar is not None else None
+    PBAR.update(10) if PBAR is not None else None
 
     return [[30, 26, 22, 18], [28, 24, 20, 16]]

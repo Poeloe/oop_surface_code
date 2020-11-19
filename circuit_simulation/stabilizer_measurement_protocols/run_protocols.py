@@ -175,7 +175,7 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
 
     # Get the QuantumCircuit object corresponding to the protocol and the protocol method by its name
     kwargs = _additional_qc_arguments(**kwargs)
-    qc = stab_protocols.create_quantum_circuit(protocol, **kwargs)
+    qc = stab_protocols.create_quantum_circuit(protocol, pbar, **kwargs)
     protocol_method = getattr(stab_protocols, protocol)
 
     # Run iterations of the protocol
@@ -195,7 +195,7 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
 
         # Run the user requested protocol
         operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
-        superoperator_qubits_list = protocol_method(qc, pbar=pbar, operation=operation)
+        superoperator_qubits_list = protocol_method(qc, operation=operation)
 
         if draw_circuit:
             qc.draw_circuit(no_color=not color, color_nodes=True)
