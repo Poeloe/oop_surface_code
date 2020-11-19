@@ -694,7 +694,11 @@ class QuantumCircuit:
         for sub_circuit in all_sub_circuits:
             if (longest_duration - sub_circuit.total_duration) > 0:
                 # If the cut-off time is reached, all remaining decoherence should be applied
-                qubits = sub_circuit.waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
+                if sub_circuit.waiting_qubits is not None:
+                    waiting_qubits = sub_circuit.waiting_qubits
+                else:
+                    waiting_qubits = [qubit for qubit in sub_circuit.qubits if qubit not in self._uninitialised_qubits]
+                qubits = waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
                 self._increase_duration(longest_duration - sub_circuit.total_duration, [],
                                         included_qubits=qubits,
                                         sub_circuit=sub_circuit, skip_check=True)
@@ -831,7 +835,7 @@ class QuantumCircuit:
                 involved_qubits = [i for i in range(self.num_qubits)]
 
             excluded_qubits_copy.extend(self._uninitialised_qubits)
-            # apply waiting time to the qubits not involved in the operation.
+            # apply waiting time to the qubits not taking part in the operation.
             included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits_copy)))
         for qubit in included_qubits:
             current_qubit = self.qubits[qubit]
@@ -853,7 +857,7 @@ class QuantumCircuit:
             raise ValueError("Type can only be 'remove', 'add' or 'swap'.")
 
         if update_type.lower() == 'remove':
-            self._uninitialised_qubits = list(set(self._uninitialised_qubits) ^ set(qubits))
+            self._uninitialised_qubits = [qubit for qubit in self._uninitialised_qubits if qubit not in qubits]
         if update_type.lower() == 'add':
             self._uninitialised_qubits.extend(qubits)
             self._uninitialised_qubits = list(set(self._uninitialised_qubits))
@@ -1699,7 +1703,7 @@ class QuantumCircuit:
             self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
                             user_operation=user_operation)
             if measure:
-                measurement_outcomes = self.measure([bell_qubit_1, bell_qubit_2], noise=noise, pm=pm,
+                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
                 # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:

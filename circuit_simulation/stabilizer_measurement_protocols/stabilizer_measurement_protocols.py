@@ -35,7 +35,7 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_node("A", qubits=[0, 1, 2, 6, 8], electron_qubits=2, data_qubits=[6, 8])
         qc.define_node("B", qubits=[3, 4, 5, 10, 12], electron_qubits=5, data_qubits=[10, 12])
 
-        qc.define_sub_circuit("AB", waiting_qubits=[6, 8, 10, 12])
+        qc.define_sub_circuit("AB")
 
         return qc
     elif protocol == 'duo_structure_2':
@@ -53,10 +53,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_node("C", qubits=[22, 20, 7, 6, 5, 4], electron_qubits=4, data_qubits=[22, 10])
         qc.define_node("D", qubits=[18, 16, 3, 2, 1, 0], electron_qubits=0, data_qubits=[18, 16])
 
-        qc.define_sub_circuit("AB", waiting_qubits=[30, 28, 13, 26, 24, 9])
-        qc.define_sub_circuit("CD", waiting_qubits=[22, 20, 5, 18, 16, 1], concurrent_sub_circuits="AB")
-        qc.define_sub_circuit("AC", waiting_qubits=[30, 28, 12, 22, 20, 5])
-        qc.define_sub_circuit("BD", waiting_qubits=[26, 24, 9, 18, 16, 1], concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("AB")
+        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC")
+        qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
         qc.define_sub_circuit("A")
         qc.define_sub_circuit("B")
         qc.define_sub_circuit("C")
@@ -172,10 +172,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubits=5)
         qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubits=2)
 
-        qc.define_sub_circuit("AB", waiting_qubits=[10, 7, 18, 16])
-        qc.define_sub_circuit("CD", waiting_qubits=[4, 1, 14, 12], concurrent_sub_circuits="AB")
-        qc.define_sub_circuit("AC", waiting_qubits=[10, 4, 18, 14])
-        qc.define_sub_circuit("BD", waiting_qubits=[7, 1, 16, 12], concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("AB")
+        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC")
+        qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
         qc.define_sub_circuit("A")
         qc.define_sub_circuit("B")
         qc.define_sub_circuit("C")
