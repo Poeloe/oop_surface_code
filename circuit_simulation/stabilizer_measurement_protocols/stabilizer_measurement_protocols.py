@@ -387,9 +387,9 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             success_bd = qc.single_selection(CZ_gate, 7, 0, retry=False)
 
         qc.start_sub_circuit("AC", forced_level=True)
-        qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12, reverse=True)    # 5, 12, 9, 13
+        qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)    # 5, 12, 9, 13
         # qc.start_sub_circuit("C")
-        qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5, reverse=True)      # 5, 12, 9, 13, 2, 6
+        qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)      # 5, 12, 9, 13, 2, 6
         # qc.start_sub_circuit("AC")
         # qc._thread_safe_printing = False
         # qc.draw_circuit()
@@ -400,9 +400,9 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             qc.X(13)
             qc.X(9)
         qc.start_sub_circuit("BD")
-        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8, reverse=True)        # 1, 8, 9, 13, 2, 6
+        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8)        # 1, 8, 9, 13, 2, 6
         # qc.start_sub_circuit("D")
-        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1, reverse=True)        # 1, 8, 9, 13, 2, 6
+        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)        # 1, 8, 9, 13, 2, 6
         # qc.start_sub_circuit("BD")
         measurement_outcomes2 = qc.measure([1, 8])
         ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
