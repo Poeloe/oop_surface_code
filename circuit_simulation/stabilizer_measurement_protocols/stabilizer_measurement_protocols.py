@@ -78,16 +78,64 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
         qc.define_node("C", qubits=[16, 6, 5, 4, 3], electron_qubits=3, data_qubits=16, ghz_qubits=6)
         qc.define_node("D", qubits=[14, 2, 1, 0], electron_qubits=0, data_qubits=14, ghz_qubits=2)
 
-        qc.define_sub_circuit("AB", [13, 12, 11, 10, 9, 8, 7, 20, 18], waiting_qubits=[12, 8, 20, 18])
-        qc.define_sub_circuit("CD", [6, 5, 4, 3, 2, 1, 0, 16, 14], waiting_qubits=[5, 1, 16, 14],
-                              concurrent_sub_circuits="AB")
-        qc.define_sub_circuit("AC", [13, 6, 12, 11, 10, 5, 4, 3, 20, 16], waiting_qubits=[12, 5, 20, 16])
-        qc.define_sub_circuit("BD", [9, 2, 8, 7, 1, 0, 18, 14], waiting_qubits=[8, 1, 18, 14],
-                              concurrent_sub_circuits="AC")
-        qc.define_sub_circuit("A", [20, 13, 12, 11, 10])
-        qc.define_sub_circuit("B", [18, 9, 8, 7])
-        qc.define_sub_circuit("C", [16, 6, 5, 4, 3])
-        qc.define_sub_circuit("D", [14, 2, 1, 0], concurrent_sub_circuits=["A", "B", "C"])
+        qc.define_sub_circuit("AB", waiting_qubits=[12, 8, 20, 18])
+        qc.define_sub_circuit("CD", waiting_qubits=[5, 1, 16, 14], concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC", waiting_qubits=[12, 5, 20, 16])
+        qc.define_sub_circuit("BD", waiting_qubits=[8, 1, 18, 14], concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C")
+        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
+
+        return qc
+    elif protocol == 'dyn_prot_22_1':
+        qc = QuantumCircuit(24, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                            thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
+                            decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
+                            T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
+                            bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
+                            single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
+                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
+                            network_noise_type=network_noise_type)
+
+        qc.define_node("A", qubits=[22, 15, 14, 13, 12], electron_qubits=12, data_qubits=22, ghz_qubits=15)
+        qc.define_node("B", qubits=[20, 11, 10, 9, 8], electron_qubits=8, data_qubits=20, ghz_qubits=11)
+        qc.define_node("C", qubits=[18, 7, 6, 5, 4], electron_qubits=4, data_qubits=18, ghz_qubits=7)
+        qc.define_node("D", qubits=[16, 3, 2, 1, 0], electron_qubits=0, data_qubits=16, ghz_qubits=3)
+
+        qc.define_sub_circuit("AB", waiting_qubits=[14, 10, 22, 20])
+        qc.define_sub_circuit("CD", waiting_qubits=[6, 2, 18, 16], concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC", waiting_qubits=[14, 6, 22, 18])
+        qc.define_sub_circuit("BD", waiting_qubits=[10, 2, 20, 16], concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C")
+        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
+
+        return qc
+    elif protocol == 'dyn_prot_42_1':
+        qc = QuantumCircuit(28, 2, noise=True, basis_transformation_noise=False, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                            thread_safe_printing=True, probabilistic=probabilistic, T1_lde=2,
+                            decoherence=decoherence, p_bell_success=bell_pair_creation_success, T1_idle=(5 * 60),
+                            T2_idle=10, T2_idle_electron=1, T2_lde=2, measurement_duration=measurement_duration,
+                            bell_creation_duration=bell_pair_creation_duration, pulse_duration=pulse_duration,
+                            single_qubit_gate_lookup=lkt_1q, two_qubit_gate_lookup=lkt_2q, T1_idle_electron=1000,
+                            no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
+                            network_noise_type=network_noise_type)
+
+        qc.define_node("A", qubits=[26, 19, 18, 17, 16, 15], electron_qubits=15, data_qubits=26, ghz_qubits=19)
+        qc.define_node("B", qubits=[24, 14, 13, 12, 11, 10], electron_qubits=10, data_qubits=24, ghz_qubits=14)
+        qc.define_node("C", qubits=[22, 9, 8, 7, 6, 5], electron_qubits=5, data_qubits=22, ghz_qubits=9)
+        qc.define_node("D", qubits=[20, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=20, ghz_qubits=4)
+
+        qc.define_sub_circuit("AB", waiting_qubits=[18, 13, 26, 24])
+        qc.define_sub_circuit("CD", waiting_qubits=[8, 3, 22, 20], concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC", waiting_qubits=[18, 8, 26, 22])
+        qc.define_sub_circuit("BD", waiting_qubits=[13, 3, 24, 20], concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C")
+        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
         return qc
     elif protocol == 'single_cliffords':
@@ -100,8 +148,8 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
                             network_noise_type=network_noise_type)
 
-        qc.define_node("A", qubits=[18, 15, 14, 13, 12, 11, 10, 9, 8], electron_qubits=8, data_qubits=18)
-        qc.define_node("B", qubits=[16, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=16)
+        qc.define_node("A", qubits=[18, 15, 14, 13, 12, 11, 10, 9, 8], electron_qubits=8, data_qubits=18, ghz_qubits=8)
+        qc.define_node("B", qubits=[16, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=16, ghz_qubits=0)
 
         qc.define_sub_circuit("AB", waiting_qubits=[14, 6, 18, 16])
 
@@ -119,10 +167,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
                             network_noise_type=network_noise_type)
 
-        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18)
-        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16)
-        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14)
-        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12)
+        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18, ghz_qubits=11)
+        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16, ghz_qubits=8)
+        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubits=5)
+        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubits=2)
 
         qc.define_sub_circuit("AB", waiting_qubits=[10, 7, 18, 16])
         qc.define_sub_circuit("CD", waiting_qubits=[4, 1, 14, 12], concurrent_sub_circuits="AB")
@@ -213,9 +261,7 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
         pbar.update(20) if pbar is not None else None
 
-    print(qc.get_state_fidelity([11],
-                                CT(1 / math.sqrt(2) * (ket_0 * ket_0 * ket_0 * ket_0 + ket_1 * ket_1 * ket_1 * ket_1))))
-
+    qc.get_state_fidelity()
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
@@ -250,6 +296,7 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
 
     pbar.update(10) if pbar is not None else None
 
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
@@ -264,8 +311,8 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
     # ['CNOT20', 'CNOT21', 'CNOT40', 'CNOT32', 'CZ45', 'CZ21', 'CZ02', 'CZ41', 'H5', 'H4', 'H3', 'H2', 'H1']
 
     qc.start_sub_circuit("AB")
-    qc.create_bell_pair(7, 15)
-    qc.create_bell_pair(6, 14)
+    # qc.create_bell_pair(7, 15)
+    # qc.create_bell_pair(6, 14)
     qc.create_bell_pair(5, 13)
     qc.create_bell_pair(4, 12)
     qc.create_bell_pair(3, 11)
@@ -301,16 +348,18 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
 
     measurement_outcomes = qc.measure([1, 2, 3, 4, 5, 9, 10, 11, 12, 13], probabilistic=False)
     # qc.draw_circuit()
-    qc.append_print_lines(T*(qc.get_combined_density_matrix([0, 8])[0])*T.transpose())
-    qc.append_print_lines("\n ")
-    qc.append_print_lines("Measurement outcomes are {}".format(measurement_outcomes))
+    # qc.append_print_lines(T*(qc.get_combined_density_matrix([0, 8])[0])*T.transpose())
+    # qc.append_print_lines("\n ")
+    # qc.append_print_lines("Measurement outcomes are {}".format(measurement_outcomes))
+
+    qc.get_state_fidelity()
 
     qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=5, tqubit=12)
+    qc.apply_gate(operation, cqubit=5, tqubit=14)
     qc.measure(5, probabilistic=False)
 
     qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=11, tqubit=14)
+    qc.apply_gate(operation, cqubit=11, tqubit=16)
     qc.measure(11, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
@@ -324,6 +373,7 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
     _, dataframe = qc.get_superoperator([14, 12], stab_rep, no_color=(not color), stabilizer_protocol=False,
                                         print_to_console=to_console, use_exact_path=True)
 
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
@@ -387,9 +437,9 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             success_bd = qc.single_selection(CZ_gate, 7, 0, retry=False)
 
         qc.start_sub_circuit("AC", forced_level=True)
-        qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)    # 5, 12, 9, 13
+        qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12, reverse=True)    # 5, 12, 9, 13
         # qc.start_sub_circuit("C")
-        qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)      # 5, 12, 9, 13, 2, 6
+        qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5, reverse=True)      # 5, 12, 9, 13, 2, 6
         # qc.start_sub_circuit("AC")
         # qc._thread_safe_printing = False
         # qc.draw_circuit()
@@ -400,9 +450,9 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             qc.X(13)
             qc.X(9)
         qc.start_sub_circuit("BD")
-        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8)        # 1, 8, 9, 13, 2, 6
+        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8, reverse=True)        # 1, 8, 9, 13, 2, 6
         # qc.start_sub_circuit("D")
-        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)        # 1, 8, 9, 13, 2, 6
+        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1, reverse=True)        # 1, 8, 9, 13, 2, 6
         # qc.start_sub_circuit("BD")
         measurement_outcomes2 = qc.measure([1, 8])
         ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
