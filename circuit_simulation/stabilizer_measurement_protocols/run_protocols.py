@@ -203,6 +203,8 @@ def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate
         if save_latex_pdf:
             qc.draw_circuit_latex()
 
+        if superoperator_qubits_list is None:
+            superoperator_qubits_list = [[qubit.index for qubit in qc.qubits.values() if qubit.is_data_qubit]]
         if type(superoperator_qubits_list[0]) == int:
             superoperator_qubits_list = [superoperator_qubits_list]
 

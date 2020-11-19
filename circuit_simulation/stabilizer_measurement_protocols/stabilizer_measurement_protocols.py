@@ -74,8 +74,6 @@ def monolithic(qc: QuantumCircuit, *, operation, pbar):
 
     pbar.update(50) if pbar is not None else None
 
-    return [1, 3, 5, 7]
-
 
 def expedient(qc: QuantumCircuit, *, operation, pbar):
     ghz_success = False
@@ -151,8 +149,6 @@ def expedient(qc: QuantumCircuit, *, operation, pbar):
     qc.end_current_sub_circuit(total=True)
 
     pbar.update(10) if pbar is not None else None
-
-    return [16, 18, 12, 14]
 
 
 def stringent(qc, *, operation, pbar):
@@ -247,8 +243,6 @@ def stringent(qc, *, operation, pbar):
 
     pbar.update(10) if pbar is not None else None
 
-    return [16, 18, 12, 14]
-
 
 def expedient_swap(qc, *, operation, pbar):
     ghz_success = False
@@ -324,8 +318,6 @@ def expedient_swap(qc, *, operation, pbar):
     qc.end_current_sub_circuit(total=True)
 
     pbar.update(10) if pbar is not None else None
-
-    return [16, 18, 12, 14]
 
 
 def stringent_swap(qc, *, operation, pbar):
@@ -410,8 +402,6 @@ def stringent_swap(qc, *, operation, pbar):
 
     pbar.update(10) if pbar is not None else None
 
-    return [16, 18, 12, 14]
-
 
 def duo_structure(qc: QuantumCircuit, *, operation, pbar):
     qc.start_sub_circuit("AB")
@@ -426,8 +416,6 @@ def duo_structure(qc: QuantumCircuit, *, operation, pbar):
     qc.end_current_sub_circuit(total=True)
 
     pbar.update(50) if pbar is not None else None
-
-    return [6, 8, 10, 12]
 
 
 def duo_structure_2(qc: QuantumCircuit, *, operation, pbar):
