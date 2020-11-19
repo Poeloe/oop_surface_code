@@ -1674,7 +1674,7 @@ class QuantumCircuit:
             self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
                             user_operation=user_operation)
             if measure:
-                measurement_outcomes = self.measure([bell_qubit_1, bell_qubit_2], noise=noise, pm=pm,
+                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
                 # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
