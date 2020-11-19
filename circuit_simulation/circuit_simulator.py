@@ -63,7 +63,7 @@ class QuantumCircuit:
             p_dec : float [0-1], optional, default=0
                 The overall amount of decoherence in the system. This is only applied when noise is True and
                 the value is greater than 0.
-            p_bell_success : float [0-1], optional, default=1
+            lde_success : float [0-1], optional, default=1
                 Specifies the success rate of the creation of Bell pairs. Default value is 1, which equals the case
                 that a Bell pair creation always instantly succeeds.
             basis_transformation_noise : bool, optional, default = None
@@ -75,7 +75,7 @@ class QuantumCircuit:
             measurement_duration : float, optional, default=4
                 In case of decoherence, the measurement duration is used to determine the amount of decoherence that
                 should be applied for a measurement operation
-            bell_creation_duration : float, optional, default=4
+            lde_duration : float, optional, default=4
                 In case of decoherence, the bell creation duration is used to determine the amount of decoherence that
                 should be applied for a measurement operation
             network_noise_type : int, optional, default=0
@@ -135,8 +135,8 @@ class QuantumCircuit:
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
                  pm_1=None, pn=None, decoherence=False, T1_idle=None, T2_idle=None, T1_idle_electron=None,
-                 T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
-                 bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
+                 T2_idle_electron=None, T1_lde=None, T2_lde=None, lde_success=1, time_step=1, measurement_duration=1,
+                 lde_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
                  pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf):
 
@@ -181,7 +181,7 @@ class QuantumCircuit:
         self.T1_lde = T1_lde
         self.T2_lde = T2_lde
         self.total_duration = 0
-        self.bell_creation_duration = bell_creation_duration
+        self.bell_creation_duration = lde_duration
         self.measurement_duration = measurement_duration
         self.pulse_duration = pulse_duration
         self.cut_off_time = cut_off_time
@@ -189,7 +189,7 @@ class QuantumCircuit:
 
         # Probabilistic nature attributes
         self.probabilistic = probabilistic
-        self.p_bell_success = p_bell_success
+        self.p_bell_success = lde_success
         self.fixed_lde_attempts = fixed_lde_attempts
         self._total_lde_attempts = 0
 
@@ -1068,10 +1068,10 @@ class QuantumCircuit:
                 probabilistic variable is used.
             p_bell_success : float
                 The success rate of the Bell pair creation attempt in case the creation is probabilistic. If not
-                specified the global p_bell_success value is used.
+                specified the global lde_success value is used.
             bell_creation_duration : float
                 The time it takes to do a Bell pair creation attempt. If not specified, the global
-                bell_creation_duration value will be used.
+                lde_duration value will be used.
             decoherence : bool
                 Applies decoherence to the qubits that wait on the operation to finish. If not specified, the global
                 decoherence value will be used.
