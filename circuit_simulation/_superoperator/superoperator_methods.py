@@ -42,10 +42,11 @@ def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None
             The density matrix of the current system, but without noise
     """
     if self.cut_off_time_reached:
-        qc = self._return_QC_object(8, 2)
-        return qc.get_combined_density_matrix([7, 5, 3, 1])[0]
+        qc = self._return_QC_object(len(qubits)*2, 0)
+        qc._init_density_matrix_maximally_entangled_state(amount_qubits=len(qubits)*2)
+        return qc.get_combined_density_matrix([0])[0]
     if stabilizer_protocol and not idle_data_qubit:
-        return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error)
+        return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measure_error)
     if idle_data_qubit:
         init_type = 2 if idle_data_qubit == 4 else 5
         return self._return_QC_object(idle_data_qubit*2, init_type).total_density_matrix()[0]
@@ -89,7 +90,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None
     return qc_noiseless.get_combined_density_matrix(qubits)[0]
 
 
-def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error):
+def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measure_error):
     """
         Method returns the noiseless density matrix of a stabilizer measurement in the monolithic architecture.
         Since this density matrix is equal for all equal kinds of stabilizer measurement protocols, this method
@@ -102,7 +103,9 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
         measure_error : bool
             True if the noiseless density matrix should contain a measurement error.
     """
-    qc = self._return_QC_object(9, 2)
+    num_qubits = len(qubits)*2 + 1
+    qc = self._return_QC_object(num_qubits=num_qubits, init=0)
+    qc._init_density_matrix_maximally_entangled_state(amount_qubits=num_qubits-1)
     qc.set_qubit_states({0: ket_p})
     gate = CZ_gate if proj_type == "Z" else CNOT_gate
     for i in range(1, qc.num_qubits, 2):
