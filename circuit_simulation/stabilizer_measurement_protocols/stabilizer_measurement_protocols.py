@@ -355,11 +355,11 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
     qc.get_state_fidelity()
 
     qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=5, tqubit=14)
+    qc.apply_gate(operation, cqubit=5, tqubit=16)
     qc.measure(5, probabilistic=False)
 
     qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=11, tqubit=16)
+    qc.apply_gate(operation, cqubit=11, tqubit=18)
     qc.measure(11, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
@@ -370,7 +370,7 @@ def single_cliffords(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    _, dataframe = qc.get_superoperator([14, 12], stab_rep, no_color=(not color), stabilizer_protocol=False,
+    _, dataframe = qc.get_superoperator([18, 16], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console, use_exact_path=True)
 
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
