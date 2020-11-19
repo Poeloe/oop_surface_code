@@ -73,10 +73,10 @@ def create_quantum_circuit(protocol, *, pg, pm, pm_1, pn, decoherence, bell_pair
                             no_single_qubit_error=True, fixed_lde_attempts=fixed_lde_attempts,
                             network_noise_type=network_noise_type)
 
-        qc.define_node("A", qubits=[20, 13, 12, 11, 10], electron_qubits=10, data_qubits=20)
-        qc.define_node("B", qubits=[18, 9, 8, 7], electron_qubits=7, data_qubits=18)
-        qc.define_node("C", qubits=[16, 6, 5, 4, 3], electron_qubits=3, data_qubits=16)
-        qc.define_node("D", qubits=[14, 2, 1, 0], electron_qubits=0, data_qubits=14)
+        qc.define_node("A", qubits=[20, 13, 12, 11, 10], electron_qubits=10, data_qubits=20, ghz_qubits=13)
+        qc.define_node("B", qubits=[18, 9, 8, 7], electron_qubits=7, data_qubits=18, ghz_qubits=9)
+        qc.define_node("C", qubits=[16, 6, 5, 4, 3], electron_qubits=3, data_qubits=16, ghz_qubits=6)
+        qc.define_node("D", qubits=[14, 2, 1, 0], electron_qubits=0, data_qubits=14, ghz_qubits=2)
 
         qc.define_sub_circuit("AB", [13, 12, 11, 10, 9, 8, 7, 20, 18], waiting_qubits=[12, 8, 20, 18])
         qc.define_sub_circuit("CD", [6, 5, 4, 3, 2, 1, 0, 16, 14], waiting_qubits=[5, 1, 16, 14],
@@ -409,8 +409,7 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
         pbar.update(20) if pbar is not None else None
         pbar.update(20) if pbar is not None else None
 
-    print(qc.get_state_fidelity([13],
-                                CT(1 / math.sqrt(2) * (ket_0 * ket_0 * ket_0 * ket_0 + ket_1 * ket_1 * ket_1 * ket_1))))
+    qc.get_state_fidelity()
 
     qc.start_sub_circuit("B")
     qc.apply_gate(operation, cqubit=9, tqubit=18)
@@ -438,11 +437,12 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    _, dataframe = qc.get_superoperator([20, 18, 16, 14], stab_rep, no_color=(not color), stabilizer_protocol=False,
+    _, dataframe = qc.get_superoperator([20, 18, 16, 14], stab_rep, no_color=(not color), stabilizer_protocol=True,
                                         print_to_console=to_console, use_exact_path=True)
 
     pbar.update(10) if pbar is not None else None
 
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
     qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
     print_lines = qc.print_lines
     cut_off_reached = qc.cut_off_time_reached
