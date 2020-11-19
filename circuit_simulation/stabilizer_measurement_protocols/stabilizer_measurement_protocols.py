@@ -387,38 +387,30 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
             success_bd = qc.single_selection(CZ_gate, 7, 0, retry=False)
 
         qc.start_sub_circuit("AC", forced_level=True)
-        qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)
+        qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12, reverse=True)    # 5, 12, 9, 13
         # qc.start_sub_circuit("C")
-        qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)
+        qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5, reverse=True)      # 5, 12, 9, 13, 2, 6
         # qc.start_sub_circuit("AC")
         # qc._thread_safe_printing = False
         # qc.draw_circuit()
-        measurement_outcomes = qc.measure([12, 5], basis="Z")
+        measurement_outcomes = qc.measure([5, 12], basis="Z")           # 9, 13, 2, 6
         success = measurement_outcomes[0] == measurement_outcomes[1]
         qc.start_sub_circuit("AB")
         if not success:
             qc.X(13)
             qc.X(9)
         qc.start_sub_circuit("BD")
-        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8)
+        qc.apply_gate(CZ_gate, cqubit=9, tqubit=8, reverse=True)        # 1, 8, 9, 13, 2, 6
         # qc.start_sub_circuit("D")
-        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)
+        qc.apply_gate(CZ_gate, cqubit=2, tqubit=1, reverse=True)        # 1, 8, 9, 13, 2, 6
         # qc.start_sub_circuit("BD")
-        measurement_outcomes2 = qc.measure([8, 1])
+        measurement_outcomes2 = qc.measure([1, 8])
         ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
         pbar.update(20) if pbar is not None else None
         pbar.update(20) if pbar is not None else None
 
     print(qc.get_state_fidelity([13],
                                 CT(1 / math.sqrt(2) * (ket_0 * ket_0 * ket_0 * ket_0 + ket_1 * ket_1 * ket_1 * ket_1))))
-
-    qc.start_sub_circuit("D")
-    qc.apply_gate(operation, cqubit=2, tqubit=14)
-    qc.measure(2, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.apply_gate(operation, cqubit=6, tqubit=16)
-    qc.measure(6, probabilistic=False)
 
     qc.start_sub_circuit("B")
     qc.apply_gate(operation, cqubit=9, tqubit=18)
@@ -427,6 +419,14 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
     qc.start_sub_circuit("A")
     qc.apply_gate(operation, cqubit=13, tqubit=20)
     qc.measure(13, probabilistic=False)
+
+    qc.start_sub_circuit("D")
+    qc.apply_gate(operation, cqubit=2, tqubit=14)
+    qc.measure(2, probabilistic=False)
+
+    qc.start_sub_circuit("C")
+    qc.apply_gate(operation, cqubit=6, tqubit=16)
+    qc.measure(6, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
 
@@ -438,7 +438,7 @@ def dyn_prot_14_1(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, t
     if save_latex_pdf:
         qc.draw_circuit_latex()
     stab_rep = "Z" if operation == CZ_gate else "X"
-    _, dataframe = qc.get_superoperator([20, 18, 16, 14], stab_rep, no_color=(not color), stabilizer_protocol=True,
+    _, dataframe = qc.get_superoperator([20, 18, 16, 14], stab_rep, no_color=(not color), stabilizer_protocol=False,
                                         print_to_console=to_console, use_exact_path=True)
 
     pbar.update(10) if pbar is not None else None
