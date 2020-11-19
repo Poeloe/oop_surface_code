@@ -59,6 +59,12 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     dataframe_1['avg_lde'] = dataframe_1['lde_attempts'] / corrected_written_to
     dataframe_1['avg_duration'] = dataframe_1['total_duration'] / corrected_written_to
 
+    # Update fidelity
+    dataframe_2['ghz_fidelity'] = dataframe_2['ghz_fidelity'].mul(written_to_new)
+    dataframe_1['ghz_fidelity'] = dataframe_1['ghz_fidelity'].mul(written_to_original)
+
+    dataframe_1['ghz_fidelity'] = (dataframe_1['ghz_fidelity'] + dataframe_2['ghz_fidelity']) / corrected_written_to
+
     return dataframe_1
 
 
