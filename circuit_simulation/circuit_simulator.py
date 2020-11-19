@@ -1699,7 +1699,7 @@ class QuantumCircuit:
             self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
                             user_operation=user_operation)
             if measure:
-                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
+                measurement_outcomes = self.measure([bell_qubit_1, bell_qubit_2], noise=noise, pm=pm,
                                                     user_operation=user_operation)
                 # If loop necessary for proper cut-off handling
                 if type(measurement_outcomes) == SKIP:
@@ -2093,10 +2093,16 @@ class QuantumCircuit:
                     self.append_print_lines("\nWarning: The measurement of a qubit that is not the first qubit of the "
                                             "density matrix is slow. The order of the density matrix is: {}. You want "
                                             "to measure qubit {}.".format(qubits, qubit))
-                    prob_0, density_matrix_0 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=0)
-                    prob_1, density_matrix_1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=1)
+                    prob_0, density_matrix_0 = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                             outcome=0)
+                    prob_1, density_matrix_1 = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                             outcome=1)
+
+                    if noise:
+                        # Keep pm_1 on None, such that the if loop below is evaluated correctly
+                        pmeas_1 = pm_1 if pm_1 is not None else pm
+                        density_matrix_0 = (1-pm) * density_matrix_0 + pm * density_matrix_1
+                        density_matrix_1 = (1-pmeas_1) * density_matrix_1 + pmeas_1 * density_matrix_0
 
                 probs = [prob_0, prob_1]
                 if round(sum(probs), 10) != 1 and pm_1 is None:
@@ -2118,11 +2124,11 @@ class QuantumCircuit:
                     self.append_print_lines("\nWarning: The measurement of a qubit that is not the first qubit of the "
                                             "density matrix is slow. The order of the density matrix is: {}. You want "
                                             "to measure qubit {}.".format(qubits, qubit))
-                    prob, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=outcome_new)
+                    prob, new_density_matrix = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                             outcome=outcome_new)
                     if noise:
-                        _, wrong_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                            outcome=outcome_new ^ 1)
+                        _, wrong_density_matrix = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                                outcome=outcome_new ^ 1)
                         new_density_matrix = (1 - pm) * new_density_matrix + pm * wrong_density_matrix
 
                 probs = [prob, prob]
@@ -2148,7 +2154,7 @@ class QuantumCircuit:
 
         return measurement_outcomes
 
-    def _get_measurement_outcome_probability(self, qubit, density_matrix, outcome, keep_qubit=False):
+    def _measure_arbitrary_qubit(self, qubit, density_matrix, outcome, keep_qubit=False):
         """
             Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
 
@@ -2177,8 +2183,8 @@ class QuantumCircuit:
             outcome : int [0,1]
                 Outcome for which the probability and resulting density matrix should be calculated
         """
-        return self._operations.measurement_operations.get_measurement_outcome_probability(qubit, density_matrix,
-                                                                                           outcome, keep_qubit)
+        return self._operations.measurement_operations._measure_arbitrary_qubit(qubit, density_matrix,
+                                                                                outcome, keep_qubit)
 
     """
         ---------------------------------------------------------------------------------------------------------
