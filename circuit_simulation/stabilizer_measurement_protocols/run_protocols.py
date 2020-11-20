@@ -235,7 +235,7 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
 
         # If no superoperator qubits are returned, take the data qubits as such
         if superoperator_qubits_list is None:
-            superoperator_qubits_list = [[qubit.index for qubit in qc.qubits.values() if qubit.is_data_qubit]]
+            superoperator_qubits_list = [qc.data_qubits]
         if type(superoperator_qubits_list[0]) == int:
             superoperator_qubits_list = [superoperator_qubits_list]
 

@@ -664,6 +664,12 @@ class QuantumCircuit:
     def get_ghz_qubits(self):
         return list(self.ghz_qubits.keys())
 
+    @property
+    def data_qubits(self):
+        if self.qubits is None:
+            return []
+        return [qubit.index for qubit in self.qubits.values() if qubit.is_data_qubit]
+
     def get_node_name_from_qubit(self, qubit):
         """
             Returns the name of the node that the supplied qubit is part of.
