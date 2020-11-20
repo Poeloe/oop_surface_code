@@ -128,7 +128,7 @@ def _additional_parsing_of_arguments(args):
     return args
 
 
-def main_threaded(*, iterations, fn, **kwargs):
+def main_threaded(*, iterations, fn, cp_path, **kwargs):
     # Run main method asynchronously with each worker getting an equal amount of iterations to run
     results = []
     workers = iterations if 0 < iterations < cpu_count() else cpu_count()
@@ -150,32 +150,30 @@ def main_threaded(*, iterations, fn, **kwargs):
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
-    total_superoperator_succeed = (pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1])
+    normal = (pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1])
                                    if fn and os.path.exists(fn + ".csv") else None)
-    total_superoperator_failed = (pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if
+    cut_off = (pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if
                                   fn and os.path.exists(fn + "_failed.csv") else None)
-    total_superoperator_idle = (pd.read_csv(fn + "_idle.csv", sep=';', index_col=[0, 1]) if
+    idle = (pd.read_csv(fn + "_idle.csv", sep=';', index_col=[0, 1]) if
                                 fn and os.path.exists(fn + "_idle.csv") else None)
 
     # Combine the superoperator results obtained for each worker
     for (superoperator_succeed, superoperator_failed, superoperator_idle), print_line in zip(superoperator_results,
                                                                                              print_lines_results):
-        total_superoperator_succeed = _combine_superoperator_dataframes(total_superoperator_succeed,
-                                                                        superoperator_succeed)
-        total_superoperator_failed = _combine_superoperator_dataframes(total_superoperator_failed, superoperator_failed)
-        total_superoperator_idle = _combine_superoperator_dataframes(total_superoperator_idle, superoperator_idle)
+        normal = _combine_superoperator_dataframes(normal, superoperator_succeed)
+        cut_off = _combine_superoperator_dataframes(cut_off, superoperator_failed)
+        idle = _combine_superoperator_dataframes(idle, superoperator_idle)
         print(*print_line)
 
     # Save superoperator dataframe to csv if exists and requested by user
-    if total_superoperator_succeed is not None and fn:
-        total_superoperator_succeed.to_csv(fn + ".csv", sep=';')
-    if total_superoperator_failed is not None and fn:
-        total_superoperator_failed.to_csv(fn + "_failed.csv", sep=';')
-    if total_superoperator_idle is not None and fn:
-        total_superoperator_idle.to_csv(fn + "_idle.csv", sep=';')
+    if fn:
+        for superoperator, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
+            filename = fn + fn_add
+            superoperator.to_csv(filename, sep=';')
+            os.system("cp {} {}".format(filename, cp_path)) if cp_path else None
 
 
-def main_series(fn, **kwargs):
+def main_series(fn, cp_path, **kwargs):
     (normal, cut_off, idle), print_lines = main(**kwargs)
     print(*print_lines)
 

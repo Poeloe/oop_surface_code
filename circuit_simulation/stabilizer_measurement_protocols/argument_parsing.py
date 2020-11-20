@@ -106,6 +106,12 @@ def compose_parser():
                         type=str,
                         default=None,
                         help='Give the file name of the csv file that will be saved.')
+    parser.add_argument('-cp',
+                        '--cp_path',
+                        required=False,
+                        type=str,
+                        default=None,
+                        help='Give the path the csv file should be copied to (Cluster runs).')
     parser.add_argument("-tr",
                         "--threaded",
                         help="Use when the program should run in multi-threaded mode. Optional",
