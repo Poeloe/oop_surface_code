@@ -305,6 +305,117 @@ def expedient(qc: QuantumCircuit, *, operation, color, save_latex_pdf, pbar, dra
     return (dataframe, cut_off_reached), print_lines
 
 
+def bipartite_4(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    # ['CNOT32', 'CNOT30', 'CNOT21', 'H2', 'CNOT02', 'H2', 'H1']
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(3, 15)
+    qc.create_bell_pair(2, 14)
+    qc.create_bell_pair(1, 13)
+    qc.create_bell_pair(0, 12)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=2)    # 15, 3, 14, 2
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=14)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 15, 3, 14, 2, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
+    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1, reverse=True)    # 13, 1, 15, 3, 14, 2, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=13)
+    qc.apply_gate(H_gate, 2)
+    qc.apply_gate(H_gate, 14)
+    qc.apply_gate(CNOT_gate, cqubit=0, tqubit=2)
+    qc.apply_gate(CNOT_gate, cqubit=12, tqubit=14)
+    qc.apply_gate(H_gate, 2)
+    qc.apply_gate(H_gate, 14)
+    qc.apply_gate(H_gate, 1)
+    qc.apply_gate(H_gate, 13)
+
+    qc.measure([13, 1, 15, 3, 14, 2], probabilistic=False)
+
+    qc.get_state_fidelity()
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=12, tqubit=26)
+    qc.measure(12, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=0, tqubit=24)
+    qc.measure(0, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    if draw_circuit:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([26, 24], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
+
+    qc.append_print_lines("\nBell pair fidelity: {}\n".format(qc.ghz_fidelity))
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (dataframe, cut_off_reached), print_lines
+
+
+def bipartite_5(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    # ['CNOT30', 'CNOT32', 'CNOT40', 'CZ20', 'CZ21', 'CZ41', 'CZ42', 'CZ43']
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(4, 16)
+    qc.create_bell_pair(3, 15)
+    qc.create_bell_pair(2, 14)
+    qc.create_bell_pair(1, 13)
+    qc.create_bell_pair(0, 12)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=2, reverse=True)    # 14, 2, 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=14)
+    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=0)    # 16, 4, 14, 2, 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=12)
+    qc.apply_gate(CZ_gate, cqubit=2, tqubit=0)
+    qc.apply_gate(CZ_gate, cqubit=14, tqubit=12)
+    qc.apply_gate(CZ_gate, cqubit=2, tqubit=1, reverse=True)    # 13, 1, 16, 4, 14, 2, 15, 3, 12, 0
+    qc.apply_gate(CZ_gate, cqubit=14, tqubit=13)
+    qc.apply_gate(CZ_gate, cqubit=4, tqubit=1)
+    qc.apply_gate(CZ_gate, cqubit=16, tqubit=13)
+    qc.apply_gate(CZ_gate, cqubit=4, tqubit=2)
+    qc.apply_gate(CZ_gate, cqubit=16, tqubit=14)
+    qc.apply_gate(CZ_gate, cqubit=4, tqubit=3)
+    qc.apply_gate(CZ_gate, cqubit=16, tqubit=15)
+
+    qc.measure([13, 1, 16, 4, 14, 2, 15, 3], probabilistic=False)
+
+    qc.get_state_fidelity()
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=12, tqubit=26)
+    qc.measure(12, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=0, tqubit=24)
+    qc.measure(0, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    if draw_circuit:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([26, 24], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
+
+    qc.append_print_lines("\nBell pair fidelity: {}\n".format(qc.ghz_fidelity))
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (dataframe, cut_off_reached), print_lines
+
+
 def bipartite_6(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
 
     # T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
@@ -347,6 +458,141 @@ def bipartite_6(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_
     # qc.append_print_lines("Measurement outcomes are {}".format(measurement_outcomes))
 
     qc.get_state_fidelity()
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=12, tqubit=26)
+    qc.measure(12, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=0, tqubit=24)
+    qc.measure(0, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    if draw_circuit:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([26, 24], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
+
+    qc.append_print_lines("\nBell pair fidelity: {}\n".format(qc.ghz_fidelity))
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (dataframe, cut_off_reached), print_lines
+
+
+def bipartite_7(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    # ['CNOT43', 'CNOT20', 'CNOT42', 'CNOT10', 'CZ56', 'CZ51', 'CZ20', 'CZ31', 'CZ62', 'CZ32', 'CZ54']
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(6, 18)
+    qc.create_bell_pair(5, 17)
+    qc.create_bell_pair(4, 16)
+    qc.create_bell_pair(3, 15)
+    qc.create_bell_pair(2, 14)
+    qc.create_bell_pair(1, 13)
+    qc.create_bell_pair(0, 12)
+    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=3)    # 16, 4, 15, 3
+    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=15)
+    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=0)    # 14, 2, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=12)
+    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=2)    # 16, 4, 15, 3, 14, 2, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=14)
+    qc.apply_gate(CNOT_gate, cqubit=1, tqubit=0)    # 13, 1, 16, 4, 15, 3, 14, 2, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)
+    qc.apply_gate(CZ_gate, cqubit=5, tqubit=6)      # 17, 5, 18, 6
+    qc.apply_gate(CZ_gate, cqubit=17, tqubit=18)
+    qc.apply_gate(CZ_gate, cqubit=5, tqubit=1)      # 17, 5, 18, 6, 13, 1, 16, 4, 15, 3, 14, 2, 12, 0
+    qc.apply_gate(CZ_gate, cqubit=17, tqubit=13)
+    qc.apply_gate(CZ_gate, cqubit=2, tqubit=0)
+    qc.apply_gate(CZ_gate, cqubit=14, tqubit=12)
+    qc.apply_gate(CZ_gate, cqubit=3, tqubit=1)
+    qc.apply_gate(CZ_gate, cqubit=15, tqubit=13)
+    qc.apply_gate(CZ_gate, cqubit=6, tqubit=2)
+    qc.apply_gate(CZ_gate, cqubit=18, tqubit=14)
+    qc.apply_gate(CZ_gate, cqubit=3, tqubit=2)
+    qc.apply_gate(CZ_gate, cqubit=15, tqubit=14)
+    qc.apply_gate(CZ_gate, cqubit=5, tqubit=4)
+    qc.apply_gate(CZ_gate, cqubit=17, tqubit=16)
+
+    qc.measure([17, 5, 18, 6, 13, 1, 16, 4, 15, 3, 14, 2], probabilistic=False)
+
+    qc.get_state_fidelity()     # [0.9452874234023928, 0.015611321855850608, 0.015611321855850608, 0.023489932885906045]
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=12, tqubit=26)
+    qc.measure(12, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=0, tqubit=24)
+    qc.measure(0, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    if draw_circuit:
+        qc.draw_circuit(no_color=not color, color_nodes=True)
+
+    if save_latex_pdf:
+        qc.draw_circuit_latex()
+    stab_rep = "Z" if operation == CZ_gate else "X"
+    _, dataframe = qc.get_superoperator([26, 24], stab_rep, no_color=(not color), stabilizer_protocol=True,
+                                        print_to_console=to_console, use_exact_path=True)
+
+    qc.append_print_lines("\nBell pair fidelity: {}\n".format(qc.ghz_fidelity))
+    qc.append_print_lines("\nTotal circuit duration: {} seconds".format(qc.total_duration)) if draw_circuit else None
+    print_lines = qc.print_lines
+    cut_off_reached = qc.cut_off_time_reached
+    qc.reset()
+
+    return (dataframe, cut_off_reached), print_lines
+
+
+def bipartite_8(qc, *, operation, color, save_latex_pdf, pbar, draw_circuit, to_console):
+    # ['CNOT72', 'CNOT21', 'CNOT73', 'CNOT30', 'CNOT65', 'CNOT76', 'CNOT53', 'CZ45', 'CZ24', 'CZ62', 'CZ63', 'CZ60', 'CZ13']
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(7, 19)
+    qc.create_bell_pair(6, 18)
+    qc.create_bell_pair(5, 17)
+    qc.create_bell_pair(4, 16)
+    qc.create_bell_pair(3, 15)
+    qc.create_bell_pair(2, 14)
+    qc.create_bell_pair(1, 13)
+    qc.create_bell_pair(0, 12)
+    qc.apply_gate(CNOT_gate, cqubit=7, tqubit=2)    # 19, 7, 14, 2
+    qc.apply_gate(CNOT_gate, cqubit=19, tqubit=14)
+    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1)    # 19, 7, 14, 2, 13, 1
+    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=13)
+    qc.apply_gate(CNOT_gate, cqubit=7, tqubit=3)    # 19, 7, 14, 2, 13, 1, 15, 3
+    qc.apply_gate(CNOT_gate, cqubit=19, tqubit=15)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 19, 7, 14, 2, 13, 1, 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
+    qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)    # 18, 6, 17, 5
+    qc.apply_gate(CNOT_gate, cqubit=18, tqubit=17)
+    qc.apply_gate(CNOT_gate, cqubit=7, tqubit=6, reverse=True)    # 18, 6, 17, 5, 19, 7, 14, 2, 13, 1, 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=19, tqubit=18)
+    qc.apply_gate(CNOT_gate, cqubit=5, tqubit=3)
+    qc.apply_gate(CNOT_gate, cqubit=17, tqubit=15)
+    qc.apply_gate(CZ_gate, cqubit=4, tqubit=5)      # 16, 4, 18, 6, 17, 5, 19, 7, 14, 2, 13, 1, 15, 3, 12, 0
+    qc.apply_gate(CZ_gate, cqubit=16, tqubit=17)
+    qc.apply_gate(CZ_gate, cqubit=2, tqubit=4)
+    qc.apply_gate(CZ_gate, cqubit=14, tqubit=16)
+    qc.apply_gate(CZ_gate, cqubit=6, tqubit=2)
+    qc.apply_gate(CZ_gate, cqubit=18, tqubit=14)
+    qc.apply_gate(CZ_gate, cqubit=6, tqubit=3)
+    qc.apply_gate(CZ_gate, cqubit=18, tqubit=15)
+    qc.apply_gate(CZ_gate, cqubit=6, tqubit=0)
+    qc.apply_gate(CZ_gate, cqubit=18, tqubit=12)
+    qc.apply_gate(CZ_gate, cqubit=1, tqubit=3)
+    qc.apply_gate(CZ_gate, cqubit=13, tqubit=15)
+
+    qc.measure([16, 4, 18, 6, 17, 5, 19, 7, 14, 2, 13, 1, 15, 3], probabilistic=False)
+
+    qc.get_state_fidelity()     # [0.9564483457123565, 0.012997974341661047, 0.012997974341661049, 0.017555705604321417]
 
     qc.start_sub_circuit("A")
     qc.apply_gate(operation, cqubit=12, tqubit=26)
