@@ -170,7 +170,7 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
         for superoperator, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
             filename = fn + fn_add
             superoperator.to_csv(filename, sep=';') if superoperator is not None else None
-            os.system("cp -rv {} {}".format(filename, cp_path)) if cp_path else None
+            os.system("cp -rv {} {}".format(filename, cp_path)) if cp_path and superoperator else None
 
 
 def main_series(fn, cp_path, **kwargs):
