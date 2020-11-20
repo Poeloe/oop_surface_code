@@ -64,7 +64,7 @@ def compose_parser():
                         nargs="*",
                         default=[0.0])
     parser.add_argument('-p_bell',
-                        '--bell_pair_creation_success',
+                        '--lde_success',
                         help='Specifies the success probability of the creation of a Bell pair (if probabilistic).',
                         type=float,
                         default=1.0)
@@ -79,7 +79,7 @@ def compose_parser():
                         type=float,
                         default=0.)
     parser.add_argument('-b_dur',
-                        '--bell_pair_creation_duration',
+                        '--lde_duration',
                         help='Specifies the duration of a measurement operation.',
                         type=float,
                         default=0.)
@@ -126,13 +126,13 @@ def compose_parser():
                         required=False,
                         action="store_true")
     parser.add_argument("-lkt_1q",
-                        "--lookup_table_single_qubit_gates",
+                        "--single_qubit_gate_lookup",
                         help="Name of a .pkl single-qubit gate lookup file.",
                         required=False,
                         type=str,
                         default=None)
     parser.add_argument("-lkt_2q",
-                        "--lookup_table_two_qubit_gates",
+                        "--two_qubit_gate_lookup",
                         help="Name of a .pkl two-qubit gate lookup file.",
                         required=False,
                         type=str,
