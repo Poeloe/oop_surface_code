@@ -282,7 +282,7 @@ def run_for_arguments(protocols, gate_error_probabilities, network_error_probabi
         protocol = protocol + "_swap" if use_swap_gates else protocol
 
         fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}"\
-            .format(csv_filename, filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde) \
+            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde) \
             if csv_filename else None
 
         print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}"
