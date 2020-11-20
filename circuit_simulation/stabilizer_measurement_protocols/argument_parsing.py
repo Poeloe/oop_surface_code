@@ -157,6 +157,7 @@ def compose_parser():
                         "--fixed_lde_attempts",
                         help="Specify the amount of fixed lde attempts before a pulse is sent to the nuclear qubits.",
                         type=int,
+                        nargs="*",
                         default=10000)
     parser.add_argument("-n_type",
                         "--network_noise_type",
