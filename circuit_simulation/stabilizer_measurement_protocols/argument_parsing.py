@@ -18,7 +18,7 @@ def compose_parser():
                         type=int,
                         default=1)
     parser.add_argument('-p',
-                        '--protocol',
+                        '--protocols',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         nargs="*",
                         choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'duo_structure_2'],
@@ -36,7 +36,7 @@ def compose_parser():
                         required=False,
                         action='store_true')
     parser.add_argument('-pg',
-                        '--gate_error_probability',
+                        '--gate_error_probabilities',
                         help='Specifies the amount of gate error present in the system',
                         type=float,
                         nargs="*",
@@ -46,19 +46,19 @@ def compose_parser():
                        required=False,
                        action='store_true')
     group.add_argument('-pm',
-                       '--measurement_error_probability',
+                       '--meas_error_probabilities',
                        help='Specifies the amount of measurement error present in the system',
                        type=float,
                        nargs="*")
     parser.add_argument('-pm_1',
-                        '--measurement_error_probability_one_state',
+                        '--meas_error_probabilities_one_state',
                         help='The measurement error rate in case an 1-state is supposed to be measured',
                         required=False,
                         type=float,
                         nargs="*",
                         default=None)
     parser.add_argument('-pn',
-                        '--network_error_probability',
+                        '--network_error_probabilities',
                         help='Specifies the amount of network error present in the system',
                         type=float,
                         nargs="*",
