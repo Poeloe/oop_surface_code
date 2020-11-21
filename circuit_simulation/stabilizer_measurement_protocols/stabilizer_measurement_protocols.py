@@ -23,6 +23,24 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         kwargs.pop('no_single_qubit_error')
         qc = QuantumCircuit(9, 2, basis_transformation_noise=True, no_single_qubit_error=False, **kwargs)
 
+    elif protocol == 'plain':
+        kwargs.pop('no_single_qubit_error')
+        qc = QuantumCircuit(16, 2, no_single_qubit_error=False, **kwargs)
+
+        qc.define_node("A", qubits=[14, 7, 6], electron_qubits=7, data_qubits=14)
+        qc.define_node("B", qubits=[12, 5, 4], electron_qubits=5, data_qubits=12)
+        qc.define_node("C", qubits=[10, 3, 2], electron_qubits=3, data_qubits=10)
+        qc.define_node("D", qubits=[8, 0, 1], electron_qubits=0, data_qubits=8)
+
+        qc.define_sub_circuit("AB")
+        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC")
+
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C")
+        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
+
     elif protocol == 'duo_structure':
         qc = QuantumCircuit(14, 2, **kwargs)
 
@@ -79,6 +97,28 @@ def monolithic(qc: QuantumCircuit, *, operation):
     PBAR.update(50) if PBAR is not None else None
 
     return [1, 3, 5, 7]
+
+
+def plain(qc: QuantumCircuit, *, operation):
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(7, 5)
+    qc.start_sub_circuit("CD")
+    qc.create_bell_pair(3, 1)
+    qc.start_sub_circuit("AC")
+    success = qc.single_selection(operation, 6, 2, retry=False)
+    if not success:
+        qc.start_sub_circuit("AB")
+        qc.X(7)
+        qc.X(5)
+        qc.end_current_sub_circuit()
+    qc.get_state_fidelity([7, 5, 3, 1])
+
+    qc.stabilizer_measurement(operation, cqubit=5, tqubit=12)
+    qc.stabilizer_measurement(operation, cqubit=7, tqubit=14)
+    qc.stabilizer_measurement(operation, cqubit=1, tqubit=8)
+    qc.stabilizer_measurement(operation, cqubit=3, tqubit=10)
+
+    qc.end_current_sub_circuit(total=True)
 
 
 def expedient(qc: QuantumCircuit, *, operation):

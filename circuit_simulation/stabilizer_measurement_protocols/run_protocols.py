@@ -258,6 +258,8 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
             supop_dataframe_succeed = _combine_superoperator_dataframes(supop_dataframe_succeed, supop_dataframe[0])
 
         total_print_lines.extend(qc.print_lines)
+        total_print_lines.append("\nGHZ fidelity: {} ".format(qc.ghz_fidelity)) \
+            if draw_circuit else None
         total_print_lines.append("\nTotal circuit duration: {} seconds".format(qc.total_duration)) \
             if draw_circuit else None
         qc.reset()

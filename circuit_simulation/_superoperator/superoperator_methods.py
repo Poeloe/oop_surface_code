@@ -117,9 +117,10 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measu
 
 
 def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
-    if qubits is None and compare_matrix is None:
+    if qubits is None:
         qubits = self.get_ghz_qubits()
 
+    if compare_matrix is None and set_ghz_fidelity:
         # Create ghz state with the weight equal to the amount of ghz qubits
         ghz_state = sp.lil_matrix((2**len(qubits), 2**len(qubits)))
         ghz_state[0, 0] = 1/2; ghz_state[0, 2**len(qubits)-1] = 1/2

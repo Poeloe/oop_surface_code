@@ -21,7 +21,7 @@ def compose_parser():
                         '--protocols',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         nargs="*",
-                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'duo_structure_2'],
+                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'duo_structure_2', 'plain'],
                         type=str.lower,
                         default='monolithic')
     parser.add_argument('-s',
@@ -164,7 +164,7 @@ def compose_parser():
                         help="Specify the amount of fixed lde attempts before a pulse is sent to the nuclear qubits.",
                         type=int,
                         nargs="*",
-                        default=10000)
+                        default=[1000])
     parser.add_argument("-n_type",
                         "--network_noise_type",
                         help="Specify the network noise type. ",

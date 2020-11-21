@@ -576,7 +576,8 @@ class QuantumCircuit:
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
         # First apply left over waiting time of all qubits in the form of decoherence
-        self._N_decoherence(decoherence=self.decoherence)
+        if self.noise:
+            self._N_decoherence(decoherence=self.decoherence)
 
         # Apply decoherence to the fastest sub circuits if applicable
         self._apply_decoherence_to_fastest_sub_circuits()
@@ -1476,7 +1477,7 @@ class QuantumCircuit:
         new_density_matrix = two_qubit_gate.dot(CT(density_matrix, two_qubit_gate))
 
         if noise:
-            times = 2 if gate.name.lower() == 'swap' else 1
+            times = 3 if gate.name.lower() == 'swap' else 1
             new_density_matrix = self._N_two_qubit_gate(pg, rel_cqubit, rel_tqubit, new_density_matrix,
                                                         num_qubits=rel_num_qubits, times=times)
 
@@ -1822,6 +1823,14 @@ class QuantumCircuit:
 
             if not retry:
                 return success
+
+    def stabilizer_measurement(self, operation, cqubit, tqubit, node=None):
+        if node is None:
+            node = self.get_node_name_from_qubit(cqubit)
+
+        self.start_sub_circuit(node)
+        self.apply_gate(operation, cqubit=cqubit, tqubit=tqubit)
+        self.measure(cqubit, probabilistic=False)
 
     """
         ---------------------------------------------------------------------------------------------------------
