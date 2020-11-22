@@ -86,7 +86,6 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
 def monolithic(qc: QuantumCircuit, *, operation):
     qc.set_qubit_states({0: ket_p})
     qc.stabilizer_measurement(operation, nodes=["A"])
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(90) if PBAR is not None else None
 
@@ -107,7 +106,6 @@ def plain(qc: QuantumCircuit, *, operation):
     qc.get_state_fidelity()
 
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
-    qc.end_current_sub_circuit(total=True)
 
 
 def expedient(qc: QuantumCircuit, *, operation):
@@ -166,7 +164,6 @@ def expedient(qc: QuantumCircuit, *, operation):
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
 
@@ -245,7 +242,6 @@ def stringent(qc: QuantumCircuit, *, operation):
     # Step 15 from Table D.2 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
 
@@ -303,7 +299,6 @@ def expedient_swap(qc: QuantumCircuit, *, operation):
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
 
@@ -381,7 +376,6 @@ def duo_structure(qc: QuantumCircuit, *, operation):
     qc.get_state_fidelity()
 
     qc.stabilizer_measurement(operation, nodes=["A", "B"])
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(50) if PBAR is not None else None
 
@@ -442,7 +436,6 @@ def duo_structure_2(qc: QuantumCircuit, *, operation):
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], tqubit=[26, 30, 18, 22])
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
 

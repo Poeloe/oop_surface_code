@@ -1823,7 +1823,7 @@ class QuantumCircuit:
                 return success
 
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
-                               electron_qubit=None):
+                               electron_qubit=None, end_circuit=True):
 
         # Function is here, such that user parameters are not overwritten in the loop
         def node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit):
@@ -1861,6 +1861,9 @@ class QuantumCircuit:
 
         for node, tqubit in zip(nodes, tqubits):
             node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
+
+        if end_circuit:
+            self.end_current_sub_circuit(total=True)
 
     """
         ---------------------------------------------------------------------------------------------------------
