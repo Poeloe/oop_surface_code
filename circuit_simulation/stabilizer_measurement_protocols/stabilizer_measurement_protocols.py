@@ -36,13 +36,20 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("B", concurrent_sub_circuits="A")
 
     elif protocol == 'plain':
-        kwargs.pop('no_single_qubit_error')
-        qc = QuantumCircuit(16, 2, no_single_qubit_error=False, **kwargs)
+        qc = QuantumCircuit(16, 2, **kwargs)
 
         qc.define_node("A", qubits=[14, 7, 6], data_qubits=14, ghz_qubit=7)
         qc.define_node("B", qubits=[12, 5, 4], data_qubits=12, ghz_qubit=5)
-        qc.define_node("C", qubits=[10, 3, 2], data_qubits=10, ghz_qubit=1)
-        qc.define_node("D", qubits=[8, 0, 1], data_qubits=8, ghz_qubit=3)
+        qc.define_node("C", qubits=[10, 3, 2], data_qubits=10, ghz_qubit=3)
+        qc.define_node("D", qubits=[8, 0, 1], data_qubits=8, ghz_qubit=1)
+
+    elif protocol == 'plain_swap':
+        qc = QuantumCircuit(16, 2, **kwargs)
+
+        qc.define_node("A", qubits=[14, 7, 6], data_qubits=14, electron_qubits=6, ghz_qubit=7)
+        qc.define_node("B", qubits=[12, 5, 4], data_qubits=12, electron_qubits=4, ghz_qubit=5)
+        qc.define_node("C", qubits=[10, 3, 2], data_qubits=10, electron_qubits=2, ghz_qubit=3)
+        qc.define_node("D", qubits=[8, 0, 1], data_qubits=8, electron_qubits=0, ghz_qubit=1)
 
     elif protocol == 'duo_structure_2':
         qc = QuantumCircuit(32, 5, **kwargs)
@@ -69,7 +76,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[12, 2, 1, 0], data_qubits=12, ghz_qubit=2)
 
     # Common sub circuit defining handled here
-    if protocol in ['plain', 'duo_structure_2', 'expedient', 'expedient', 'expedient_swap', 'stringent',
+    if protocol in ['plain', 'plain_swap', 'duo_structure_2', 'expedient', 'expedient', 'expedient_swap', 'stringent',
                     'stringent_swap']:
         qc.define_sub_circuit("AB")
         qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
@@ -98,14 +105,42 @@ def plain(qc: QuantumCircuit, *, operation):
     qc.start_sub_circuit("AC")
     success = qc.single_selection(operation, 6, 2, retry=False)
     if not success:
-        qc.start_sub_circuit("AB")
+        qc.start_sub_circuit("AB", forced_level=True)
         qc.X(7)
         qc.X(5)
         qc.end_current_sub_circuit()
 
     qc.get_state_fidelity()
 
+    qc.start_sub_circuit("A", forced_level=True)
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
+
+    PBAR.update(90) if PBAR is not None else None
+
+
+def plain_swap(qc: QuantumCircuit, *, operation):
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(6, 4)
+    qc.SWAP(6, 7)
+    qc.SWAP(4, 5)
+    qc.start_sub_circuit("CD")
+    qc.create_bell_pair(2, 0)
+    qc.SWAP(2, 3)
+    qc.SWAP(0, 1)
+    qc.start_sub_circuit("AC")
+    success = qc.single_selection_swap(operation, 6, 2)
+    if not success:
+        qc.start_sub_circuit("AB", forced_level=True)
+        qc.X(7)
+        qc.X(5)
+        qc.end_current_sub_circuit()
+
+    qc.get_state_fidelity()
+
+    qc.start_sub_circuit("A", forced_level=True)
+    qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
+
+    PBAR.update(90) if PBAR is not None else None
 
 
 def expedient(qc: QuantumCircuit, *, operation):
