@@ -1840,11 +1840,11 @@ class QuantumCircuit:
 
             self.start_sub_circuit(node)
             for data_qubit in data_qubits:
+                cqubit = ghz_qubit if swap else cqubit
                 if swap:
                     self.SWAP(electron_qubit, cqubit, efficient=True)
                     cqubit = electron_qubit
                 self.apply_gate(operation, cqubit=cqubit, tqubit=data_qubit)
-                cqubit = ghz_qubit if swap else cqubit
             self.measure(cqubit, probabilistic=False)
 
         # Main code of the method

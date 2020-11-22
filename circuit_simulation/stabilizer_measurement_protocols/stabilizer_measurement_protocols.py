@@ -138,7 +138,7 @@ def plain_swap(qc: QuantumCircuit, *, operation):
     qc.get_state_fidelity()
 
     qc.start_sub_circuit("A", forced_level=True)
-    qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
+    qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
 
     PBAR.update(90) if PBAR is not None else None
 
