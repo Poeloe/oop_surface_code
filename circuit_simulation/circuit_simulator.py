@@ -1822,28 +1822,45 @@ class QuantumCircuit:
             if not retry:
                 return success
 
-    def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, node=None, swap=False, electron_qubit=None):
-        if node is None:
-            node = self.get_node_name_from_qubit(cqubit)
-        if cqubit is None:
-            cqubit = self.nodes[node].ghz_qubit
-        ghz_qubit = cqubit
-        if tqubit is None:
-            data_qubits = self.nodes[node].data_qubits
-        else:
-            data_qubits = [tqubit] if type(tqubit) is not list else tqubit
+    def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
+                               electron_qubit=None):
 
-        if swap:
-            electron_qubit = self.nodes[node].electron_qubits[0] if electron_qubit is None else electron_qubit
+        # Function is here, such that user parameters are not overwritten in the loop
+        def node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit):
+            if cqubit is None:
+                cqubit = self.nodes[node].ghz_qubit
+            ghz_qubit = cqubit
+            if tqubit is None:
+                data_qubits = self.nodes[node].data_qubits
+            else:
+                data_qubits = [tqubit] if type(tqubit) is not list else tqubit
 
-        self.start_sub_circuit(node)
-        for data_qubit in data_qubits:
             if swap:
-                self.SWAP(electron_qubit, cqubit, efficient=True)
-                cqubit = electron_qubit
-            self.apply_gate(operation, cqubit=cqubit, tqubit=data_qubit)
-            cqubit = ghz_qubit if swap else cqubit
-        self.measure(cqubit, probabilistic=False)
+                electron_qubit = self.nodes[node].electron_qubits[0] if electron_qubit is None else electron_qubit
+
+            self.start_sub_circuit(node)
+            for data_qubit in data_qubits:
+                if swap:
+                    self.SWAP(electron_qubit, cqubit, efficient=True)
+                    cqubit = electron_qubit
+                self.apply_gate(operation, cqubit=cqubit, tqubit=data_qubit)
+                cqubit = ghz_qubit if swap else cqubit
+            self.measure(cqubit, probabilistic=False)
+
+        # Main code of the method
+        if nodes is None:
+            nodes = [self.get_node_name_from_qubit(cqubit)]
+        if tqubit is None:
+            tqubits = [None for _ in range(len(nodes))]
+        elif type(tqubit) == int:
+            tqubits = [tqubit for _ in range(len(nodes))]
+        elif type(tqubit) == list:
+            tqubits = tqubit
+        else:
+            raise ValueError("The target qubit must be either None, int or list. It was {}".format(type(tqubit)))
+
+        for node, tqubit in zip(nodes, tqubits):
+            node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
 
     """
         ---------------------------------------------------------------------------------------------------------
