@@ -9,6 +9,7 @@ from circuit_simulation.gates.gates import *
 from circuit_simulation.gates.gate import SingleQubitGate
 from circuit_simulation.qubit.qubit import Qubit
 from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
+from circuit_simulation.node.node import Node
 from scipy import sparse as sp
 import hashlib
 from circuit_simulation._superoperator.superoperator import SuperoperatorElement
@@ -237,7 +238,7 @@ class QuantumCircuit:
     def _init_density_matrix_maximally_entangled_state(self, bell_type=1, amount_qubits=8, draw=True):
         """ Realises init_type option 2. See class description for more info. """
 
-        return self._quantum_circuit_init.quantum_circuit_init\
+        return self._quantum_circuit_init.quantum_circuit_init \
             .init_density_matrix_maximally_entangled_state(self, bell_type, amount_qubits, draw)
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
@@ -500,7 +501,7 @@ class QuantumCircuit:
         if qubits is None:
             qubits = []
             for node in involved_nodes:
-                copy_qubits = copy(self.nodes[node])
+                copy_qubits = copy(self.nodes[node].qubits)
                 qubits.extend(copy_qubits)
 
         sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects, involved_nodes)
@@ -595,7 +596,7 @@ class QuantumCircuit:
         if total:
             self._circuit_operations_ended = True
 
-    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, ghz_qubits=None):
+    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, ghz_qubit=None):
         """
             Defines a node for the QuantumCircuit object. This is especially useful when working with a networked
             architecture. For now it is assumed that one uses an NV-center as a node.
@@ -626,22 +627,18 @@ class QuantumCircuit:
         elif type(data_qubits) == int:
             data_qubits = [data_qubits]
 
-        if ghz_qubits is None:
-            ghz_qubits = []
-        elif type(ghz_qubits) == int:
-            ghz_qubits = [ghz_qubits]
-
-        self.nodes.update({name: qubits})
+        node = Node(name, qubits, self, electron_qubits, data_qubits, ghz_qubit)
+        self.nodes.update({name: node})
         for qubit in qubits:
             qubit_type = 'e' if qubit in electron_qubits else 'n'
             is_data_qubit = qubit in data_qubits
-            is_ghz_qubit = qubit in ghz_qubits
+            is_ghz_qubit = qubit == ghz_qubit
             T1_idle = self.T1_idle if qubit_type == 'n' else self.T1_idle_electron
             T2_idle = self.T2_idle if qubit_type == 'n' else self.T2_idle_electron
             T1_lde = self.T1_lde if qubit_type == 'n' else None
             T2_lde = self.T2_lde if qubit_type == 'n' else None
-            q = Qubit(self, qubit, qubit_type, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde, T2_lde=T2_lde,
-                      is_data_qubit=is_data_qubit, is_ghz_qubit=is_ghz_qubit)
+            q = Qubit(self, qubit, qubit_type, node=name, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde,
+                      T2_lde=T2_lde, is_data_qubit=is_data_qubit, is_ghz_qubit=is_ghz_qubit)
             self.qubits[qubit] = q
             if is_ghz_qubit:
                 self.ghz_qubits[qubit] = q
@@ -657,9 +654,10 @@ class QuantumCircuit:
         """
         if self.nodes is None:
             return []
-        for node_qubits in self.nodes.values():
-            if qubit in node_qubits:
-                return node_qubits
+
+        for node in self.nodes.values():
+            if node.qubit_in_node(qubit):
+                return node.qubits
         return []
 
     def get_ghz_qubits(self):
@@ -682,9 +680,9 @@ class QuantumCircuit:
         """
         if self.nodes is None:
             return
-        for key, values in self.nodes.items():
-            if qubit in values:
-                return key
+        if self.qubits is not None:
+            if qubit in self.qubits:
+                return self.qubits[qubit].node
 
     def _apply_decoherence_to_fastest_sub_circuits(self, cut_off_time_reached=False):
         """
@@ -731,7 +729,7 @@ class QuantumCircuit:
                                                       self._sub_circuits[sc_name]) for sc_name, success
                                                      in success_dict.items() if not success])
         data_qubit_shortest = [self.qubits[qubit_index] for qubit_index in self.get_node_qubits(
-                               shortest_failed_sc.qubits[0]) if self.qubits[qubit_index].is_data_qubit][0]
+            shortest_failed_sc.qubits[0]) if self.qubits[qubit_index].is_data_qubit][0]
 
         all_sub_circuits = self._current_sub_circuit.concurrent_sub_circuits + [self._current_sub_circuit]
 
@@ -1102,7 +1100,7 @@ class QuantumCircuit:
         _, qubits_2, _, num_qubits_2 = self._get_qubit_relative_objects(qubit2)
 
         if (num_qubits_1 > 1 or num_qubits_2 > 1) and (qubits_1 != qubits_2) and (not all(qubit in qubits_1 for qubit
-                                                                                  in [qubit1, qubit2])):
+                                                                                          in [qubit1, qubit2])):
             raise ValueError("Qubits are not suitable to create a Bell pair this way.")
 
         new_density_matrix = self._get_bell_state_by_type(bell_state_type)
@@ -1380,9 +1378,9 @@ class QuantumCircuit:
                 Angle of rotation that should be applied. Value should be specified in radians
         """
         R_gate = SingleQubitGate("Rotation gate",
-                      np.array([[np.cos(theta/2), -1j * np.sin(theta/2)],
-                                [-1j * np.sin(theta/2), np.cos(theta/2)]]),
-                      "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                                 np.array([[np.cos(theta/2), -1j * np.sin(theta/2)],
+                                           [-1j * np.sin(theta/2), np.cos(theta/2)]]),
+                                 "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -1396,9 +1394,9 @@ class QuantumCircuit:
                 Angle of rotation that should be applied. Value should be specified in radians
         """
         R_gate = SingleQubitGate("Rotation gate",
-                      np.array([[np.cos(theta / 2), -1 * np.sin(theta / 2)],
-                                [1 * np.sin(theta / 2), np.cos(theta / 2)]]),
-                      "Ry({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                                 np.array([[np.cos(theta / 2), -1 * np.sin(theta / 2)],
+                                           [1 * np.sin(theta / 2), np.cos(theta / 2)]]),
+                                 "Ry({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -1413,9 +1411,9 @@ class QuantumCircuit:
 
         """
         R_gate = SingleQubitGate("Rotation gate",
-                      np.array([np.exp(-1j * theta / 2), 0],
-                               [0, np.exp(1j * theta / 2)]),
-                      "Rz({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                                 np.array([np.exp(-1j * theta / 2), 0],
+                                          [0, np.exp(1j * theta / 2)]),
+                                 "Rz({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -1824,12 +1822,27 @@ class QuantumCircuit:
             if not retry:
                 return success
 
-    def stabilizer_measurement(self, operation, cqubit, tqubit, node=None):
+    def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, node=None, swap=False, electron_qubit=None):
         if node is None:
             node = self.get_node_name_from_qubit(cqubit)
+        if cqubit is None:
+            cqubit = self.nodes[node].ghz_qubit
+        ghz_qubit = cqubit
+        if tqubit is None:
+            data_qubits = self.nodes[node].data_qubits
+        else:
+            data_qubits = [tqubit] if type(tqubit) is not list else tqubit
+
+        if swap:
+            electron_qubit = self.nodes[node].electron_qubits[0] if electron_qubit is None else electron_qubit
 
         self.start_sub_circuit(node)
-        self.apply_gate(operation, cqubit=cqubit, tqubit=tqubit)
+        for data_qubit in data_qubits:
+            if swap:
+                self.SWAP(electron_qubit, cqubit, efficient=True)
+                cqubit = electron_qubit
+            self.apply_gate(operation, cqubit=cqubit, tqubit=data_qubit)
+            cqubit = ghz_qubit if swap else cqubit
         self.measure(cqubit, probabilistic=False)
 
     """

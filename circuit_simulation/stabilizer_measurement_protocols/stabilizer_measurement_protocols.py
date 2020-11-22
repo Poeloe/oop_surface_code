@@ -22,58 +22,55 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         kwargs.pop('basis_transformation_noise')
         kwargs.pop('no_single_qubit_error')
         qc = QuantumCircuit(9, 2, basis_transformation_noise=True, no_single_qubit_error=False, **kwargs)
+        qc.define_node("A", qubits=[1, 3, 5, 7, 0], data_qubits=[1, 3, 5, 7], ghz_qubit=0)
+        qc.define_sub_circuit("A")
+
+    elif protocol == 'duo_structure':
+        qc = QuantumCircuit(14, 2, **kwargs)
+
+        qc.define_node("A", qubits=[0, 1, 2, 6, 8], data_qubits=[6, 8], ghz_qubit=2)
+        qc.define_node("B", qubits=[3, 4, 5, 10, 12], data_qubits=[10, 12], ghz_qubit=5)
+
+        qc.define_sub_circuit("AB")
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B", concurrent_sub_circuits="A")
 
     elif protocol == 'plain':
         kwargs.pop('no_single_qubit_error')
         qc = QuantumCircuit(16, 2, no_single_qubit_error=False, **kwargs)
 
-        qc.define_node("A", qubits=[14, 7, 6], electron_qubits=7, data_qubits=14)
-        qc.define_node("B", qubits=[12, 5, 4], electron_qubits=5, data_qubits=12)
-        qc.define_node("C", qubits=[10, 3, 2], electron_qubits=3, data_qubits=10)
-        qc.define_node("D", qubits=[8, 0, 1], electron_qubits=0, data_qubits=8)
-
-        qc.define_sub_circuit("AB")
-        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
-        qc.define_sub_circuit("AC")
-
-        qc.define_sub_circuit("A")
-        qc.define_sub_circuit("B")
-        qc.define_sub_circuit("C")
-        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
-
-    elif protocol == 'duo_structure':
-        qc = QuantumCircuit(14, 2, **kwargs)
-
-        qc.define_node("A", qubits=[0, 1, 2, 6, 8], electron_qubits=2, data_qubits=[6, 8])
-        qc.define_node("B", qubits=[3, 4, 5, 10, 12], electron_qubits=5, data_qubits=[10, 12])
-
-        qc.define_sub_circuit("AB")
+        qc.define_node("A", qubits=[14, 7, 6], data_qubits=14, ghz_qubit=7)
+        qc.define_node("B", qubits=[12, 5, 4], data_qubits=12, ghz_qubit=5)
+        qc.define_node("C", qubits=[10, 3, 2], data_qubits=10, ghz_qubit=1)
+        qc.define_node("D", qubits=[8, 0, 1], data_qubits=8, ghz_qubit=3)
 
     elif protocol == 'duo_structure_2':
         qc = QuantumCircuit(32, 5, **kwargs)
 
-        qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], electron_qubits=12, data_qubits=[30, 28])
-        qc.define_node("B", qubits=[26, 24, 11, 10, 9, 8], electron_qubits=8, data_qubits=[26, 24])
-        qc.define_node("C", qubits=[22, 20, 7, 6, 5, 4], electron_qubits=4, data_qubits=[22, 10])
-        qc.define_node("D", qubits=[18, 16, 3, 2, 1, 0], electron_qubits=0, data_qubits=[18, 16])
+        qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], data_qubits=[30, 28], ghz_qubit=15)
+        qc.define_node("B", qubits=[26, 24, 11, 10, 9, 8], data_qubits=[26, 24], ghz_qubit=11)
+        qc.define_node("C", qubits=[22, 20, 7, 6, 5, 4], data_qubits=[22, 10], ghz_qubit=7)
+        qc.define_node("D", qubits=[18, 16, 3, 2, 1, 0], data_qubits=[18, 16], ghz_qubit=3)
 
-        qc.define_sub_circuit("AB")
-        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
-        qc.define_sub_circuit("AC")
-        qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
-        qc.define_sub_circuit("A")
-        qc.define_sub_circuit("B")
-        qc.define_sub_circuit("C")
-        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
+    elif protocol in ['expedient_swap', 'stringent_swap']:
+        qc = QuantumCircuit(20, 2, **kwargs)
+
+        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18, ghz_qubit=10)
+        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16, ghz_qubit=7)
+        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubit=4)
+        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubit=1)
 
     else:
         qc = QuantumCircuit(20, 2, **kwargs)
 
-        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18, ghz_qubits=11)
-        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16, ghz_qubits=8)
-        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubits=5)
-        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubits=2)
+        qc.define_node("A", qubits=[18, 11, 10, 9], data_qubits=18, ghz_qubit=11)
+        qc.define_node("B", qubits=[16, 8, 7, 6], data_qubits=16, ghz_qubit=8)
+        qc.define_node("C", qubits=[14, 5, 4, 3], data_qubits=14, ghz_qubit=5)
+        qc.define_node("D", qubits=[12, 2, 1, 0], data_qubits=12, ghz_qubit=2)
 
+    # Common sub circuit defining handled here
+    if protocol in ['plain', 'duo_structure_2', 'expedient', 'expedient', 'expedient_swap', 'stringent',
+                    'stringent_swap']:
         qc.define_sub_circuit("AB")
         qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
         qc.define_sub_circuit("AC")
@@ -88,15 +85,10 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
 
 def monolithic(qc: QuantumCircuit, *, operation):
     qc.set_qubit_states({0: ket_p})
-    qc.apply_gate(operation, cqubit=0, tqubit=1)
-    qc.apply_gate(operation, cqubit=0, tqubit=3)
-    qc.apply_gate(operation, cqubit=0, tqubit=5)
-    qc.apply_gate(operation, cqubit=0, tqubit=7)
-    qc.measure(0, probabilistic=False)
+    qc.stabilizer_measurement(operation, node="A")
+    qc.end_current_sub_circuit(total=True)
 
-    PBAR.update(50) if PBAR is not None else None
-
-    return [1, 3, 5, 7]
+    PBAR.update(90) if PBAR is not None else None
 
 
 def plain(qc: QuantumCircuit, *, operation):
@@ -111,13 +103,13 @@ def plain(qc: QuantumCircuit, *, operation):
         qc.X(7)
         qc.X(5)
         qc.end_current_sub_circuit()
-    qc.get_state_fidelity([7, 5, 3, 1])
 
-    qc.stabilizer_measurement(operation, cqubit=5, tqubit=12)
-    qc.stabilizer_measurement(operation, cqubit=7, tqubit=14)
-    qc.stabilizer_measurement(operation, cqubit=1, tqubit=8)
-    qc.stabilizer_measurement(operation, cqubit=3, tqubit=10)
+    qc.get_state_fidelity()
 
+    qc.stabilizer_measurement(operation, node="B")
+    qc.stabilizer_measurement(operation, node="A")
+    qc.stabilizer_measurement(operation, node="D")
+    qc.stabilizer_measurement(operation, node="C")
     qc.end_current_sub_circuit(total=True)
 
 
@@ -176,22 +168,10 @@ def expedient(qc: QuantumCircuit, *, operation):
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=8, tqubit=16)
-    qc.measure(8, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=11, tqubit=18)
-    qc.measure(11, probabilistic=False)
-
-    qc.start_sub_circuit("D")
-    qc.apply_gate(operation, cqubit=2, tqubit=12)
-    qc.measure(2, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.apply_gate(operation, cqubit=5, tqubit=14)
-    qc.measure(5, probabilistic=False)
-
+    qc.stabilizer_measurement(operation, node="B")
+    qc.stabilizer_measurement(operation, node="A")
+    qc.stabilizer_measurement(operation, node="D")
+    qc.stabilizer_measurement(operation, node="C")
     qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
@@ -266,31 +246,20 @@ def stringent(qc, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
+    qc.get_state_fidelity()
 
     # Step 15 from Table D.2 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=8, tqubit=16)
-    qc.measure(8, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=11, tqubit=18)
-    qc.measure(11, probabilistic=False)
-
-    qc.start_sub_circuit("D")
-    qc.apply_gate(operation, cqubit=2, tqubit=12)
-    qc.measure(2, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.apply_gate(operation, cqubit=5, tqubit=14)
-    qc.measure(5, probabilistic=False)
-
+    qc.stabilizer_measurement(operation, node="B")
+    qc.stabilizer_measurement(operation, node="A")
+    qc.stabilizer_measurement(operation, node="D")
+    qc.stabilizer_measurement(operation, node="C")
     qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
 
 
-def expedient_swap(qc, *, operation):
+def expedient_swap(qc: QuantumCircuit, *, operation):
     ghz_success = False
     while not ghz_success:
         PBAR.reset() if PBAR is not None else None
@@ -339,28 +308,13 @@ def expedient_swap(qc, *, operation):
             continue
 
     PBAR.update(20) if PBAR is not None else None
+    qc.get_state_fidelity()
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B")
-    qc.SWAP(6, 7, efficient=True)
-    qc.apply_gate(operation, cqubit=6, tqubit=16)
-    qc.measure(6, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.SWAP(9, 10, efficient=True)
-    qc.apply_gate(operation, cqubit=9, tqubit=18)
-    qc.measure(9, probabilistic=False)
-
-    qc.start_sub_circuit("D")
-    qc.SWAP(0, 1, efficient=True)
-    qc.apply_gate(operation, cqubit=0, tqubit=12)
-    qc.measure(0, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.SWAP(3, 4, efficient=True)
-    qc.apply_gate(operation, cqubit=3, tqubit=14)
-    qc.measure(3, probabilistic=False)
-
+    qc.stabilizer_measurement(operation, node="B", swap=True)
+    qc.stabilizer_measurement(operation, node="A", swap=True)
+    qc.stabilizer_measurement(operation, node="D", swap=True)
+    qc.stabilizer_measurement(operation, node="C", swap=True)
     qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
@@ -422,28 +376,13 @@ def stringent_swap(qc, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
+    qc.get_state_fidelity()
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B")
-    qc.SWAP(6, 7, efficient=True)
-    qc.apply_gate(operation, cqubit=6, tqubit=16)
-    qc.measure(6, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.SWAP(9, 10, efficient=True)
-    qc.apply_gate(operation, cqubit=9, tqubit=18)
-    qc.measure(9, probabilistic=False)
-
-    qc.start_sub_circuit("D")
-    qc.SWAP(0, 1, efficient=True)
-    qc.apply_gate(operation, cqubit=0, tqubit=12)
-    qc.measure(0, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.SWAP(3, 4, efficient=True)
-    qc.apply_gate(operation, cqubit=3, tqubit=14)
-    qc.measure(3, probabilistic=False)
-
+    qc.stabilizer_measurement(operation, node="B", swap=True)
+    qc.stabilizer_measurement(operation, node="A", swap=True)
+    qc.stabilizer_measurement(operation, node="D", swap=True)
+    qc.stabilizer_measurement(operation, node="C", swap=True)
     qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
@@ -454,11 +393,10 @@ def duo_structure(qc: QuantumCircuit, *, operation):
     qc.create_bell_pair(2, 5)
     qc.double_selection(CZ_gate, 1, 4)
     qc.double_selection(CNOT_gate, 1, 4)
-    qc.apply_gate(operation, cqubit=2, tqubit=6)
-    qc.apply_gate(operation, cqubit=2, tqubit=8)
-    qc.apply_gate(operation, cqubit=5, tqubit=10)
-    qc.apply_gate(operation, cqubit=5, tqubit=12)
-    qc.measure([5, 2], probabilistic=False)
+    qc.get_state_fidelity()
+
+    qc.stabilizer_measurement(operation, node="A")
+    qc.stabilizer_measurement(operation, node="B")
     qc.end_current_sub_circuit(total=True)
 
     PBAR.update(50) if PBAR is not None else None
@@ -515,25 +453,14 @@ def duo_structure_2(qc: QuantumCircuit, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
+    qc.get_state_fidelity()
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
-    qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=11, tqubit=26)
-    qc.measure(11, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=15, tqubit=30)
-    qc.measure(15, probabilistic=False)
-
-    qc.start_sub_circuit("D")
-    qc.apply_gate(operation, cqubit=3, tqubit=18)
-    qc.measure(3, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.apply_gate(operation, cqubit=7, tqubit=22)
-    qc.measure(7, probabilistic=False)
-
+    qc.stabilizer_measurement(operation, node="B", tqubit=26)
+    qc.stabilizer_measurement(operation, node="A", tqubit=30)
+    qc.stabilizer_measurement(operation, node="D", tqubit=18)
+    qc.stabilizer_measurement(operation, node="C", tqubit=22)
     qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
