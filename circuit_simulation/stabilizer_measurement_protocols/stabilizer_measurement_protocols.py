@@ -398,7 +398,6 @@ def stringent_swap(qc: QuantumCircuit, *, operation):
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
-    qc.end_current_sub_circuit(total=True)
 
     PBAR.update(10) if PBAR is not None else None
 

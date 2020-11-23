@@ -193,6 +193,7 @@ class QuantumCircuit:
         self.p_bell_success = lde_success
         self.fixed_lde_attempts = fixed_lde_attempts
         self._total_lde_attempts = 0
+        self._total_succeeded_lde = 0
 
         # Sub circuit attributes
         self._sub_circuits = {}
@@ -1119,6 +1120,8 @@ class QuantumCircuit:
         self._increase_duration(lde_time, [qubit1, qubit2], kind='LDE')
         if self.pulse_duration > 0:
             self._increase_duration(idle_time, [], kind='idle')
+
+        self._total_succeeded_lde += 1
 
         self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
 
@@ -2711,6 +2714,7 @@ class QuantumCircuit:
 
         # Probabilistic nature attributes
         self._total_lde_attempts = 0
+        self._total_succeeded_lde = 0
 
         # Sub circuit attributes
         self._current_sub_circuit = None
