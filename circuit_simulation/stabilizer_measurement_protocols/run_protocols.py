@@ -243,7 +243,7 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
             idle_data_qubit = 4 if i != 0 else False
             _, dataframe = qc.get_superoperator(superoperator_qubits, stabilizer_type, no_color=(not color),
                                                 stabilizer_protocol=True, print_to_console=to_console,
-                                                idle_data_qubit=idle_data_qubit)
+                                                idle_data_qubit=idle_data_qubit, protocol_name=protocol)
             supop_dataframe.append(dataframe)
 
         pbar.update(10) if pbar is not None else None

@@ -2222,7 +2222,7 @@ class QuantumCircuit:
     def get_superoperator(self, qubits, proj_type, *, stabilizer_protocol=False, save_noiseless_density_matrix=False,
                           combine=True, most_likely=True, print_to_console=True, file_name_noiseless=None,
                           file_name_measerror=None, no_color=False, csv_file_name=None,
-                          use_exact_path=False, idle_data_qubit=False):
+                          use_exact_path=False, idle_data_qubit=False, protocol_name=None):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -2327,7 +2327,8 @@ class QuantumCircuit:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type, file_name=csv_file_name,
-                                                                   use_exact_path=use_exact_path)
+                                                                   use_exact_path=use_exact_path,
+                                                                   protocol_name=protocol_name)
 
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
@@ -2540,7 +2541,8 @@ class QuantumCircuit:
         """ Prints the superoperator in a clear way to the console """
         self._superoperator.superoperator_methods.print_superoperator(self, superoperator, no_color)
 
-    def _superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+    def _superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
+                                    protocol_name=None):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
             format that is used in the (distributed) surface code simulations.
@@ -2559,7 +2561,8 @@ class QuantumCircuit:
                 in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
         """
         return self._superoperator.superoperator_methods.superoperator_to_dataframe(self, superoperator, proj_type,
-                                                                                    file_name, use_exact_path)
+                                                                                    file_name, use_exact_path,
+                                                                                    protocol_name)
 
     def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
         return self._superoperator.superoperator_methods.get_state_fidelity(self, qubits, compare_matrix,

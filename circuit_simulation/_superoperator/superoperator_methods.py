@@ -314,7 +314,8 @@ def print_superoperator(self, superoperator, no_color):
         self.print()
 
 
-def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
+                               protocol_name=None):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -349,16 +350,19 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
         lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
 
         index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
-        columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration', 'ghz_fidelity']
+        columns = ['p', 's', 'written_to', 'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration',
+                   'ghz_fidelity', 'protocol_name']
+        circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
+                              'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
+                              'cut_off_time', 'probabilistic']
+        columns.extend(circuit_properties)
         data = pd.DataFrame(0., index=index, columns=columns)
-        data.iloc[0, data.columns.get_loc('pg')] = self.pg
-        data.iloc[0, data.columns.get_loc('pm')] = self.pm
-        data.iloc[0, data.columns.get_loc('pn')] = self.pn
-        data.iloc[0, data.columns.get_loc('p_dec')] = int(self.decoherence)
-        data.iloc[0, data.columns.get_loc('p_bell')] = self.p_bell_success
-        data.iloc[0, data.columns.get_loc('bell_dur')] = self.bell_creation_duration
-        data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
+
+        for prop in circuit_properties:
+            prop_value = getattr(self, prop) if getattr(self, prop) is not None else "None"
+            data.iloc[0, data.columns.get_loc(prop)] = prop_value
+
+        data.iloc[0, data.columns.get_loc('protocol_name')] = protocol_name
         data.iloc[0, data.columns.get_loc('lde_attempts')] = 0
         data.iloc[0, data.columns.get_loc('total_duration')] = 0
         data.iloc[0, data.columns.get_loc('avg_lde')] = 0
