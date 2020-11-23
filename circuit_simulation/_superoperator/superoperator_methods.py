@@ -358,7 +358,7 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
                            'total_duration', 'avg_duration', 'ghz_fidelity', 'protocol_name']
         circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
                               'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
-                              'cut_off_time', 'probabilistic']
+                              'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
         columns.extend(circuit_results)
         columns.extend(circuit_properties)
         data = pd.DataFrame(0., index=index, columns=columns)

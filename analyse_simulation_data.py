@@ -18,19 +18,17 @@ def get_all_files_from_folder(folder, folder_name, file_name):
 
 
 def get_results_from_files(superoperator_files, name_csv):
-    indices = ['protocol', 'pg', 'pm', 'pn']
+    indices = ['protocol_name', 'pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
+               'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise', 'cut_off_time',
+               'probabilistic']
     result_df = pd.DataFrame(columns=indices)
     result_df = result_df.set_index(indices)
-    indices.pop(0)
-    for protocol, superoperator_file in superoperator_files.items():
+    for superoperator_file in superoperator_files:
         result_df = result_df.sort_index()
         df = pd.read_csv(superoperator_file, sep=';', index_col=[0, 1])
         index = tuple(df.iloc[0, df.columns.get_loc(index)] for index in indices)
-        index_list = list(index)
-        index_list.insert(0, protocol)
-        index = tuple(index_list)
 
-        variables = ['written_to', 'avg_lde', 'avg_duration', 'ghz_fidelity']
+        variables = ['written_to', 'lde_attempts', 'avg_lde', 'total_duration', 'avg_duration', 'ghz_fidelity']
         for variable in variables:
             result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
 
@@ -41,7 +39,7 @@ def get_results_from_files(superoperator_files, name_csv):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/circuit_data.csv"
+    name_csv = "./results/circuit_data_new.csv"
     folder = "./results/sim_data"
     folder_name = os.path.join(folder, "superoperator_prb_dec_swap")
     folder_name_2 = os.path.join(folder, "superoperator_prb_dec_no_swap")
@@ -58,7 +56,11 @@ if __name__ == '__main__':
             .format(folder_name_2),
         "plain_no_pulse_no_swap": "{}/no_pulse_2_plain_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
             .format(folder_name_2),
-
     }
 
-    get_results_from_files(dict, name_csv)
+    files = [
+        "{}/pulse_plain_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
+        "{}/pulse_expedient_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
+    ]
+
+    get_results_from_files(files, name_csv)
