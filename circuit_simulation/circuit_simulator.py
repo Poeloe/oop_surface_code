@@ -783,9 +783,9 @@ class QuantumCircuit:
 
             if involved_nodes is None:
                 involved_nodes = list(set([self.get_node_name_from_qubit(qubit) for qubit in excluded_qubits]))
-            if not all([node in current_sub_circuit.involved_nodes for node in involved_nodes]):
-                raise ValueError("Operation is applied on a qubit in a node not involved in the current sub circuit. "
-                                 "Increasing duration cannot handle this at this point in time.")
+            # if not all([node in current_sub_circuit.involved_nodes for node in involved_nodes]):
+            #     raise ValueError("Operation is applied on a qubit in a node not involved in the current sub circuit. "
+            #                      "Increasing duration cannot handle this at this point in time.")
 
             for node in involved_nodes:
                 self.nodes[node].increase_sub_circuit_time(amount)
@@ -1568,6 +1568,12 @@ class QuantumCircuit:
 
         """
         # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
+        for qubit in [cqubit, tqubit]:
+            matrix = self._qubit_density_matrix_lookup[qubit]
+            qubit_obj = self.qubits[qubit]
+            if matrix.shape[0] > 2:
+                pass
+
         if efficient:
             if user_operation:
                 self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
