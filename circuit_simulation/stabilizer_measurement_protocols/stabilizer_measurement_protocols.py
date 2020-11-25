@@ -541,7 +541,7 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
                 qc.create_bell_pair(12, 8)
                 success_ab2 = qc.single_selection(CNOT_gate, 11, 7, retry=False)
             qc.append_print_lines('\nFidelity pair AB2 is {}'.format((T*(qc.get_combined_density_matrix([12, 8])[0])*Tstar)))
-            success_ab = qc.single_selection_var(CY_gate, CminY_gate, 12, 13, 8, 9, create_bell_pair=False, retry=False)
+            success_ab = qc.single_selection_var(CminY_gate, CY_gate, 12, 13, 8, 9, create_bell_pair=True, retry=False)
 
         qc.append_print_lines('\nFidelity pair AB3 is {}'.format((T*(qc.get_combined_density_matrix([13, 9])[0])*Tstar)))
 
@@ -614,21 +614,22 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
 
     qc.get_state_fidelity()
 
-    qc.start_sub_circuit("B")
-    qc.apply_gate(operation, cqubit=9, tqubit=18)
-    qc.measure(9, probabilistic=False)
-
-    qc.start_sub_circuit("A")
-    qc.apply_gate(operation, cqubit=13, tqubit=20)
-    qc.measure(13, probabilistic=False)
-
-    qc.start_sub_circuit("D")
-    qc.apply_gate(operation, cqubit=2, tqubit=14)
-    qc.measure(2, probabilistic=False)
-
-    qc.start_sub_circuit("C")
-    qc.apply_gate(operation, cqubit=6, tqubit=16)
-    qc.measure(6, probabilistic=False)
+    qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=False)
+    # qc.start_sub_circuit("B")
+    # qc.apply_gate(operation, cqubit=9, tqubit=18)
+    # qc.measure(9, probabilistic=False)
+    #
+    # qc.start_sub_circuit("A")
+    # qc.apply_gate(operation, cqubit=13, tqubit=20)
+    # qc.measure(13, probabilistic=False)
+    #
+    # qc.start_sub_circuit("D")
+    # qc.apply_gate(operation, cqubit=2, tqubit=14)
+    # qc.measure(2, probabilistic=False)
+    #
+    # qc.start_sub_circuit("C")
+    # qc.apply_gate(operation, cqubit=6, tqubit=16)
+    # qc.measure(6, probabilistic=False)
 
     qc.end_current_sub_circuit(total=True)
 
