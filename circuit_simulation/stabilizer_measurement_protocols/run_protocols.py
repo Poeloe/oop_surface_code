@@ -97,10 +97,6 @@ def _print_circuit_parameters(**kwargs):
     pm_1 = kwargs.get('measurement_error_probability_one_state')
     stab_type = kwargs.get('stab_type')
 
-    print("\nRunning the {} protocols, with pg={}, pm={}, pm_1={}{}, for a {} stabilizer {} time{}.\n"
-          .format(protocol, pg, pm, pm_1, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
-                  "plaquette" if stab_type == "Z" else "star", it, "s" if it > 1 else ""))
-
     print("All circuit parameters:\n-----------------------\n")
     pprint(kwargs)
     print('\n-----------------------\n')

@@ -14,13 +14,11 @@ def cnot(qc: QuantumCircuit):
     outcome_b = qc.measure(2, basis="X")[0]
     outcome_a = qc.measure(1, basis="Z")[0]
 
-    if outcome_a == outcome_b == 1:
-        qc.Z(0)
+    if outcome_a == 1:
         qc.X(3)
-    elif outcome_a == 0 and outcome_b == 1:
+    if outcome_b == 1:
         qc.Z(0)
-    elif outcome_a == 1 and outcome_b == 0:
-        qc.X(3)
+
     qc.end_current_sub_circuit(total=True)
 
     return [0, 3]
@@ -41,13 +39,13 @@ def cnot_swap(qc: QuantumCircuit):
     outcome_b = qc.measure(2, basis="X", outcome=1)[0]
     outcome_a = qc.measure(1, basis="Z", outcome=1)[0]
 
-    if outcome_a == outcome_b == 1:
-        qc.Z(0)
+    qc.end_current_sub_circuit()
+    qc.start_sub_circuit("AB")
+    if outcome_a == 1:
         qc.X(3)
-    elif outcome_a == 0 and outcome_b == 1:
+    if outcome_b == 1:
         qc.Z(0)
-    elif outcome_a == 1 and outcome_b == 0:
-        qc.X(3)
+
     qc.end_current_sub_circuit(total=True)
 
     return [0, 3]
