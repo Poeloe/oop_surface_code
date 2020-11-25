@@ -544,6 +544,7 @@ class QuantumCircuit:
         started_sub_circuit = self._sub_circuits[name]
         started_sub_circuit.set_ran(False)
         if current_sub_circuit is not None and not current_sub_circuit.ran:
+            self._update_sub_circuit_duration_with_node_duration()
             current_sub_circuit.set_ran()
             if current_sub_circuit.all_ran or forced_level:
                 added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
@@ -581,11 +582,12 @@ class QuantumCircuit:
         if self.noise:
             self._N_decoherence(decoherence=self.decoherence)
 
-        # Apply decoherence to the fastest sub circuits if applicable
+        # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
         self._apply_decoherence_to_fastest_sub_circuits()
 
         # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
+            self._update_sub_circuit_duration_with_node_duration()
             self.total_duration += self._current_sub_circuit.total_duration
             self._current_sub_circuit.set_ran()
 
@@ -750,7 +752,7 @@ class QuantumCircuit:
                         qubit._waiting_time_lde = data_qubit_shortest.waiting_time_lde
 
     def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None,
-                           kind='idle', skip_check=False):
+                           kind='idle', skip_check=False, involved_nodes=None):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -778,13 +780,15 @@ class QuantumCircuit:
         # 'apply_decoherence_to_fastest_sub_circuit' method and no time increase is needed for the sub circuit
         elif sub_circuit is None:
             current_sub_circuit = self._current_sub_circuit
-            # If excluded qubits are in the same node it is a local operation, then it must be checked if all
-            # concurrent local operations have been applied before increasing the total duration of the sub circuit
-            if (len(excluded_qubits) > 0 and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
-                                                 for ex_qubit in excluded_qubits)):
-                current_sub_circuit.increase_amount_concurrent_operations_applied()
-            if current_sub_circuit.all_concurrent_operations_applied:
-                current_sub_circuit.increase_duration(amount)
+
+            if involved_nodes is None:
+                involved_nodes = list(set([self.get_node_name_from_qubit(qubit) for qubit in excluded_qubits]))
+            if not all([node in current_sub_circuit.involved_nodes for node in involved_nodes]):
+                raise ValueError("Operation is applied on a qubit in a node not involved in the current sub circuit. "
+                                 "Increasing duration cannot handle this at this point in time.")
+
+            for node in involved_nodes:
+                self.nodes[node].increase_sub_circuit_time(amount)
 
         if self.qubits is not None:
             self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind)
@@ -844,6 +848,24 @@ class QuantumCircuit:
         for qubit in included_qubits:
             current_qubit = self.qubits[qubit]
             current_qubit.increase_waiting_time(amount, waiting_type=kind)
+
+    def _update_sub_circuit_duration_with_node_duration(self):
+        max_duration = max(self.nodes[node].sub_circuit_time for node in self._current_sub_circuit.involved_nodes)
+
+        # Apply decoherence to the initialised qubits of a node that has a shorter duration than the max_duration
+        for node in self._current_sub_circuit.involved_nodes:
+            current_node = self.nodes[node]
+            if current_node.sub_circuit_time < max_duration:
+                amount = max_duration - current_node.sub_circuit_time
+                initialised_node_qubits = [qubit for qubit in current_node.qubits
+                                           if qubit not in self._uninitialised_qubits]
+
+                self._increase_duration(amount, [], included_qubits=initialised_node_qubits, involved_nodes=[node])
+
+        self._current_sub_circuit.increase_duration(max_duration)
+
+        # reset the sub_circuit_time for the nodes, since the sub circuit time is updated
+        [self.nodes[node].reset_sub_circuit_time() for node in self._current_sub_circuit.involved_nodes]
 
     def _update_uninitialised_qubit_register(self, qubits, update_type):
         """
@@ -2726,6 +2748,10 @@ class QuantumCircuit:
         if self.qubits is not None:
             for qubit in self.qubits.values():
                 qubit.reset_waiting_time()
+
+        if self.nodes is not None:
+            for node in self.nodes.values():
+                node.reset_all_times()
 
         self._init_density_matrix()
 
