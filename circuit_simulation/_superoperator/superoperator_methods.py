@@ -117,9 +117,10 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measu
 
 
 def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
-    if qubits is None and compare_matrix is None:
+    if qubits is None:
         qubits = self.get_ghz_qubits()
 
+    if compare_matrix is None and set_ghz_fidelity:
         # Create ghz state with the weight equal to the amount of ghz qubits
         ghz_state = sp.lil_matrix((2**len(qubits), 2**len(qubits)))
         ghz_state[0, 0] = 1/2; ghz_state[0, 2**len(qubits)-1] = 1/2
@@ -290,7 +291,7 @@ def print_superoperator(self, superoperator, no_color):
     total = sum([supop_el.p for supop_el in superoperator])
     for supop_el in sorted(superoperator):
         probability = supop_el.p
-        self._print_lines.append("\nProbability: {}".format(probability))
+        self.append_print_lines("\nProbability: {}".format(probability))
         config = ""
         for gate in supop_el.error_array:
             if gate == "X":
@@ -304,16 +305,20 @@ def print_superoperator(self, superoperator, no_color):
             else:
                 config += (gate + " ")
         me = "me" if supop_el.lie else "no me"
-        self._print_lines.append("\n{} - {}".format(config, me))
-    self._print_lines.append("\n\nSum of the probabilities is: {}\n".format(total))
-    self._print_lines.append("\nTotal lde attempts: {}\n".format(self._total_lde_attempts))
-    self._print_lines.append("\n---- End of Superoperator ----\n")
+        self.append_print_lines("\n{} - {}".format(config, me))
+    self.append_print_lines("\n\nSum of the probabilities is: {}\n".format(total))
+    self.append_print_lines("\nTotal lde attempts: {}\n".format(self._total_lde_attempts))
+    self.append_print_lines("\nAverage lde attempts per successful lde: {}\n".format(
+        self._total_lde_attempts/self._total_succeeded_lde))
+
+    self.append_print_lines("\n---- End of Superoperator ----\n")
 
     if not self._thread_safe_printing:
         self.print()
 
 
-def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
+                               protocol_name=None):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -348,22 +353,30 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
         lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
 
         index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
-        columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration', 'ghz_fidelity']
+        columns = ['p', 's']
+        circuit_results = ['written_to', 'lde_attempts', 'avg_lde', 'succeeded_lde', 'avg_lde_to_succeed',
+                           'total_duration', 'avg_duration', 'ghz_fidelity', 'protocol_name']
+        circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
+                              'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
+                              'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
+        columns.extend(circuit_results)
+        columns.extend(circuit_properties)
         data = pd.DataFrame(0., index=index, columns=columns)
-        data.iloc[0, data.columns.get_loc('pg')] = self.pg
-        data.iloc[0, data.columns.get_loc('pm')] = self.pm
-        data.iloc[0, data.columns.get_loc('pn')] = self.pn
-        data.iloc[0, data.columns.get_loc('p_dec')] = int(self.decoherence)
-        data.iloc[0, data.columns.get_loc('p_bell')] = self.p_bell_success
-        data.iloc[0, data.columns.get_loc('bell_dur')] = self.bell_creation_duration
-        data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
-        data.iloc[0, data.columns.get_loc('lde_attempts')] = 0
-        data.iloc[0, data.columns.get_loc('total_duration')] = 0
-        data.iloc[0, data.columns.get_loc('avg_lde')] = 0
-        data.iloc[0, data.columns.get_loc('avg_duration')] = 0
-        data.iloc[0, data.columns.get_loc("written_to")] = 0
-        data.iloc[0, data.columns.get_loc("ghz_fidelity")] = self.ghz_fidelity if self.ghz_fidelity is not None else 0
+
+        for prop in circuit_properties:
+            prop_value = getattr(self, prop) if getattr(self, prop) is not None else "None"
+            data.iloc[0, data.columns.get_loc(prop)] = prop_value
+            data.iloc[1:, data.columns.get_loc(prop)] = None
+
+        for result in circuit_results:
+            value = 0
+            if result == 'protocol_name':
+                value = protocol_name
+            elif result == 'ghz_fidelity' and self.ghz_fidelity is not None:
+                value = self.ghz_fidelity
+
+            data.iloc[0, data.columns.get_loc(result)] = value
+            data.iloc[1:, data.columns.get_loc(result)] = None
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
@@ -399,13 +412,16 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
     data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
                                                           data.iloc[0, data.columns.get_loc("written_to")])
     data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
+    data.iloc[0, data.columns.get_loc("succeeded_lde")] += self._total_succeeded_lde
     data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
                                                      data.iloc[0, data.columns.get_loc("written_to")])
+    data.iloc[0, data.columns.get_loc("avg_lde_to_succeed")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
+                                                                data.iloc[0, data.columns.get_loc("succeeded_lde")])
     # Obtain the average ghz value by dividing it to the total amount of written to (part 2)
     data.iloc[0, data.columns.get_loc("ghz_fidelity")] = (data.iloc[0, data.columns.get_loc("ghz_fidelity")] /
                                                           data.iloc[0, data.columns.get_loc("written_to")])
     # Remove rows that contain only zero probability
-    data = data[(data.T != 0).any()]
+    data = data[(data.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
 
     if file_name:
         data.to_csv(path_to_file, sep=';')

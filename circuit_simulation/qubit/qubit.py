@@ -1,10 +1,12 @@
 # noinspection PyProtectedMember
 class Qubit:
 
-    def __init__(self, qc, index, qubit_type, waiting_time_idle=0, waiting_time_lde=0, T1_idle=None, T2_idle=None,
+    def __init__(self, qc, index, qubit_type, node=None, waiting_time_idle=0, waiting_time_lde=0, T1_idle=None, \
+                                                                                                      T2_idle=None,
                  T1_lde=None, T2_lde=None, is_data_qubit=False, is_ghz_qubit=False):
         self._index = index
         self._qubit_type = qubit_type
+        self._node = node
         self._waiting_time_idle = waiting_time_idle
         self._waiting_time_lde = waiting_time_lde
         self._T1_idle = T1_idle
@@ -22,6 +24,10 @@ class Qubit:
     @property
     def qubit_type(self):
         return self._qubit_type
+
+    @property
+    def node(self):
+        return self._node
 
     @property
     def waiting_time_idle(self):
