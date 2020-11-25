@@ -99,8 +99,8 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
-    elif protocol in ['bipartite_4', 'bipartite_5', 'bipartite_6', 'bipartite_7', 'bipartite_8', 'bipartite_9',
-                      'bipartite_10', 'bipartite_11', 'bipartite_12']:
+    elif protocol in ['bipartite_4', 'bipartite_4_v2', 'bipartite_4_v3', 'bipartite_5', 'bipartite_6', 'bipartite_7',
+                      'bipartite_8', 'bipartite_9', 'bipartite_10', 'bipartite_11', 'bipartite_12']:
         qc = QuantumCircuit(28, 6, **kwargs)
 
         qc.define_node("A", qubits=[26, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12], electron_qubits=12,
@@ -221,6 +221,8 @@ def expedient(qc: QuantumCircuit, *, operation):
 
     PBAR.update(10) if PBAR is not None else None
 
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
+
 
 def bipartite_4(qc: QuantumCircuit, *, operation):
     # ['CNOT32', 'CNOT30', 'CNOT21', 'H2', 'CNOT02', 'H2', 'H1']
@@ -245,6 +247,68 @@ def bipartite_4(qc: QuantumCircuit, *, operation):
     qc.apply_gate(H_gate, 13)
 
     qc.measure([13, 1, 15, 3, 14, 2], probabilistic=False)
+
+    qc.get_state_fidelity()
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=12, tqubit=26)
+    qc.measure(12, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=0, tqubit=24)
+    qc.measure(0, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+
+def bipartite_4_v2(qc: QuantumCircuit, *, operation):
+    # ['CNOT10', 'CNOT12', 'CZ02', 'CZ23']
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(3, 15)
+    qc.create_bell_pair(2, 14)
+    qc.create_bell_pair(1, 13)
+    qc.create_bell_pair(0, 12)
+    qc.apply_gate(CNOT_gate, cqubit=1, tqubit=0)    # 13, 1, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)
+    qc.apply_gate(CNOT_gate, cqubit=1, tqubit=2, reverse=True)    # 14, 2, 13, 1, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=13, tqubit=14)
+    qc.apply_gate(CZ_gate, cqubit=0, tqubit=2)
+    qc.apply_gate(CZ_gate, cqubit=12, tqubit=14)
+    qc.apply_gate(CZ_gate, cqubit=2, tqubit=3, reverse=True)    # 15, 3, 14, 2, 13, 1, 12, 0
+    qc.apply_gate(CZ_gate, cqubit=14, tqubit=15)
+
+    qc.measure([15, 3, 14, 2, 13, 1], probabilistic=False)
+
+    qc.get_state_fidelity()
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=12, tqubit=26)
+    qc.measure(12, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=0, tqubit=24)
+    qc.measure(0, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+
+def bipartite_4_v3(qc: QuantumCircuit, *, operation):
+    # ['CNOT30', 'CNOT31', 'CZ10', 'CZ21']
+    qc.start_sub_circuit("AB")
+    qc.create_bell_pair(3, 15)
+    qc.create_bell_pair(2, 14)
+    qc.create_bell_pair(1, 13)
+    qc.create_bell_pair(0, 12)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
+    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=1, reverse=True)    # 13, 1, 15, 3, 12, 0
+    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=13)
+    qc.apply_gate(CZ_gate, cqubit=1, tqubit=0)
+    qc.apply_gate(CZ_gate, cqubit=13, tqubit=12)
+    qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)      # 14, 2, 13, 1, 15, 3, 12, 0
+    qc.apply_gate(CZ_gate, cqubit=14, tqubit=13)
+
+    qc.measure([14, 2, 13, 1, 15, 3], probabilistic=False)
 
     qc.get_state_fidelity()
 
@@ -302,7 +366,7 @@ def bipartite_5(qc: QuantumCircuit, *, operation):
 def bipartite_6(qc: QuantumCircuit, *, operation):
 
     # T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
-    # ['CNOT20', 'CNOT21', 'CNOT40', 'CNOT32', 'CZ45', 'CZ21', 'CZ02', 'CZ41', 'H5', 'H4', 'H3', 'H2', 'H1']
+    # ['CNOT20', 'CNOT21', 'CNOT40', 'CNOT32', 'CZ45', 'CZ21', 'CZ02', 'CZ41']
 
     qc.start_sub_circuit("AB")
     # qc.create_bell_pair(11, 23)
@@ -455,6 +519,10 @@ def bipartite_8(qc: QuantumCircuit, *, operation):
 
 
 def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
+
+    T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
+    Tstar = T.transpose()
+
     ghz_success = False
     while not ghz_success:
         PBAR.reset() if PBAR is not None else None
@@ -466,11 +534,16 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
             success_ab = qc.single_selection(CZ_gate, 12, 8, retry=False)
             if not success_ab:
                 continue
+            qc.append_print_lines(
+                '\nFidelity pair AB1 is {}'.format((T*(qc.get_combined_density_matrix([13, 9])[0])*Tstar)))
             success_ab2 = False
             while not success_ab2:
                 qc.create_bell_pair(12, 8)
                 success_ab2 = qc.single_selection(CNOT_gate, 11, 7, retry=False)
-            success_ab = qc.single_selection_var(CY_gate, CminY_gate, 12, 8, create_bell_pair=False, retry=False)
+            qc.append_print_lines('\nFidelity pair AB2 is {}'.format((T*(qc.get_combined_density_matrix([12, 8])[0])*Tstar)))
+            success_ab = qc.single_selection_var(CY_gate, CminY_gate, 12, 13, 8, 9, create_bell_pair=False, retry=False)
+
+        qc.append_print_lines('\nFidelity pair AB3 is {}'.format((T*(qc.get_combined_density_matrix([13, 9])[0])*Tstar)))
 
         PBAR.update(20) if PBAR is not None else None
 
@@ -485,7 +558,10 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
             while not success_cd2:
                 qc.create_bell_pair(5, 1)
                 success_cd2 = qc.single_selection(CZ_gate, 4, 0, retry=False)
-            success_cd = qc.single_selection_var(CNOT_gate, CNOT_gate, 5, 1, create_bell_pair=False, retry=False)
+            success_cd = qc.single_selection_var(CNOT_gate, CNOT_gate, 5, 6, 1, 2, create_bell_pair=False, retry=False)
+
+        qc.append_print_lines(
+            '\nFidelity pair CD is {}'.format((T * (qc.get_combined_density_matrix([6, 2])[0]) * T.transpose())[0, 0]))
 
         PBAR.update(30) if PBAR is not None else None
 
@@ -493,20 +569,26 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
         success_ac = False
         while not success_ac:
             success_ac2 = False
-            qc.create_bell_pair(12, 5)
             while not success_ac2:
                 qc.create_bell_pair(11, 4)
                 success_ac2 = qc.single_selection(CNOT_gate, 10, 3, retry=False)
-            success_ac = qc.single_selection_var(CY_gate, CminY_gate, 11, 4, create_bell_pair=False, retry=False)
+            qc.create_bell_pair(12, 5)
+            success_ac = qc.single_selection_var(CY_gate, CminY_gate, 11, 12, 4, 5, create_bell_pair=False, retry=False)
             if not success_ac:
                 continue
             success_ac = qc.single_selection(CZ_gate, 11, 4, retry=False)
+
+        qc.append_print_lines(
+            '\nFidelity pair AC is {}'.format((T * (qc.get_combined_density_matrix([12, 5])[0]) * T.transpose())[0, 0]))
 
         qc.start_sub_circuit("BD")
         success_bd = False
         while not success_bd:
             qc.create_bell_pair(8, 1)
             success_bd = qc.single_selection(CZ_gate, 7, 0, retry=False)
+
+        qc.append_print_lines(
+            '\nFidelity pair BD is {}'.format((T * (qc.get_combined_density_matrix([8, 1])[0]) * T.transpose())[0, 0]))
 
         qc.start_sub_circuit("AC", forced_level=True)
         qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12, reverse=True)    # 5, 12, 9, 13
@@ -552,7 +634,138 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
 
     PBAR.update(10) if PBAR is not None else None
 
-    # qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
+
+
+def dyn_prot_22_1(qc: QuantumCircuit, *, operation):
+    ghz_success = False
+    while not ghz_success:
+        PBAR.reset() if PBAR is not None else None
+
+        qc.start_sub_circuit("AB")
+        success_ab = False
+        while not success_ab:
+            qc.create_bell_pair(15, 11)
+            success_ab = qc.single_selection_var(CY_gate, CminY_gate, 14, 15, 10, 11, retry=False)
+            if not success_ab:
+                continue
+            success_ab2 = False
+            while not success_ab2:
+                qc.create_bell_pair(14, 10)
+                success_ab2 = qc.single_selection(CZ_gate, 13, 9, retry=False)
+            success_ab = qc.single_selection_var(CNOT_gate, CNOT_gate, 14, 15, 10, 11, create_bell_pair=False,
+                                                 retry=False)
+
+        PBAR.update(20) if PBAR is not None else None
+
+        qc.start_sub_circuit("CD")
+        success_cd = False
+        while not success_cd:
+            qc.create_bell_pair(6, 2)
+            success_cd = qc.single_selection_var(CY_gate, CminY_gate, 7, 6, 3, 2, retry=False)
+            if not success_cd:
+                continue
+            success_cd = qc.single_selection_var(CZ_gate, CZ_gate, 7, 6, 3, 2, retry=False)
+            if not success_cd:
+                continue
+            success_cd2 = False
+            while not success_cd2:
+                qc.create_bell_pair(7, 3)
+                success_cd2 = qc.single_selection_var(CY_gate, CminY_gate, 5, 7, 1, 3, retry=False)
+            success_cd = qc.single_selection_var(CNOT_gate, CNOT_gate, 7, 6, 3, 2, create_bell_pair=False, retry=False)
+            if not success_cd:
+                continue
+            success_cd2 = False
+            while not success_cd2:
+                qc.create_bell_pair(7, 3)
+                success_cd2 = qc.single_selection_var(CNOT_gate, CNOT_gate, 5, 7, 1, 3, retry=False)
+                if not success_cd2:
+                    continue
+                success_cd3 = False
+                while not success_cd3:
+                    qc.create_bell_pair(5, 1)
+                    success_cd3 = qc.single_selection_var(CY_gate, CminY_gate, 4, 5, 0, 1, retry=False)
+                success_cd2 = qc.single_selection_var(CZ_gate, CZ_gate, 5, 7, 1, 3, create_bell_pair=False, retry=False)
+            success_cd = qc.single_selection_var(CZ_gate, CZ_gate, 7, 6, 3, 2, create_bell_pair=False, retry=False)
+
+        PBAR.update(30) if PBAR is not None else None
+
+        qc.start_sub_circuit("AC")
+        success_ac = False
+        while not success_ac:
+            success_ac2 = False
+            qc.create_bell_pair(7, 14)
+            while not success_ac2:
+                qc.create_bell_pair(13, 5)
+                success_ac2 = qc.single_selection(CZ_gate, 12, 4, retry=False)
+            success_ac = qc.single_selection_var(CNOT_gate, CNOT_gate, 13, 14, 5, 7, create_bell_pair=False,
+                                                 retry=False)
+            if not success_ac:
+                continue
+            success_ac = qc.single_selection_var(CY_gate, CminY_gate, 13, 14, 5, 7, create_bell_pair=False, retry=False)
+
+        qc.start_sub_circuit("BD")
+        success_bd = False
+        while not success_bd:
+            qc.create_bell_pair(3, 10)
+            success_bd = qc.single_selection_var(CNOT_gate, CNOT_gate, 9, 10, 1, 3, retry=False)
+            if not success_bd:
+                continue
+            success_bd2 = False
+            while not success_bd2:
+                qc.create_bell_pair(8, 0)
+                success_bd2 = qc.single_selection_var(CZ_gate, CZ_gate, 9, 8, 1, 0, retry=False)
+                if not success_bd2:
+                    continue
+                qc.create_bell_pair(9, 1)
+                success_bd2 = qc.single_selection_var(CZ_gate, CZ_gate, 8, 9, 0, 1, create_bell_pair=False, retry=False)
+            success_bd = qc.single_selection_var(CY_gate, CminY_gate, 9, 10, 1, 3, create_bell_pair=False, retry=False)
+
+        qc.start_sub_circuit("AB", forced_level=True)
+        qc.apply_gate(CNOT_gate, cqubit=15, tqubit=14, reverse=True)    # 14, 7, 11, 15
+        # qc.start_sub_circuit("C")
+        qc.apply_gate(CNOT_gate, cqubit=11, tqubit=10, reverse=True)      # 10, 3, 14, 7, 11, 15
+        # qc.start_sub_circuit("AC")
+        # qc._thread_safe_printing = False
+        # qc.draw_circuit()
+        measurement_outcomes = qc.measure([10, 14], basis="Z")           # 3, 7, 11, 15
+        success = measurement_outcomes[0] == measurement_outcomes[1]
+        qc.start_sub_circuit("AC")
+        if not success:
+            qc.X(15)
+            qc.X(7)
+        qc.start_sub_circuit("CD")
+        qc.apply_gate(CZ_gate, cqubit=7, tqubit=6, reverse=True)        # 2, 6, 3, 7, 11, 15
+        # qc.start_sub_circuit("D")
+        qc.apply_gate(CZ_gate, cqubit=3, tqubit=2)
+        # qc.start_sub_circuit("BD")
+        measurement_outcomes2 = qc.measure([2, 6])      # 3, 7, 11, 15
+        ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
+        PBAR.update(30) if PBAR is not None else None
+
+    qc.get_state_fidelity()
+
+    qc.start_sub_circuit("D")
+    qc.apply_gate(operation, cqubit=3, tqubit=16)
+    qc.measure(3, probabilistic=False)
+
+    qc.start_sub_circuit("C")
+    qc.apply_gate(operation, cqubit=7, tqubit=18)
+    qc.measure(7, probabilistic=False)
+
+    qc.start_sub_circuit("B")
+    qc.apply_gate(operation, cqubit=11, tqubit=20)
+    qc.measure(11, probabilistic=False)
+
+    qc.start_sub_circuit("A")
+    qc.apply_gate(operation, cqubit=15, tqubit=22)
+    qc.measure(15, probabilistic=False)
+
+    qc.end_current_sub_circuit(total=True)
+
+    PBAR.update(10) if PBAR is not None else None
+
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
 
 
 def stringent(qc, *, operation):
