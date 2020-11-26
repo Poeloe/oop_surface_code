@@ -705,9 +705,8 @@ class QuantumCircuit:
                 else:
                     waiting_qubits = [qubit for qubit in sub_circuit.qubits if qubit not in self._uninitialised_qubits]
                 qubits = waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
-                self._increase_duration(longest_duration - sub_circuit.total_duration, [],
-                                        included_qubits=qubits,
-                                        sub_circuit=sub_circuit, skip_check=True)
+                self._increase_qubit_duration(longest_duration - sub_circuit.total_duration, included_qubits=qubits)
+
                 # Apply decoherence on all qubits (based on the waiting time)
                 self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
                 self._check_if_cut_off_time_is_reached()
@@ -751,8 +750,8 @@ class QuantumCircuit:
                         qubit._waiting_time_idle = data_qubit_shortest.waiting_time_idle
                         qubit._waiting_time_lde = data_qubit_shortest.waiting_time_lde
 
-    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None,
-                           kind='idle', skip_check=False, involved_nodes=None):
+    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle', involved_nodes=None,
+                           gate_operation=False):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -773,17 +772,13 @@ class QuantumCircuit:
         """
         if amount == 0:
             return
-        if self._current_sub_circuit is None and sub_circuit is None:
+        if self._current_sub_circuit is None:
             self.total_duration += amount
 
-        # At this point in time, if sub_circuit parameter is specified the method is invoked by the
-        # 'apply_decoherence_to_fastest_sub_circuit' method and no time increase is needed for the sub circuit
-        elif sub_circuit is None:
-            current_sub_circuit = self._current_sub_circuit
-
+        else:
             if involved_nodes is None:
                 involved_nodes = list(set([self.get_node_name_from_qubit(qubit) for qubit in excluded_qubits]))
-            # if not all([node in current_sub_circuit.involved_nodes for node in involved_nodes]):
+            # if not all([node in self._current_sub_circuit.involved_nodes for node in involved_nodes]):
             #     raise ValueError("Operation is applied on a qubit in a node not involved in the current sub circuit. "
             #                      "Increasing duration cannot handle this at this point in time.")
 
@@ -791,10 +786,11 @@ class QuantumCircuit:
                 self.nodes[node].increase_sub_circuit_time(amount)
 
         if self.qubits is not None:
-            self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind)
+            # Pulse sequence on qubits continues when a gate is applied, gate duration should be added to sequence time
+            [self.qubits[qubit].increase_sequence_time(amount) for qubit in excluded_qubits if gate_operation]
+            self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind, involved_nodes)
 
-        if not skip_check:
-            self._check_if_cut_off_time_is_reached()
+        self._check_if_cut_off_time_is_reached()
 
     def _check_if_cut_off_time_is_reached(self):
         """
@@ -813,7 +809,8 @@ class QuantumCircuit:
             if self.total_duration > self.cut_off_time:
                 self.cut_off_time_reached = True
 
-    def _increase_qubit_duration(self, amount, excluded_qubits, included_qubits, kind):
+    def _increase_qubit_duration(self, amount, excluded_qubits=None, included_qubits=None, kind='idle',
+                                 involved_nodes=None):
         """
             Increase the idle time of the given qubit objects. This is used to determine the amount of decoherence that
             a qubit is supposed to experience.
@@ -834,9 +831,8 @@ class QuantumCircuit:
         if not included_qubits:
             if self._current_sub_circuit is not None:
                 # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
-                if excluded_qubits and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
-                                           for ex_qubit in excluded_qubits):
-                    involved_qubits = self.get_node_qubits(excluded_qubits[0])
+                if involved_nodes:
+                    involved_qubits = [qubit for node in involved_nodes for qubit in self.nodes[node].qubits]
                 else:
                     involved_qubits = self._current_sub_circuit.qubits
             else:
@@ -884,6 +880,8 @@ class QuantumCircuit:
 
         if update_type.lower() == 'remove':
             self._uninitialised_qubits = [qubit for qubit in self._uninitialised_qubits if qubit not in qubits]
+            # When a qubit is initialised, the pulse sequence should be reset
+            [self.qubits[qubit].reset_sequence_time() for qubit in qubits if self.qubits is not None]
         if update_type.lower() == 'add':
             self._uninitialised_qubits.extend(qubits)
             self._uninitialised_qubits = list(set(self._uninitialised_qubits))
@@ -1068,7 +1066,7 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
-                         probabilistic=None, p_bell_success=None, bell_creation_duration=None,  decoherence=None,
+                         probabilistic=None, p_bell_success=None, bell_creation_duration=None, decoherence=None,
                          user_operation=True):
         """
             Creates a Bell pair between the supplied qubits. No actual circuit is applied, the requested Bell state is
@@ -1136,56 +1134,11 @@ class QuantumCircuit:
                                                   qubit2: (new_density_matrix, qubits)})
 
         self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
-        lde_time, idle_time = self._calculate_duration_bell_pair_creation(times,
-                                                                          bell_creation_duration=bell_creation_duration)
 
-        self._increase_duration(lde_time, [qubit1, qubit2], kind='LDE')
-        if self.pulse_duration > 0:
-            self._increase_duration(idle_time, [], kind='idle')
+        self._increase_duration(bell_creation_duration*times, [qubit1, qubit2], kind='LDE')
 
         self._total_succeeded_lde += 1
-
         self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
-
-    @handle_none_parameters
-    def _calculate_duration_bell_pair_creation(self, attempts_till_success, fixed_lde_attempts=None,
-                                               bell_creation_duration=None, pulse_duration=None):
-        """
-            Returns the lde waiting time and the idle waiting time based on the sequence parameters present for the
-            system. The pulse sequence is used to keep the nuclear qubit more coherent, but therefore only at certain
-            places in the pulse sequence, the states can be swapped. Consider the following pulse sequence containing 8
-            pulses:
-
-            n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n |
-
-            Only at the '|' signs the state of the qubit can be swapped. 'n' is the predetermined fixed_lde_attempts
-            that can be made before a pulse (pi) is applied. By the amount of lde attempts it to took create a Bell
-            pair it is thus determined how much of the time is lde waiting time (qubits in node experiencing more
-            decoherence due to bell pair creation attempts) and how much is idle time which the qubits experience
-            after the Bell pair is created but it must be waited before the pulse refocuses.
-
-            Parameters
-            ----------
-            attempts_till_success : int
-                Amount of Bell pair creation attempts it took to create a Bell pair.
-            fixed_lde_attempts : int
-                Amount of Bell pair creation attempts before a pulse of the pulse sequence is applied ('n' in the
-                sequence shown above).
-            bell_creation_duration : float
-                Time it takes to do one Bell pair creation attempt.
-            pulse_duration : float
-                The duration of the pulse ('pi' in the sequence shown above).
-        """
-        n_pulses_before_success = math.floor(
-            1 + (attempts_till_success - fixed_lde_attempts) / (2 * fixed_lde_attempts))
-        lde_time = attempts_till_success * bell_creation_duration + n_pulses_before_success * pulse_duration
-
-        total_amount_pulses = math.ceil(attempts_till_success / (2 * fixed_lde_attempts))
-        n_pulses_after_success = total_amount_pulses - n_pulses_before_success
-        idle_time = ((total_amount_pulses * (2 * fixed_lde_attempts) - attempts_till_success) * bell_creation_duration
-                     + n_pulses_after_success * pulse_duration)
-
-        return lde_time, idle_time
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -1288,7 +1241,7 @@ class QuantumCircuit:
             raise ValueError("Gate object was not recognised. Please create an gate object to apply this gate.")
 
         self._set_density_matrix(tqubit, new_density_matrix)
-        self._increase_duration(gate.duration, qubits)
+        self._increase_duration(gate.duration, qubits, gate_operation=True)
 
         if draw:
             self._add_draw_operation(gate, qubits, noise)
@@ -1565,14 +1518,15 @@ class QuantumCircuit:
             Applies the SWAP gate to specified qubits. The efficient parameter is used, when no actual circuit has
             to be applied, but the qubits can be swapped by swapping the qubit indices in the qubit density matrix
             lookup table.
-
         """
         # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
-        for qubit in [cqubit, tqubit]:
-            matrix = self._qubit_density_matrix_lookup[qubit]
-            qubit_obj = self.qubits[qubit]
-            if matrix.shape[0] > 2:
-                pass
+        if self.pulse_duration > 0:
+            for qubit in [cqubit, tqubit]:
+                qubit_obj = self.qubits[qubit]
+                if qubit not in self._uninitialised_qubits:
+                    time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
+                    self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
+                    qubit_obj.reset_sequence_time()
 
         if efficient:
             if user_operation:
@@ -1595,6 +1549,48 @@ class QuantumCircuit:
         self.S(tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
         self.two_qubit_gate_NV(cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
         self.S(tqubit, conj=True, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
+
+    @handle_none_parameters
+    def _determine_additional_waiting_pulse_sequence(self, qubit: Qubit, fixed_lde_attempts=None,
+                                                     bell_creation_duration=None, pulse_duration=None):
+        """
+            Returns the lde waiting time and the idle waiting time based on the sequence parameters present for the
+            system. The pulse sequence is used to keep the nuclear qubit more coherent, but therefore only at certain
+            places in the pulse sequence, the states can be swapped. Consider the following pulse sequence containing 8
+            pulses:
+
+            n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n |
+
+            Only at the '|' signs the state of the qubit can be swapped. 'n' is the predetermined fixed_lde_attempts
+            that can be made before a pulse (pi) is applied. By the amount of lde attempts it to took create a Bell
+            pair it is thus determined how much of the time is lde waiting time (qubits in node experiencing more
+            decoherence due to bell pair creation attempts) and how much is idle time which the qubits experience
+            after the Bell pair is created but it must be waited before the pulse refocuses.
+
+            Parameters
+            ----------
+            attempts_till_success : int
+                Amount of Bell pair creation attempts it took to create a Bell pair.
+            fixed_lde_attempts : int
+                Amount of Bell pair creation attempts before a pulse of the pulse sequence is applied ('n' in the
+                sequence shown above).
+            bell_creation_duration : float
+                Time it takes to do one Bell pair creation attempt.
+            pulse_duration : float
+                The duration of the pulse ('pi' in the sequence shown above).
+        """
+        if qubit.qubit_type == 'e':
+            return 0
+
+        sequence_time = qubit.sequence_time
+        n = fixed_lde_attempts * bell_creation_duration
+        full_sequence = (2 * n) + pulse_duration
+
+        _, time_in_unfinished_sequence = divmod(sequence_time, full_sequence)
+
+        waiting_time = full_sequence - time_in_unfinished_sequence
+
+        return waiting_time
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -2754,6 +2750,7 @@ class QuantumCircuit:
         if self.qubits is not None:
             for qubit in self.qubits.values():
                 qubit.reset_waiting_time()
+                qubit.reset_sequence_time()
 
         if self.nodes is not None:
             for node in self.nodes.values():
