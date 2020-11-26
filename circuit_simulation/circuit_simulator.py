@@ -750,8 +750,7 @@ class QuantumCircuit:
                         qubit._waiting_time_idle = data_qubit_shortest.waiting_time_idle
                         qubit._waiting_time_lde = data_qubit_shortest.waiting_time_lde
 
-    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle', involved_nodes=None,
-                           gate_operation=False):
+    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle', involved_nodes=None):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -786,8 +785,6 @@ class QuantumCircuit:
                 self.nodes[node].increase_sub_circuit_time(amount)
 
         if self.qubits is not None:
-            # Pulse sequence on qubits continues when a gate is applied, gate duration should be added to sequence time
-            [self.qubits[qubit].increase_sequence_time(amount) for qubit in excluded_qubits if gate_operation]
             self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind, involved_nodes)
 
         self._check_if_cut_off_time_is_reached()
@@ -1227,6 +1224,9 @@ class QuantumCircuit:
         if user_operation:
             self._user_operation_order.append({"apply_gate": [gate, tqubit, cqubit, noise, conj, pg, draw]})
 
+        # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
+        self._wait_for_refocus([tqubit, cqubit])
+
         qubits = [tqubit] if cqubit is None else [tqubit, cqubit]
 
         if noise and decoherence:
@@ -1241,7 +1241,7 @@ class QuantumCircuit:
             raise ValueError("Gate object was not recognised. Please create an gate object to apply this gate.")
 
         self._set_density_matrix(tqubit, new_density_matrix)
-        self._increase_duration(gate.duration, qubits, gate_operation=True)
+        self._increase_duration(gate.duration, qubits)
 
         if draw:
             self._add_draw_operation(gate, qubits, noise)
@@ -1519,15 +1519,6 @@ class QuantumCircuit:
             to be applied, but the qubits can be swapped by swapping the qubit indices in the qubit density matrix
             lookup table.
         """
-        # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
-        if self.pulse_duration > 0:
-            for qubit in [cqubit, tqubit]:
-                qubit_obj = self.qubits[qubit]
-                if qubit not in self._uninitialised_qubits:
-                    time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
-                    self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
-                    qubit_obj.reset_sequence_time()
-
         if efficient:
             if user_operation:
                 self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
@@ -1591,6 +1582,18 @@ class QuantumCircuit:
         waiting_time = full_sequence - time_in_unfinished_sequence
 
         return waiting_time
+
+    def _wait_for_refocus(self, qubits):
+        if self.pulse_duration > 0:
+            for qubit in qubits:
+                if qubit is None:
+                    return
+                qubit_obj = self.qubits[qubit]
+                if qubit not in self._uninitialised_qubits:
+                    time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
+                    self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
+                    qubit_obj.reset_sequence_time()
+
 
     """
         ---------------------------------------------------------------------------------------------------------
