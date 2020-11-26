@@ -552,10 +552,9 @@ class QuantumCircuit:
                 self._draw_order.append(["LEVEL", added_dur, current_sub_circuit])
                 self.total_duration += added_dur
                 if self.total_duration > self.cut_off_time:
-                    self._apply_decoherence_to_fastest_sub_circuits(cut_off_time_reached=True)
                     self.cut_off_time_reached = True
-                else:
-                    self._apply_decoherence_to_fastest_sub_circuits()
+
+                self._apply_decoherence_to_fastest_sub_circuits()
                 self._draw_order.append(["LEVEL", None, None])
                 # Reset all the sub_circuits when all ran or when a forced level is requested
                 [sub_circuit.reset() for sub_circuit in current_sub_circuit.concurrent_sub_circuits
@@ -687,7 +686,7 @@ class QuantumCircuit:
             if qubit in self.qubits:
                 return self.qubits[qubit].node
 
-    def _apply_decoherence_to_fastest_sub_circuits(self, cut_off_time_reached=False):
+    def _apply_decoherence_to_fastest_sub_circuits(self):
         """
             Applies decoherence to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
         """
@@ -704,11 +703,12 @@ class QuantumCircuit:
                     waiting_qubits = sub_circuit.waiting_qubits
                 else:
                     waiting_qubits = [qubit for qubit in sub_circuit.qubits if qubit not in self._uninitialised_qubits]
-                qubits = waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
-                self._increase_qubit_duration(longest_duration - sub_circuit.total_duration, included_qubits=qubits)
+
+                self._increase_qubit_duration(longest_duration - sub_circuit.total_duration,
+                                              included_qubits=waiting_qubits)
 
                 # Apply decoherence on all qubits (based on the waiting time)
-                self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
+                # self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
                 self._check_if_cut_off_time_is_reached()
 
     def correct_for_failed_ghz_check(self, success_dict):

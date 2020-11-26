@@ -44,7 +44,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None
     if self.cut_off_time_reached:
         qc = self._return_QC_object(len(qubits)*2, 0)
         qc._init_density_matrix_maximally_entangled_state(amount_qubits=len(qubits)*2)
-        return qc.get_combined_density_matrix([0])[0]
+        return qc.get_combined_density_matrix([0, 2, 4, 6])[0]
     if stabilizer_protocol and not idle_data_qubit:
         return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measure_error)
     if idle_data_qubit:
