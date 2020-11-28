@@ -348,35 +348,7 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
     if file_name and os.path.exists(path_to_file):
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
-        error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
-        error_index.extend(error_index)
-        lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
-
-        index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
-        columns = ['p', 's']
-        circuit_results = ['written_to', 'lde_attempts', 'avg_lde', 'succeeded_lde', 'avg_lde_to_succeed',
-                           'total_duration', 'avg_duration', 'ghz_fidelity', 'protocol_name']
-        circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
-                              'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
-                              'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
-        columns.extend(circuit_results)
-        columns.extend(circuit_properties)
-        data = pd.DataFrame(0., index=index, columns=columns)
-
-        for prop in circuit_properties:
-            prop_value = getattr(self, prop) if getattr(self, prop) is not None else "None"
-            data.iloc[0, data.columns.get_loc(prop)] = prop_value
-            data.iloc[1:, data.columns.get_loc(prop)] = None
-
-        for result in circuit_results:
-            value = 0
-            if result == 'protocol_name':
-                value = protocol_name
-            elif result == 'ghz_fidelity' and self.ghz_fidelity is not None:
-                value = self.ghz_fidelity
-
-            data.iloc[0, data.columns.get_loc(result)] = value
-            data.iloc[1:, data.columns.get_loc(result)] = None
+        data = _create_new_superoperator_dataframe(protocol_name, self)
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
@@ -399,27 +371,15 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
             else:
                 data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
 
-    for column_name in ['written_to', 'total_duration', 'lde_attempts', 'ghz_fidelity', 'avg_duration', 'avg_lde']:
-        if column_name not in data:
-            data[column_name] = 0
-    # Prepare ghz_fidelity value, such that the average is eventually obtained (part 1)
-    data.iloc[0, data.columns.get_loc("ghz_fidelity")] = (self.ghz_fidelity if self.ghz_fidelity is not None else 0) \
-                                                         + (data.iloc[0, data.columns.get_loc("ghz_fidelity")] *
-                                                            data.iloc[0, data.columns.get_loc("written_to")])
+    _create_column_if_not_present(data, ['written_to', 'total_duration', 'total_lde_attempts', 'ghz_fidelity',
+                                         'avg_duration', 'avg_lde_attempts'])
 
+    # Increase the amount of writes to the file
     data.iloc[0, data.columns.get_loc("written_to")] += 1.0
-    data.iloc[0, data.columns.get_loc("total_duration")] += self.total_duration
-    data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
-                                                          data.iloc[0, data.columns.get_loc("written_to")])
-    data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
-    data.iloc[0, data.columns.get_loc("succeeded_lde")] += self._total_succeeded_lde
-    data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
-                                                     data.iloc[0, data.columns.get_loc("written_to")])
-    data.iloc[0, data.columns.get_loc("avg_lde_to_succeed")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
-                                                                data.iloc[0, data.columns.get_loc("succeeded_lde")])
-    # Obtain the average ghz value by dividing it to the total amount of written to (part 2)
-    data.iloc[0, data.columns.get_loc("ghz_fidelity")] = (data.iloc[0, data.columns.get_loc("ghz_fidelity")] /
-                                                          data.iloc[0, data.columns.get_loc("written_to")])
+
+    # Update values based on amounts of writes to the file
+    _update_totals_and_averages(self, data, ['total_duration', '_total_lde_attempts'], ['ghz_fidelity'])
+
     # Remove rows that contain only zero probability
     data = data[(data.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
 
@@ -431,3 +391,56 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
         self.print()
 
     return data
+
+
+def _create_column_if_not_present(data, columns):
+    for column_name in columns:
+        if column_name not in data:
+            data.iloc[0, data.columns.get_loc(column_name)] = 0
+            data.iloc[1:, data.columns.get_loc(column_name)] = None
+
+
+def _update_totals_and_averages(self, data, totals, averages):
+    written_to = data.iloc[0, data.columns.get_loc("written_to")]
+    for total in totals:
+        value = getattr(self, total)
+        avg = total.strip('_').replace("total", 'avg')
+        data.iloc[0, data.columns.get_loc(total.strip('_'))] += value
+        data.iloc[0, data.columns.get_loc(avg)] = data.iloc[0, data.columns.get_loc(total.strip('_'))] / written_to
+
+    for value_name in averages:
+        value = getattr(self, value_name) if getattr(self, value_name) is not None else 0
+        average_value = (value + data.iloc[0, data.columns.get_loc(value_name)] * (written_to - 1)) / written_to
+        data.iloc[0, data.columns.get_loc(value_name)] = average_value
+
+
+def _create_new_superoperator_dataframe(protocol_name, self):
+    error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
+    error_index.extend(error_index)
+    lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
+    index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
+    columns = ['p', 's']
+    circuit_results = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
+                       'ghz_fidelity',
+                       'protocol_name']
+    circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
+                          'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
+                          'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
+    columns.extend(circuit_results)
+    columns.extend(circuit_properties)
+    dataframe = pd.DataFrame(0., index=index, columns=columns)
+    for prop in circuit_properties:
+        prop_value = getattr(self, prop) if getattr(self, prop) is not None else "None"
+        dataframe.iloc[0, dataframe.columns.get_loc(prop)] = prop_value
+        dataframe.iloc[1:, dataframe.columns.get_loc(prop)] = None
+    for result in circuit_results:
+        value = 0
+        if result == 'protocol_name':
+            value = protocol_name
+        elif result == 'ghz_fidelity' and self.ghz_fidelity is not None:
+            value = self.ghz_fidelity
+
+        dataframe.iloc[0, dataframe.columns.get_loc(result)] = value
+        dataframe.iloc[1:, dataframe.columns.get_loc(result)] = None
+
+    return dataframe

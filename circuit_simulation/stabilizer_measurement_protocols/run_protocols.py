@@ -55,12 +55,10 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
 
     # Update the average of the other system characteristics
     dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])
-    dataframe_1['lde_attempts'] = (dataframe_1['lde_attempts'] + dataframe_2['lde_attempts'])
-    dataframe_1['succeeded_lde'] = (dataframe_1['succeeded_lde'] + dataframe_2['succeeded_lde'])
+    dataframe_1['total_lde_attempts'] = (dataframe_1['total_lde_attempts'] + dataframe_2['total_lde_attempts'])
 
-    dataframe_1['avg_lde'] = dataframe_1['lde_attempts'] / corrected_written_to
+    dataframe_1['avg_lde_attempts'] = dataframe_1['total_lde_attempts'] / corrected_written_to
     dataframe_1['avg_duration'] = dataframe_1['total_duration'] / corrected_written_to
-    dataframe_1['avg_lde_to_succeed'] = dataframe_1['lde_attempts'] / dataframe_1['succeeded_lde']
 
     # Update fidelity
     dataframe_2['ghz_fidelity'] = dataframe_2['ghz_fidelity'].mul(written_to_new)
