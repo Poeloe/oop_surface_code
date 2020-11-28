@@ -175,11 +175,11 @@ class TestGateApplication(unittest.TestCase):
         np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), np.array([[0, 0, 0, 0], [0, 1, 0, 0],
                                                                                         [0, 0, 0, 0], [0, 0, 0, 0]]))
 
-    def test_apply_SWAP_on_one_half_bell_pair(self):
+    def test_apply_SWAP_full_swap(self):
         qc = QC(3, 0, noise=True, pn=0.1)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
-        qc.CNOT(0, 1, noise=False)
+        qc.CNOT(0, 1)
 
         qc2 = QC(3, 0, noise=True, pn=0.1)
         qc2.SWAP(0, 1, efficient=False)
@@ -187,19 +187,25 @@ class TestGateApplication(unittest.TestCase):
         np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
                                              qc2.total_density_matrix()[0].toarray())
 
-    def test_apply_SWAP_efficient_on_one_half_bell_pair(self):
-        qc = QC(2, 0, noise=True, pn=0.1)
+    def test_apply_SWAP_efficient_swap(self):
+        qc = QC(3, 0, noise=True, pn=0.1)
+        qc.create_bell_pair(1, 2)
+        qc._uninitialised_qubits.append(0)
+        # Full SWAP is equal to three CNOT operations, last CNOT noiseless is should be equal to efficient SWAP result
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
         qc.CNOT(0, 1, noise=False)
-        qc.measure(0)
+        # Qubit 1 is now uninitialised due to swapping. Measure it such that it disappears from the density matrix
+        qc.measure(1)
 
-        qc2 = QC(2, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2.create_bell_pair(1, 2)
+        qc2._uninitialised_qubits.append(0)
         qc2.SWAP(1, 0, efficient=True)
-        qc2.measure(0)
+        # Measurement of qubit 1 is not necessary, since the density matrices are not fused with the efficient SWAP
 
-        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
-                                             qc2.total_density_matrix()[0].toarray())
+        np.testing.assert_array_almost_equal(qc.get_combined_density_matrix([0])[0].toarray(),
+                                             qc2.get_combined_density_matrix([0])[0].toarray())
 
 
 class TestErrorImplementation(unittest.TestCase):
