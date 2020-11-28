@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.basic_operations.basic_operations import (
-    CT, KP, get_value_by_prob, fidelity_elementwise, trace
+    CT, KP, get_value_by_prob, fidelity_elementwise, trace, csr_matrix_equal
 )
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
@@ -1584,15 +1584,32 @@ class QuantumCircuit:
         return waiting_time
 
     def _wait_for_refocus(self, qubits):
+        def check_equality_to_0_or_1_state():
+            """
+            If the state of te qubits is equal to |0> or |1>, then also no sequence is applied. This is checked here
+            """
+            dens, _, _, _ = self._get_qubit_relative_objects(qubit)
+            zero_state = CT(ket_0).toarray()
+            one_state = CT(ket_1).toarray()
+            # Quick dimension check, such that no unnecessary big matrix comparison is performed
+            if dens.shape != zero_state.shape:
+                return False
+
+            dens = dens.toarray()
+            # State on qubit maybe noisy, therefore comparison is with tolerance
+            return np.allclose(dens, zero_state, 1e-3, 1e-3) or np.allclose(dens, one_state, 1e-3, 1e-3)
+
         if self.pulse_duration > 0:
             for qubit in qubits:
                 if qubit is None:
                     return
                 qubit_obj = self.qubits[qubit]
-                if qubit not in self._uninitialised_qubits:
+                seq_not_zero = qubit_obj.sequence_time != 0
+                # Check if qubit is initialised, not in |0> or |1> (with noise) and if sequence time is not 0
+                if qubit not in self._uninitialised_qubits and not check_equality_to_0_or_1_state() and seq_not_zero:
                     time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
                     self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
-                    qubit_obj.reset_sequence_time()
+                qubit_obj.reset_sequence_time()
 
 
     """
