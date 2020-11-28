@@ -355,24 +355,18 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
     written_to = data.iloc[0, data.columns.get_loc("written_to")]
 
     for supop_el in superoperator:
-        # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
-        # error_array
+        # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in error_array
         error_array_str = "".join(sorted(supop_el.error_array))
-        zipped_items = zip([error_array_str,
-                            "".join(sorted(error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))],
-                           [stab_type, opp_stab])
-        for error_array, current_stab_type in zipped_items:
-            current_index = (error_array, supop_el.lie)
-            if current_index in data.index:
-                current_value_stab = data.at[(error_array, supop_el.lie), current_stab_type]
-                new_value_stab = (current_value_stab * written_to + supop_el.p) / (written_to + 1) if \
-                    current_value_stab != 0. else supop_el.p / (written_to + 1)
-                data.at[current_index, current_stab_type] = new_value_stab
-            else:
-                data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
+        opp_error_array_str = "".join(sorted(error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))
 
-    _create_column_if_not_present(data, ['written_to', 'total_duration', 'total_lde_attempts', 'ghz_fidelity',
-                                         'avg_duration', 'avg_lde_attempts'])
+        for error_array, current_stab_type in zip([error_array_str, opp_error_array_str], [stab_type, opp_stab]):
+            current_index = (error_array, supop_el.lie)
+            current_value_stab = data.loc[(error_array, supop_el.lie), current_stab_type]
+
+            data.loc[current_index, current_stab_type] = (current_value_stab * written_to + supop_el.p)/(written_to + 1)
+
+    _create_column_if_not_present(data, ['total_duration', 'total_lde_attempts', 'ghz_fidelity', 'avg_duration',
+                                         'avg_lde_attempts'])
 
     # Increase the amount of writes to the file
     data.iloc[0, data.columns.get_loc("written_to")] += 1.0
