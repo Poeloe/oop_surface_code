@@ -39,7 +39,6 @@ def cnot_swap(qc: QuantumCircuit):
     outcome_b = qc.measure(2, basis="X", outcome=1)[0]
     outcome_a = qc.measure(1, basis="Z", outcome=1)[0]
 
-    qc.end_current_sub_circuit()
     qc.start_sub_circuit("AB")
     if outcome_a == 1:
         qc.X(3)

@@ -154,7 +154,7 @@ def color_qubit_lines(self, init):
         node_name = self.get_node_name_from_qubit(i)
         if node_name is None: continue
         espaced_lines = ansi_escape.sub("", init[i])
-        init[i] = colored(espaced_lines, node_color_dict[node_name])
+        init[i] = colored(espaced_lines, node_color_dict[node_name], attrs=['bold'])
 
 
 @handle_none_parameters
