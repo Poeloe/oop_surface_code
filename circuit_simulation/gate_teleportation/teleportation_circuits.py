@@ -36,8 +36,8 @@ def cnot_swap(qc: QuantumCircuit):
     qc.CNOT(1, 0)
     qc.SWAP(0, 1, efficient=False)
     qc.CNOT(2, 3)
-    outcome_b = qc.measure(2, basis="X", outcome=1)[0]
-    outcome_a = qc.measure(1, basis="Z", outcome=1)[0]
+    outcome_b = qc.measure(2, basis="X")[0]
+    outcome_a = qc.measure(1, basis="Z")[0]
 
     qc.start_sub_circuit("AB")
     if outcome_a == 1:

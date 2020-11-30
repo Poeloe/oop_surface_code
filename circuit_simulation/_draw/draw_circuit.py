@@ -47,8 +47,8 @@ def draw_operations(self, init, no_color):
             sub_circuit = draw_item[2]
             if sub_circuit is not None:
                 sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
-                init[int(len(init)/2) - 1] += "{}{} took {:1.1e} s.{}".format(10*" ", sub_circuits, total_duration,
-                                                                            10*" ")
+                init[int(len(init)/2) - 1] += "{}{}: {:1.1e} s.{}".format(5*" ", sub_circuits, total_duration,
+                                                                            5*" ")
                 init = _level_qubit_paths(init)
             continue
         gate = draw_item[0]

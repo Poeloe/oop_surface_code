@@ -415,8 +415,7 @@ def _create_new_superoperator_dataframe(protocol_name, self):
     index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
     columns = ['p', 's']
     circuit_results = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
-                       'ghz_fidelity',
-                       'protocol_name']
+                       'ghz_fidelity', 'protocol_name']
     circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
                           'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
                           'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
