@@ -42,7 +42,7 @@ SWAP_gate = TwoQubitGate("Swap",
                                    [0, 0, 0, 1]]),
                          "(X)",
                          control_repr="(X)",
-                         duration=0.05)
+                         duration=0.075)
 
 locals_gates = locals()
 
