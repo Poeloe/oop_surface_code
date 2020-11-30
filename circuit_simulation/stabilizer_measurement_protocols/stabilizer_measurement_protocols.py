@@ -81,7 +81,8 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("AB")
         qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
         qc.define_sub_circuit("AC")
-        qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
+        if 'plain' not in protocol:
+            qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
         qc.define_sub_circuit("A")
         qc.define_sub_circuit("B")
         qc.define_sub_circuit("C")
@@ -105,14 +106,13 @@ def plain(qc: QuantumCircuit, *, operation):
     qc.start_sub_circuit("AC")
     success = qc.single_selection(operation, 6, 2, retry=False)
     if not success:
-        qc.start_sub_circuit("AB", forced_level=True)
+        qc.start_sub_circuit("A")
         qc.X(7)
+        qc.start_sub_circuit("B")
         qc.X(5)
-        qc.end_current_sub_circuit()
 
     qc.get_state_fidelity()
 
-    qc.start_sub_circuit("A", forced_level=True)
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
 
     PBAR.update(90) if PBAR is not None else None
@@ -130,14 +130,13 @@ def plain_swap(qc: QuantumCircuit, *, operation):
     qc.start_sub_circuit("AC")
     success = qc.single_selection_swap(operation, 6, 2)
     if not success:
-        qc.start_sub_circuit("AB", forced_level=True)
+        qc.start_sub_circuit("A")
         qc.X(7)
+        qc.start_sub_circuit("B")
         qc.X(5)
-        qc.end_current_sub_circuit()
 
     qc.get_state_fidelity()
 
-    qc.start_sub_circuit("A", forced_level=True)
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
 
     PBAR.update(90) if PBAR is not None else None

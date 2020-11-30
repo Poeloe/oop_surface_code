@@ -554,7 +554,7 @@ class QuantumCircuit:
                 if self.total_duration > self.cut_off_time:
                     self.cut_off_time_reached = True
 
-                self._apply_decoherence_to_fastest_sub_circuits()
+                self._apply_waiting_time_to_fastest_sub_circuits()
                 self._draw_order.append(["LEVEL", None, None])
                 # Reset all the sub_circuits when all ran or when a forced level is requested
                 [sub_circuit.reset() for sub_circuit in current_sub_circuit.concurrent_sub_circuits
@@ -582,7 +582,7 @@ class QuantumCircuit:
             self._N_decoherence(decoherence=self.decoherence)
 
         # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
-        self._apply_decoherence_to_fastest_sub_circuits()
+        self._apply_waiting_time_to_fastest_sub_circuits()
 
         # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
@@ -686,9 +686,11 @@ class QuantumCircuit:
             if qubit in self.qubits:
                 return self.qubits[qubit].node
 
-    def _apply_decoherence_to_fastest_sub_circuits(self):
+    def _apply_waiting_time_to_fastest_sub_circuits(self):
         """
-            Applies decoherence to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
+            Applies waiting time to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
+            Also adds waiting time to the qubits that are not part of the current concurrent sub circuits,
+            but are initialised and therefore waiting as well.
         """
         if not self.decoherence:
             return
@@ -698,7 +700,6 @@ class QuantumCircuit:
 
         for sub_circuit in all_sub_circuits:
             if (longest_duration - sub_circuit.total_duration) > 0:
-                # If the cut-off time is reached, all remaining decoherence should be applied
                 if sub_circuit.waiting_qubits is not None:
                     waiting_qubits = sub_circuit.waiting_qubits
                 else:
@@ -707,9 +708,15 @@ class QuantumCircuit:
                 self._increase_qubit_duration(longest_duration - sub_circuit.total_duration,
                                               included_qubits=waiting_qubits)
 
-                # Apply decoherence on all qubits (based on the waiting time)
-                # self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
                 self._check_if_cut_off_time_is_reached()
+
+        # Apply waiting time to all node qubits that are not part of the current concurrent sub circuits and initialised
+        left_over_qubits = list(set([qubit for node in self.nodes.values() for qubit in node.qubits])
+                                .difference(self._current_sub_circuit.get_all_concurrent_qubits +
+                                            self._uninitialised_qubits))
+        if not left_over_qubits:
+            return
+        self._increase_qubit_duration(longest_duration, included_qubits=left_over_qubits)
 
     def correct_for_failed_ghz_check(self, success_dict):
         """
@@ -838,6 +845,7 @@ class QuantumCircuit:
             excluded_qubits_copy.extend(self._uninitialised_qubits)
             # apply waiting time to the qubits not taking part in the operation.
             included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits_copy)))
+
         for qubit in included_qubits:
             current_qubit = self.qubits[qubit]
             current_qubit.increase_waiting_time(amount, waiting_type=kind)
@@ -1577,9 +1585,7 @@ class QuantumCircuit:
         n = fixed_lde_attempts * bell_creation_duration
         full_sequence = (2 * n) + pulse_duration
 
-        _, time_in_unfinished_sequence = divmod(sequence_time, full_sequence)
-
-        waiting_time = full_sequence - time_in_unfinished_sequence
+        waiting_time = full_sequence - (sequence_time % full_sequence)
 
         return waiting_time
 
@@ -2687,6 +2693,9 @@ class QuantumCircuit:
         """
         self._draw.draw_circuit.add_draw_operation(self, operation, qubits, noise, _current_sub_circuit=sub_circuit,
                                                    sub_circuit_concurrent=sub_circuit_concurrent)
+
+    def level_circuit_drawing(self):
+        return self._draw_order.append(['LEVEL', None, None])
 
     def _correct_drawing_for_n_top_qubit_additions(self, n=1):
         """
