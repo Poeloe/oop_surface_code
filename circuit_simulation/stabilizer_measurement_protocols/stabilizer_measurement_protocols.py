@@ -67,6 +67,24 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubit=4)
         qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubit=1)
 
+    elif protocol == 'dyn_prot_6_sym_1':
+        qc = QuantumCircuit(18, 2, **kwargs)
+        print("hello")
+
+        qc.define_node("A", qubits=[16, 9, 8], electron_qubits=8, data_qubits=16, ghz_qubit=9)
+        qc.define_node("B", qubits=[14, 7, 6, 5], electron_qubits=5, data_qubits=14, ghz_qubit=7)
+        qc.define_node("C", qubits=[12, 4, 3], electron_qubits=3, data_qubits=12, ghz_qubit=4)
+        qc.define_node("D", qubits=[10, 2, 1, 0], electron_qubits=0, data_qubits=10, ghz_qubit=2)
+
+        qc.define_sub_circuit("AB")
+        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC")
+        qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C")
+        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
+
     elif protocol == 'dyn_prot_14_1':
         qc = QuantumCircuit(22, 2, **kwargs)
 
@@ -524,6 +542,75 @@ def bipartite_8(qc: QuantumCircuit, *, operation):
     qc.get_state_fidelity()     # [0.9564483457123565, 0.012997974341661047, 0.012997974341661049, 0.017555705604321417]
 
     qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
+
+
+def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
+
+    ghz_success = False
+    while not ghz_success:
+        PBAR.reset() if PBAR is not None else None
+
+        qc.start_sub_circuit("AB")
+        qc.create_bell_pair(9, 7)
+
+        PBAR.update(20) if PBAR is not None else None
+
+        qc.start_sub_circuit("CD")
+        qc.create_bell_pair(3, 2)
+
+        PBAR.update(20) if PBAR is not None else None
+
+
+
+        qc.start_sub_circuit("AC", forced_level=True)
+        qc.create_bell_pair(8, 4)
+        qc.apply_gate(CNOT_gate, cqubit=9, tqubit=8, reverse=True)    # 5, 12, 9, 13
+        qc.apply_gate(CNOT_gate, cqubit=4, tqubit=3, reverse=True)      # 5, 12, 9, 13, 2, 6
+        measurement_outcomes = qc.measure([3, 8], basis="Z")           # 9, 13, 2, 6
+        if measurement_outcomes[1] == 1:
+            qc.X(4)
+            qc.X(2)
+        if measurement_outcomes[0] == 1:
+            qc.X(2)
+        qc.create_bell_pair(8, 3)
+
+        PBAR.update(20) if PBAR is not None else None
+
+        qc.start_sub_circuit("BD")
+        success_bd = False
+        while not success_bd:
+            qc.create_bell_pair(6, 1)
+            qc.create_bell_pair(5, 0)
+            success_bd = qc.single_selection_var(CiY_gate, 5, 6, 0, 1, create_bell_pair=False, retry=False)
+
+        PBAR.update(20) if PBAR is not None else None
+
+
+
+        qc.start_sub_circuit("AC", forced_level=True)
+        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9, reverse=True)        # 1, 8, 9, 13, 2, 6
+        qc.apply_gate(CZ_gate, cqubit=3, tqubit=4, reverse=True)        # 1, 8, 9, 13, 2, 6
+        measurement_outcomes_1 = qc.measure([3, 8])
+        ghz_success_1 = measurement_outcomes_1[0] == measurement_outcomes_1[1]
+
+        qc.start_sub_circuit("BD")
+        qc.apply_gate(CZ_gate, cqubit=6, tqubit=7, reverse=True)        # 1, 8, 9, 13, 2, 6
+        qc.apply_gate(CZ_gate, cqubit=1, tqubit=2, reverse=True)        # 1, 8, 9, 13, 2, 6
+        measurement_outcomes_2 = qc.measure([1, 6])
+        ghz_success_2 = measurement_outcomes_2[0] == measurement_outcomes_2[1]
+        if any([not ghz_success_1, not ghz_success_2]):
+            ghz_success = False
+            continue
+
+        PBAR.update(20) if PBAR is not None else None
+
+    qc.get_state_fidelity()
+
+    qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=False)
+
+    PBAR.update(10) if PBAR is not None else None
+
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
 
 
 def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
