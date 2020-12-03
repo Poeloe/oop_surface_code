@@ -33,7 +33,7 @@ def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwar
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
-        qc.append_print_lines("Fidelity: {}".format(fid))
+        qc.append_print_lines("\nFidelity: {}".format(fid))
 
     print_lines = qc.print_lines
     qc.reset()

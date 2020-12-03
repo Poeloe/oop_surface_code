@@ -9,6 +9,7 @@ class Qubit:
         self._node = node
         self._waiting_time_idle = waiting_time_idle
         self._waiting_time_lde = waiting_time_lde
+        self._sequence_time = 0
         self._T1_idle = T1_idle
         self._T2_idle = T2_idle
         self._T1_lde = T1_lde
@@ -38,6 +39,10 @@ class Qubit:
         return self._waiting_time_lde
 
     @property
+    def sequence_time(self):
+        return self._sequence_time
+
+    @property
     def T1_idle(self):
         return self._T1_idle
 
@@ -61,6 +66,11 @@ class Qubit:
     def density_matrix(self):
         return self._qc._qubit_density_matrix_lookup[self.index][0]
 
+    def increase_sequence_time(self, amount):
+        if self.qubit_type == 'e':
+            return
+        self._sequence_time += amount
+
     def increase_waiting_time(self, amount, waiting_type='idle'):
         if waiting_type not in ['idle', 'LDE']:
             raise ValueError("Waiting type should be either 'idle' or 'LDE'")
@@ -70,6 +80,13 @@ class Qubit:
         elif waiting_type == 'LDE':
             self._waiting_time_lde += amount
 
+        # When waiting time is increased, qubit is initialised and the nuclear qubit is being decoupled (pulse sequence)
+        if self.qubit_type == 'n':
+            self.increase_sequence_time(amount)
+
     def reset_waiting_time(self):
         self._waiting_time_idle = 0
         self._waiting_time_lde = 0
+
+    def reset_sequence_time(self):
+        self._sequence_time = 0

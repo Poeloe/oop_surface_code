@@ -39,15 +39,11 @@ def get_results_from_files(superoperator_files, name_csv):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/circuit_data_new.csv"
+    name_csv = "./results/circuit_data_dyn.csv"
     folder = "./results/sim_data"
     folder_name = os.path.join(folder, "superoperator_prb_dec_swap")
     folder_name_2 = os.path.join(folder, "superoperator_prb_dec_no_swap")
     dict = {
-        "plain_pulse_swap": "{}/pulse__plain_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde5000.csv"
-            .format(folder_name),
-        "expedient_pulse_swap": "{}/pulse__expedient_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde5000.csv"
-            .format(folder_name),
         "plain_no_pulse_swap": "{}/no_pulse_plain_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
             .format(folder_name),
         "expedient_no_pulse_swap": "{}/no_pulse_expedient_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
@@ -61,6 +57,8 @@ if __name__ == '__main__':
     files = [
         "{}/pulse_plain_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
         "{}/pulse_expedient_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
+        "{}/test_prot_dyn_prot_14_1_pg0.01_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
+        "{}/test_prot_dyn_prot_14_1_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
     ]
 
     get_results_from_files(files, name_csv)

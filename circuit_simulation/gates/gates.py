@@ -8,7 +8,8 @@ X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X", duration=1e-3)
 Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y", duration=1e-3)
 Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z", duration=10e-6)
 I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I", duration=0)
-H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H")
+H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H", duration=6e-3,
+                         duration_electron=0.1e-6)
 S_gate = SingleQubitGate("Phase", np.array([[1, 0], [0, 1j]]), "S")
 
 """
@@ -49,7 +50,7 @@ SWAP_gate = TwoQubitGate("Swap",
                                    [0, 0, 0, 1]]),
                          "(X)",
                          control_repr="(X)",
-                         duration=0.05)
+                         duration=0.075)
 
 locals_gates = locals()
 
