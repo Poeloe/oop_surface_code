@@ -60,7 +60,8 @@ def draw_operations(self, init, no_color):
 
         # Draw 2 qubit operation
         if len(qubits) == 2:
-            _draw_two_qubit_operation(gate, init, no_color, noise, qubits)
+            add_non_involved_qubits = _draw_two_qubit_operation(self, gate, init, no_color, noise, qubits)
+            non_involved_qubits.extend(add_non_involved_qubits)
         # Draw single qubit operation
         else:
             _draw_single_qubit_operation(gate, init, no_color, noise, qubits)
@@ -78,7 +79,7 @@ def _draw_single_qubit_operation(gate, init, no_color, noise, qubits):
     init[qubits[0]] += "---{}---".format(gate)
 
 
-def _draw_two_qubit_operation(gate, init, no_color, noise, qubits):
+def _draw_two_qubit_operation(self, gate, init, no_color, noise, qubits):
     if type(gate) in [SingleQubitGate, TwoQubitGate]:
         control = gate.control_repr if type(gate) == TwoQubitGate else "o"
         gate = gate.representation
@@ -94,6 +95,11 @@ def _draw_two_qubit_operation(gate, init, no_color, noise, qubits):
     _correct_path_length(init, cqubit, tqubit)
     init[cqubit] += "---{}---".format(control)
     init[tqubit] += "---{}---".format(gate)
+
+    if "#" in gate:
+        return self.get_node_qubits(qubits)
+
+    return []
 
 
 def _handle_level_entry(draw_item, init):

@@ -47,6 +47,8 @@ def init_density_matrix_maximally_entangled_state(self, bell_type=1, amount_qubi
             self._add_draw_operation("#", (i, i + 1))
         self._qubit_density_matrix_lookup.update({i: (density_matrix, qubits), i + 1: (density_matrix, qubits)})
         density_matrices.append(density_matrix)
+
+    self.level_circuit_drawing()
     return density_matrices
 
 
