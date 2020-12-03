@@ -411,6 +411,31 @@ class QuantumCircuit:
         for qubit in qubits:
             self._qubit_density_matrix_lookup[qubit] = (new_density_matrix, qubits)
 
+    def _reset_density_matrices(self, qubits, state=None):
+        """
+            Method resets the density matrices of the given qubits. If the qubit is in a density matrix with a qubit
+            not given, it will also reset the density matrix of this qubit
+
+            Parameters
+            ----------
+            qubits : list
+                List of qubits of which the density matrix should be reset.
+            state : State
+                Single qubit state with which the qubits should be reset. If None, |0> is used.
+        """
+        skip_qubits = []
+        for qubit in qubits:
+            # Skip qubits that have already been reset
+            if qubit not in skip_qubits:
+                state = state if state else ket_0
+                _, matrix_qubits, _, _ = self._get_qubit_relative_objects(qubit)
+                # Loop over the qubits that are in the same density matrix as the qubit
+                for matrix_qubit in matrix_qubits:
+                    if matrix_qubit not in skip_qubits:
+                        self._qubit_density_matrix_lookup[matrix_qubit] = (CT(state), [matrix_qubit])
+                        # Add the qubit to the skip list
+                        skip_qubits.append(matrix_qubit)
+
     def get_combined_density_matrix(self, qubits):
         """
             Returns the combined density matrix of the qubits requested and returns a list of the qubits that span
@@ -1131,9 +1156,9 @@ class QuantumCircuit:
         _, qubits_1, _, num_qubits_1 = self._get_qubit_relative_objects(qubit1)
         _, qubits_2, _, num_qubits_2 = self._get_qubit_relative_objects(qubit2)
 
-        if (num_qubits_1 > 1 or num_qubits_2 > 1) and (qubits_1 != qubits_2) and (not all(qubit in qubits_1 for qubit
-                                                                                          in [qubit1, qubit2])):
-            raise ValueError("Qubits are not suitable to create a Bell pair this way.")
+        if (num_qubits_1 > 2 or num_qubits_2 > 2) or not all(qubit in qubits_1 for qubit in qubits_2):
+            reset_qubits = qubits_1 + qubits_2
+            self._reset_density_matrices(reset_qubits)
 
         new_density_matrix = self._get_bell_state_by_type(bell_state_type)
 
