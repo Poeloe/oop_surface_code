@@ -32,9 +32,7 @@ def cnot_swap(qc: QuantumCircuit):
     qc.start_sub_circuit("AB")
     qc.set_qubit_states({0: ket_1})
     qc.create_bell_pair(1, 2)
-    qc.apply_gate(SWAP_gate, cqubit=0, tqubit=1, reverse=True)
-    qc.CNOT(1, 0)
-    qc.SWAP(0, 1, efficient=False)
+    qc.apply_gate(CNOT_gate, tqubit=1, cqubit=0, electron_is_target=True, reverse=True)
     qc.CNOT(2, 3)
     outcome_b = qc.measure(2, basis="X")[0]
     outcome_a = qc.measure(1, basis="Z")[0]

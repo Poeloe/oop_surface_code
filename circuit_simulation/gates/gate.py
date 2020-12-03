@@ -24,12 +24,13 @@ class Gate(ABC):
 
     """
 
-    def __init__(self, name, matrix, representation, duration=0):
+    def __init__(self, name, matrix, representation, duration=0, duration_electron=None):
         self._name = name
         self._matrix = matrix
         self._sp_matrix = sp.csr_matrix(matrix)
         self._representation = representation
         self._duration = duration
+        self._duration_electron = duration_electron if duration_electron is not None else duration
 
     @property
     def name(self):
@@ -52,12 +53,20 @@ class Gate(ABC):
         return self._duration
 
     @property
+    def duration_electron(self):
+        return self._duration_electron
+
+    @property
     def dagger(self):
         return self.matrix.conj().T
 
     @duration.setter
     def duration(self, duration):
         self._duration = duration
+
+    @duration_electron.setter
+    def duration_electron(self, duration):
+        self._duration_electron = duration
 
     def __mul__(self, other):
         if type(other) not in [SingleQubitGate, TwoQubitGate, State, sp.csr_matrix]:
@@ -81,8 +90,8 @@ class SingleQubitGate(Gate):
         SingleQubitGate class inherits the abstract Gate class
     """
 
-    def __init__(self, name, matrix, representation, duration=0):
-        super().__init__(name, matrix, representation, duration)
+    def __init__(self, name, matrix, representation, duration=0, duration_electron=None):
+        super().__init__(name, matrix, representation, duration, duration_electron)
 
     def get_circuit_dimension_matrix(self, num_qubits, target_qubit):
         qc = cs.QuantumCircuit(num_qubits=num_qubits, init_type=0)
@@ -115,8 +124,8 @@ class TwoQubitGate(Gate):
             True if only upper left matrix and lower right matrix are non-zero
     """
 
-    def __init__(self, name, matrix, representation, duration=0., control_repr="o"):
-        super().__init__(name, matrix, representation, duration)
+    def __init__(self, name, matrix, representation, duration=0., control_repr="o", duration_electron=None):
+        super().__init__(name, matrix, representation, duration, duration_electron)
         self._control_repr = control_repr
         self._upper_left_matrix = self.sp_matrix[2:, 2:]
         self._lower_right_matrix = self.sp_matrix[:2, :2]

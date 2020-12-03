@@ -1203,7 +1203,7 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
-                   reverse=False, user_operation=True):
+                   reverse=False, electron_is_target=False, user_operation=True):
         """
             General method to apply a two- or single-qubit gate to the circuit.
 
@@ -1226,6 +1226,13 @@ class QuantumCircuit:
             decoherence : bool
                 If True, the duration of the gate operation will be added to the qubits that are known to be waiting
                 on this operation to finish. If not specified, the global decoherence variable is used.
+            reverse : bool
+                Reverses the order how density matrices of the qubits are fused. Normally the cqubit density matrix
+                is fused on top of the tqubit density matrix. This parameter is typically used rearrange qubits in the
+                density matrix, such that qubit measurement is faster eventually.
+            electron_is_target : bool
+                When working with decoherence in NV centers, the case that the electron qubit is the control qubit
+                needs to be handled differently. This is ensured when this boolean is set to True.
             user_operation : bool
                 If True, the system will log this as a by the user applied operation on the circuit.
         """
@@ -1240,6 +1247,10 @@ class QuantumCircuit:
         if noise and decoherence:
             self._N_decoherence(qubits)
 
+        if electron_is_target:
+            self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
+                                                                             decoherence=decoherence, draw=draw)
+
         if type(gate) == SingleQubitGate:
             noise = noise and not self.no_single_qubit_error
             new_density_matrix = self._apply_1_qubit_gate(gate, tqubit, conj=conj, noise=noise, pg=pg)
@@ -1249,10 +1260,16 @@ class QuantumCircuit:
             raise ValueError("Gate object was not recognised. Please create an gate object to apply this gate.")
 
         self._set_density_matrix(tqubit, new_density_matrix)
-        self._increase_duration(gate.duration, qubits)
+        gate_duration = gate.duration if not self.qubits or self.qubits[tqubit].qubit_type != 'e' else \
+            gate.duration_electron
+        self._increase_duration(gate_duration, qubits)
 
         if draw:
             self._add_draw_operation(gate, qubits, noise)
+
+        if electron_is_target:
+            self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
+                                                                             decoherence=decoherence, draw=draw)
 
     """
         ---------------------------------------------------------------------------------------------------------
