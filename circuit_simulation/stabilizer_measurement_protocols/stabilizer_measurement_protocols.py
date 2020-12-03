@@ -118,6 +118,25 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
+    elif protocol == 'dyn_prot':
+        qc = QuantumCircuit(40, 2, **kwargs)
+
+        qc.define_node("A", qubits=[38, 31, 30, 29, 28, 27, 26, 25, 24], electron_qubits=24, data_qubits=38, ghz_qubit=31)
+        qc.define_node("B", qubits=[36, 23, 22, 21, 20, 19, 18, 17, 16], electron_qubits=16, data_qubits=36, ghz_qubit=23)
+        qc.define_node("C", qubits=[34, 15, 14, 13, 12, 11, 10, 9, 8], electron_qubits=8, data_qubits=34, ghz_qubit=15)
+        qc.define_node("D", qubits=[32, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=32, ghz_qubit=7)
+
+        qc.define_sub_circuit("AB")
+        qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
+        qc.define_sub_circuit("AC")
+        qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
+        qc.define_sub_circuit("AD")
+        qc.define_sub_circuit("BC", concurrent_sub_circuits="AD")
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C")
+        qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
+
     elif protocol in ['bipartite_4', 'bipartite_4_v2', 'bipartite_4_v3', 'bipartite_5', 'bipartite_6', 'bipartite_7',
                       'bipartite_8', 'bipartite_9', 'bipartite_10', 'bipartite_11', 'bipartite_12']:
         qc = QuantumCircuit(28, 6, **kwargs)
