@@ -647,22 +647,26 @@ class QuantumCircuit:
             if is_ghz_qubit:
                 self.ghz_qubits[qubit] = q
 
-    def get_node_qubits(self, qubit):
+    def get_node_qubits(self, qubits):
         """
             Returns the qubits of a node of which the supplied qubit is part of.
 
             Parameters
             ----------
-            qubit : int
+            qubits : list
                 Qubit index of the qubit of which the node qubits should be returned
         """
         if self.nodes is None:
             return []
 
+        if type(qubits) == int:
+            qubits = [qubits]
+
+        node_qubits = []
         for node in self.nodes.values():
-            if node.qubit_in_node(qubit):
-                return node.qubits
-        return []
+            if any(node.qubit_in_node(qubit) for qubit in qubits):
+                node_qubits.extend(node.qubits)
+        return node_qubits
 
     def get_ghz_qubits(self):
         return list(self.ghz_qubits.keys())
