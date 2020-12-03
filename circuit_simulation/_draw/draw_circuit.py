@@ -55,34 +55,30 @@ def draw_operations(self, init, no_color):
             concurrent_qubits = sub_circuit.get_all_concurrent_qubits if sub_circuit is not None else []
 
         # Find qubits that are not involved in the current sub circuit
-        non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in range(self.num_qubits)]))
+        all_qubits = self.qubits.keys() if self.qubits else range(self.num_qubits)
+        non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in all_qubits]))
 
         # Draw 2 qubit operation
         if len(qubits) == 2:
-            current_qubits, init, longest_item = _draw_two_qubit_operation(gate, init, no_color, noise,
-                                                                           non_involved_qubits, qubits, self)
+            _draw_two_qubit_operation(gate, init, no_color, noise, qubits)
         # Draw single qubit operation
         else:
-            current_qubits, longest_item = _draw_single_qubit_operation(gate, init, no_color, noise,
-                                                                        non_involved_qubits, qubits, self)
+            _draw_single_qubit_operation(gate, init, no_color, noise, qubits)
 
         # Level the qubit lines of all qubits not concurrent with the sub circuit such that they grow in time
-        if not current_qubits:
-            _level_qubit_paths(init, qubit_indices=current_qubits, longest_path=len(longest_item))
+        if non_involved_qubits:
+            _level_qubit_paths(init, qubit_indices=non_involved_qubits)
 
 
-def _draw_single_qubit_operation(gate, init, no_color, noise, non_involved_qubits, qubits, self):
+def _draw_single_qubit_operation(gate, init, no_color, noise, qubits):
     if type(gate) == SingleQubitGate:
         gate = gate.representation
     if noise:
         gate = "~" + gate if no_color else colored("~", 'red') + gate
     init[qubits[0]] += "---{}---".format(gate)
-    longest_item = ansi_escape.sub("", init[qubits[0]])
-    current_qubits = list(set(non_involved_qubits))
-    return current_qubits, longest_item
 
 
-def _draw_two_qubit_operation(gate, init, no_color, noise, non_involved_qubits, qubits, self):
+def _draw_two_qubit_operation(gate, init, no_color, noise, qubits):
     if type(gate) in [SingleQubitGate, TwoQubitGate]:
         control = gate.control_repr if type(gate) == TwoQubitGate else "o"
         gate = gate.representation
@@ -95,15 +91,9 @@ def _draw_two_qubit_operation(gate, init, no_color, noise, non_involved_qubits, 
         gate = "~" + gate if no_color else colored('~', 'red') + gate
     cqubit = qubits[1]
     tqubit = qubits[0]
-    init = _correct_path_length(init, cqubit, tqubit)
+    _correct_path_length(init, cqubit, tqubit)
     init[cqubit] += "---{}---".format(control)
     init[tqubit] += "---{}---".format(gate)
-    cqubit_stripped = ansi_escape.sub("", init[cqubit])
-    tqubit_stripped = ansi_escape.sub("", init[tqubit])
-    longest_item = cqubit_stripped if len(cqubit_stripped) >= len(tqubit_stripped) else tqubit_stripped
-    current_qubits = list(set(self.get_node_qubits(cqubit) + self.get_node_qubits(tqubit)
-                              + non_involved_qubits))
-    return current_qubits, init, longest_item
 
 
 def _handle_level_entry(draw_item, init):
@@ -129,16 +119,14 @@ def _correct_path_length(init, qubit_1, qubit_2):
         diff = len_qubit_2 - len_qubit_1
         init[qubit_1] += diff * "-"
 
-    return init
 
+def _level_qubit_paths(init, qubit_indices=None):
+    init_loop = np.array(init)[qubit_indices] if qubit_indices is not None else init
+    init_lengths = [len(ansi_escape.sub("", item)) for item in init_loop]
+    longest_path = max(init_lengths)
+    qubit_indices = qubit_indices if qubit_indices is not None else range(len(init))
 
-def _level_qubit_paths(init, qubit_indices=None, longest_path=None):
-    if qubit_indices is None and longest_path is None:
-        init_lengths = [len(ansi_escape.sub("", item)) for item in init]
-        longest_path = max(init_lengths)
-        qubit_indices = range(len(init))
-
-    for index, path in zip(qubit_indices, init):
+    for index, path in zip(qubit_indices, init_loop):
         path_length = len(ansi_escape.sub("", path))
         diff = longest_path - path_length
         init[index] += diff * "-"
