@@ -67,7 +67,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubit=4)
         qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubit=1)
 
-    elif protocol == 'dyn_prot_6_sym_1':
+    elif protocol in ['dyn_prot_6_sym_1', 'dyn_prot_6_sym_1_swap']:
         qc = QuantumCircuit(18, 2, **kwargs)
 
         qc.define_node("A", qubits=[16, 9, 8], electron_qubits=8, data_qubits=16, ghz_qubit=9)
@@ -566,9 +566,6 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
         measurement_outcomes = qc.measure([3, 8], basis="Z")           # 2, 4, 7, 9
         if measurement_outcomes[1] == 1:
             qc.X(4)
-            qc.X(2)
-        if measurement_outcomes[0] == 1:
-            qc.X(2)
         qc.create_bell_pair(3, 8)
 
         PBAR.update(20) if PBAR is not None else None
@@ -579,6 +576,10 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
             qc.create_bell_pair(1, 6)
             qc.create_bell_pair(5, 0)
             success_bd = qc.single_selection_var(CiY_gate, 5, 6, 0, 1, create_bell_pair=False, retry=False)
+
+        qc.start_sub_circuit("BD", forced_level=True)
+        if measurement_outcomes in [[0, 1], [1, 0]]:
+            qc.X(2)
 
         PBAR.update(20) if PBAR is not None else None
 
@@ -618,14 +619,14 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB")
         qc.create_bell_pair(8, 5)
-        qc.SWAP(8, 9, efficient=True)
         qc.SWAP(5, 7, efficient=True)
+        qc.SWAP(8, 9, efficient=True)
 
         PBAR.update(20) if PBAR is not None else None
         qc.start_sub_circuit("CD")
         qc.create_bell_pair(0, 3)
-        qc.SWAP(0, 2, efficient=True)
         qc.SWAP(3, 4, efficient=True)
+        qc.SWAP(0, 2, efficient=True)
 
 
         PBAR.update(20) if PBAR is not None else None
@@ -635,13 +636,13 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
         qc.start_sub_circuit("AC", forced_level=True)
         qc.create_bell_pair(3, 8)
         qc.apply_gate(CNOT_gate, cqubit=9, tqubit=8, electron_is_target=True, reverse=True)    # 8, 3, 7, 9
-        qc.apply_gate(CNOT_gate, cqubit=3, tqubit=4, reverse=True)      # 4, 2, 8, 3, 7, 9
-        qc.SWAP(3, 4, efficient=False)                                  # 3, 2, 8, 4, 7, 9
-        measurement_outcomes = qc.measure([3, 8], basis="Z")           # 2, 4, 7, 9
+        qc.apply_gate(CNOT_gate, cqubit=3, tqubit=4)      # 8, 3, 7, 9, 4, 2
+        qc.append_print_lines("\nDuration A is {}.".format(qc.nodes["A"].sub_circuit_time))
+        qc.append_print_lines("\nDuration C is {}.".format(qc.nodes["C"].sub_circuit_time))
+        qc.SWAP(3, 4, efficient=False)
+        measurement_outcomes = qc.measure([8, 3], basis="Z")           # 7, 9, 4, 2
         if measurement_outcomes[1] == 1:
-            qc.SWAP(3, 4, efficient=True)
-            qc.X(3)
-            qc.SWAP(3, 4, efficient=True)
+            qc.X(4)
         qc.create_bell_pair(3, 8)
 
         PBAR.update(20) if PBAR is not None else None
@@ -654,29 +655,25 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
             qc.SWAP(0, 1, efficient=True)
             qc.create_bell_pair(5, 0)
             success_bd = qc.single_selection_var(CiY_gate, 5, 6, 0, 1, create_bell_pair=False, retry=False)
-
-        qc.start_sub_circuit("BD", forced_level=True)
-        if measurement_outcomes in [[0, 1], [1, 0]]:
-            qc.SWAP(0, 2, efficient=True)
-            qc.X(0)
-            qc.SWAP(0, 2, efficient=True)
+        qc.SWAP(5, 6, efficient=True)
+        qc.SWAP(0, 1, efficient=True)
 
         PBAR.update(20) if PBAR is not None else None
 
 
 
         qc.start_sub_circuit("AC", forced_level=True)
-        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9)        # 8, 3, 2, 4, 7, 9
+        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9)        # 8, 3, 7, 9, 4, 2
         qc.apply_gate(CZ_gate, cqubit=3, tqubit=4)
-        measurement_outcomes_1 = qc.measure([8, 3])       # 2, 4, 7, 9
+        measurement_outcomes_1 = qc.measure([8, 3])       # 7, 9, 4, 2
         ghz_success_1 = measurement_outcomes_1[0] == measurement_outcomes_1[1]
 
         qc.start_sub_circuit("BD")
-        qc.SWAP(5, 6, efficient=True)
-        qc.SWAP(0, 1, efficient=True)
-        qc.apply_gate(CZ_gate, cqubit=5, tqubit=7)        # 5, 0, 2, 4, 7, 9
+        if measurement_outcomes in [[0, 1], [1, 0]]:
+            qc.X(2)
+        qc.apply_gate(CZ_gate, cqubit=5, tqubit=7)        # 0, 5, 7, 9, 4, 2
         qc.apply_gate(CZ_gate, cqubit=0, tqubit=2)
-        measurement_outcomes_2 = qc.measure([5, 0])       # 2, 4, 7, 9
+        measurement_outcomes_2 = qc.measure([0, 5])       # 7, 9, 4, 2
         ghz_success_2 = measurement_outcomes_2[0] == measurement_outcomes_2[1]
         if ghz_success_1 and ghz_success_2:
             ghz_success = True
@@ -687,7 +684,7 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
 
     qc.get_state_fidelity()
 
-    qc.stabilizer_measurement(operation, nodes=["D", "C", "B", "A"], swap=False)
+    qc.stabilizer_measurement(operation, nodes=["B", "A", "C", "D"], swap=True)
 
     PBAR.update(10) if PBAR is not None else None
 
