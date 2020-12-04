@@ -551,11 +551,11 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
         qc.start_sub_circuit("AB")
         qc.create_bell_pair(9, 7)
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
         qc.start_sub_circuit("CD")
         qc.create_bell_pair(2, 3)
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
 
 
 
@@ -564,11 +564,22 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
         qc.apply_gate(CNOT_gate, cqubit=9, tqubit=8, reverse=True)    # 8, 4, 7, 9
         qc.apply_gate(CNOT_gate, cqubit=4, tqubit=3, reverse=True)      # 3, 2, 8, 4, 7, 9
         measurement_outcomes = qc.measure([3, 8], basis="Z")           # 2, 4, 7, 9
-        if measurement_outcomes[1] == 1:
+        # BEGIN FUSION CORRECTION: The correction in node C can only be applied AFTER the measurement in A
+        time_between_meas = qc.nodes["A"].sub_circuit_time - qc.nodes["C"].sub_circuit_time
+        if time_between_meas > 0:
+            qc._increase_duration(time_between_meas, [], involved_nodes=["C"])
+        if measurement_outcomes[0] == 1:
             qc.X(4)
+        # The correction in node D can only be applied after both measurements in A and C
+        time_after_both_meas = max(qc.nodes["A"].sub_circuit_time, qc.nodes["C"].sub_circuit_time)
+        # END FUSION CORRECTION
         qc.create_bell_pair(3, 8)
+        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9)        # 8, 3, 2, 4, 7, 9
+        qc.apply_gate(CZ_gate, cqubit=3, tqubit=4)
+        measurement_outcomes_1 = qc.measure([8, 3])       # 2, 4, 7, 9
+        ghz_success_1 = measurement_outcomes_1[0] == measurement_outcomes_1[1]
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
 
         qc.start_sub_circuit("BD")
         success_bd = False
@@ -576,22 +587,13 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
             qc.create_bell_pair(1, 6)
             qc.create_bell_pair(5, 0)
             success_bd = qc.single_selection_var(CiY_gate, 5, 6, 0, 1, create_bell_pair=False, retry=False)
-
-        qc.start_sub_circuit("BD", forced_level=True)
+        # BEGIN FUSION CORRECTION
+        time_diff_with_meas = time_after_both_meas - qc.nodes["D"].sub_circuit_time
+        if time_diff_with_meas > 0:
+            qc._increase_duration(time_diff_with_meas, [], involved_nodes=["D"])
         if measurement_outcomes in [[0, 1], [1, 0]]:
             qc.X(2)
-
-        PBAR.update(20) if PBAR is not None else None
-
-
-
-        qc.start_sub_circuit("AC", forced_level=True)
-        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9)        # 8, 3, 2, 4, 7, 9
-        qc.apply_gate(CZ_gate, cqubit=3, tqubit=4)
-        measurement_outcomes_1 = qc.measure([8, 3])       # 2, 4, 7, 9
-        ghz_success_1 = measurement_outcomes_1[0] == measurement_outcomes_1[1]
-
-        qc.start_sub_circuit("BD")
+        # END FUSION CORRECTION
         qc.apply_gate(CZ_gate, cqubit=6, tqubit=7)        # 6, 1, 2, 4, 7, 9
         qc.apply_gate(CZ_gate, cqubit=1, tqubit=2)
         measurement_outcomes_2 = qc.measure([6, 1])       # 2, 4, 7, 9
@@ -601,7 +603,7 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
         else:
             ghz_success = False
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
 
     qc.get_state_fidelity()
 
@@ -622,14 +624,14 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
         qc.SWAP(5, 7, efficient=True)
         qc.SWAP(8, 9, efficient=True)
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
         qc.start_sub_circuit("CD")
         qc.create_bell_pair(0, 3)
         qc.SWAP(3, 4, efficient=True)
         qc.SWAP(0, 2, efficient=True)
 
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
 
 
 
@@ -637,15 +639,24 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
         qc.create_bell_pair(3, 8)
         qc.apply_gate(CNOT_gate, cqubit=9, tqubit=8, electron_is_target=True, reverse=True)    # 8, 3, 7, 9
         qc.apply_gate(CNOT_gate, cqubit=3, tqubit=4)      # 8, 3, 7, 9, 4, 2
-        qc.append_print_lines("\nDuration A is {}.".format(qc.nodes["A"].sub_circuit_time))
-        qc.append_print_lines("\nDuration C is {}.".format(qc.nodes["C"].sub_circuit_time))
         qc.SWAP(3, 4, efficient=False)
         measurement_outcomes = qc.measure([8, 3], basis="Z")           # 7, 9, 4, 2
-        if measurement_outcomes[1] == 1:
+        # BEGIN FUSION CORRECTION: The correction in node C can only be applied AFTER the measurement in A
+        time_between_meas = qc.nodes["A"].sub_circuit_time - qc.nodes["C"].sub_circuit_time
+        if time_between_meas > 0:
+            qc._increase_duration(time_between_meas, [], involved_nodes=["C"])
+        if measurement_outcomes[0] == 1:
             qc.X(4)
+        # The correction in node D can only be applied after both measurements in A and C
+        time_after_both_meas = max(qc.nodes["A"].sub_circuit_time, qc.nodes["C"].sub_circuit_time)
+        # END FUSION CORRECTION
         qc.create_bell_pair(3, 8)
+        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9)        # 8, 3, 7, 9, 4, 2
+        qc.apply_gate(CZ_gate, cqubit=3, tqubit=4)
+        measurement_outcomes_1 = qc.measure([8, 3])       # 7, 9, 4, 2
+        ghz_success_1 = measurement_outcomes_1[0] == measurement_outcomes_1[1]
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
 
         qc.start_sub_circuit("BD")
         success_bd = False
@@ -657,20 +668,13 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
             success_bd = qc.single_selection_var(CiY_gate, 5, 6, 0, 1, create_bell_pair=False, retry=False)
         qc.SWAP(5, 6, efficient=True)
         qc.SWAP(0, 1, efficient=True)
-
-        PBAR.update(20) if PBAR is not None else None
-
-
-
-        qc.start_sub_circuit("AC", forced_level=True)
-        qc.apply_gate(CZ_gate, cqubit=8, tqubit=9)        # 8, 3, 7, 9, 4, 2
-        qc.apply_gate(CZ_gate, cqubit=3, tqubit=4)
-        measurement_outcomes_1 = qc.measure([8, 3])       # 7, 9, 4, 2
-        ghz_success_1 = measurement_outcomes_1[0] == measurement_outcomes_1[1]
-
-        qc.start_sub_circuit("BD")
+        # BEGIN FUSION CORRECTION
+        time_diff_with_meas = time_after_both_meas - qc.nodes["D"].sub_circuit_time
+        if time_diff_with_meas > 0:
+            qc._increase_duration(time_diff_with_meas, [], involved_nodes=["D"])
         if measurement_outcomes in [[0, 1], [1, 0]]:
             qc.X(2)
+        # END FUSION CORRECTION
         qc.apply_gate(CZ_gate, cqubit=5, tqubit=7)        # 0, 5, 7, 9, 4, 2
         qc.apply_gate(CZ_gate, cqubit=0, tqubit=2)
         measurement_outcomes_2 = qc.measure([0, 5])       # 7, 9, 4, 2
@@ -680,7 +684,7 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
         else:
             ghz_success = False
 
-        PBAR.update(20) if PBAR is not None else None
+        PBAR.update(25) if PBAR is not None else None
 
     qc.get_state_fidelity()
 
