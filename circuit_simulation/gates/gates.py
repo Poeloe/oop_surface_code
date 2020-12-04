@@ -4,12 +4,12 @@ from .gate import TwoQubitGate, SingleQubitGate
 """
     SINGLE QUBIT GATES
 """
-X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X", duration=1e-3)
-Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y", duration=1e-3)
-Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z", duration=10e-6)
+X_gate = SingleQubitGate("X", np.array([[0, 1], [1, 0]]), "X", duration=13e-3, duration_electron=140e-9)
+Y_gate = SingleQubitGate("Y", np.array([[0, -1j], [1j, 0]]), "Y", duration=13e-3, duration_electron=140e-9)
+Z_gate = SingleQubitGate("Z", np.array([[1, 0], [0, -1]]), "Z", duration=6.5e-6, duration_electron=100e-9)
 I_gate = SingleQubitGate("Identity", np.array([[1, 0], [0, 1]]), "I", duration=0)
-H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H", duration=6e-3,
-                         duration_electron=0.1e-6)
+H_gate = SingleQubitGate("Hadamard", 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]]), "H", duration=6.5e-3,
+                         duration_electron=100e-9)
 S_gate = SingleQubitGate("Phase", np.array([[1, 0], [0, 1j]]), "S")
 
 """
