@@ -602,10 +602,6 @@ class QuantumCircuit:
                 applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
-        # First apply left over waiting time of all qubits in the form of decoherence
-        if self.noise:
-            self._N_decoherence(decoherence=self.decoherence)
-
         # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
         self._apply_waiting_time_to_fastest_sub_circuits()
 
@@ -614,6 +610,10 @@ class QuantumCircuit:
             self._update_sub_circuit_duration_with_node_duration()
             self.total_duration += self._current_sub_circuit.total_duration
             self._current_sub_circuit.set_ran()
+
+        # First apply left over waiting time of all qubits in the form of decoherence
+        if self.noise:
+            self._N_decoherence(decoherence=self.decoherence)
 
         self._draw_order.append(["LEVEL", self._current_sub_circuit.total_duration, self._current_sub_circuit])
         self._current_sub_circuit = None
