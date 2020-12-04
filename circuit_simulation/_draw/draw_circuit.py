@@ -96,10 +96,7 @@ def _draw_two_qubit_operation(self, gate, init, no_color, noise, qubits):
     init[cqubit] += "---{}---".format(control)
     init[tqubit] += "---{}---".format(gate)
 
-    if "#" in gate:
-        return self.get_node_qubits(qubits)
-
-    return []
+    return self.get_node_qubits(qubits)
 
 
 def _handle_level_entry(draw_item, init):
