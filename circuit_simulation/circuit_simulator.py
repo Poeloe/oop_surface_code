@@ -1277,8 +1277,9 @@ class QuantumCircuit:
             self._N_decoherence(qubits)
 
         if electron_is_target:
-            self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
-                                                                             decoherence=decoherence, draw=draw)
+            draw = self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
+                                                                                    decoherence=decoherence,
+                                                                                    draw=draw, gate=gate)
 
         if type(gate) == SingleQubitGate:
             noise = noise and not self.no_single_qubit_error
