@@ -200,6 +200,10 @@ class QuantumCircuit:
         self._current_sub_circuit = None
         self._circuit_operations_ended = False
 
+        # Superoperator attributes
+        self._superoperator_decomposition = None
+        self._error_density_matrix_lookup = {}
+
         self._init_density_matrix()
 
         self._init_parameters = self._init_parameters_to_dict()
@@ -1154,7 +1158,9 @@ class QuantumCircuit:
         _, qubits_1, _, num_qubits_1 = self._get_qubit_relative_objects(qubit1)
         _, qubits_2, _, num_qubits_2 = self._get_qubit_relative_objects(qubit2)
 
-        if (num_qubits_1 > 2 or num_qubits_2 > 2) or not all(qubit in qubits_1 for qubit in qubits_2):
+        # If qubits are not single qubit states or in a state with different qubits the matrix should be reset
+        if ((num_qubits_1 > 2 or num_qubits_2 > 2) or
+            (num_qubits_1 > 2 and not all(qubit in qubits_1 for qubit in qubits_2))):
             reset_qubits = qubits_1 + qubits_2
             self._reset_density_matrices(reset_qubits)
 
@@ -1348,7 +1354,7 @@ class QuantumCircuit:
         return new_density_matrix
 
     @handle_none_parameters
-    def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
+    def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False, lookup=True):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
             apply_1_qubit_gate method.
@@ -1370,7 +1376,7 @@ class QuantumCircuit:
                 Returns a matrix with dimensions equal to the dimensions of the density matrix of
                 the system.
         """
-        return self._operations.gate_operations.create_1_qubit_gate(self, gate, tqubit, num_qubits, conj)
+        return self._operations.gate_operations.create_1_qubit_gate(self, gate, tqubit, num_qubits, conj, lookup)
 
     def X(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli X gate to the specified target qubit. See apply_1_qubit_gate for more info """
@@ -2395,30 +2401,23 @@ class QuantumCircuit:
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
         total_density_matrix, qubits_matrix = self.get_combined_density_matrix(qubits)
-        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits, qubits_matrix,
-                                                                          num_qubits=len(qubits_matrix))
+        superoperator_decomposition = self._create_superoperator_decomposition(qubits, qubits_matrix)
 
-        for combination in all_gate_combinations:
-            total_error_gate = None
-            for gate_dict in combination:
-                gate = list(gate_dict.values())[0]
-                if total_error_gate is None:
-                    total_error_gate = gate
-                    continue
-                total_error_gate = total_error_gate * gate
+        for kraus_operator, error_matrix in superoperator_decomposition.items():
 
-            error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
-            me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
+            error_density_matrix, me_error_density_matrix = self._get_error_density_matrices(kraus_operator,
+                                                                                             stabilizer_protocol,
+                                                                                             noiseless_density_matrix,
+                                                                                             measerror_density_matrix,
+                                                                                             error_matrix)
 
             fid_no_me = fidelity_elementwise(error_density_matrix, total_density_matrix)
             fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
 
-            operators = [list(applied_gate.keys())[0] for applied_gate in combination]
-
             if fid_me != 0 and not self.cut_off_time_reached and not idle_data_qubit:
-                superoperator.append(SuperoperatorElement(fid_me, True, operators, me_error_density_matrix))
+                superoperator.append(SuperoperatorElement(fid_me, True, list(kraus_operator), me_error_density_matrix))
             if fid_no_me != 0:
-                superoperator.append(SuperoperatorElement(fid_no_me, False, operators, error_density_matrix))
+                superoperator.append(SuperoperatorElement(fid_no_me, False, list(kraus_operator), error_density_matrix))
 
         # Possible post-processing options for the superoperator
         if combine:
@@ -2546,7 +2545,7 @@ class QuantumCircuit:
 
         return file_path
 
-    def _all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
+    def _create_superoperator_decomposition(self, qubits, qubits_matrix):
         """
             Method returns a list containing all the possible combinations of Pauli matrix gates
             that can be applied to the specified qubits.
@@ -2570,8 +2569,15 @@ class QuantumCircuit:
 
             in which, in general, A -> {"A": single_qubit_A_gate_object} where A in {X, Y, Z, I}.
         """
-        return self._superoperator.superoperator_methods.all_single_qubit_gate_possibilities(self, qubits,
-                                                                                             qubits_matrix, num_qubits)
+        return self._superoperator.superoperator_methods.create_superoperator_decomposition(self, qubits, qubits_matrix)
+
+    def _get_error_density_matrices(self, kraus_operator, stabilizer_protocol, noiseless_density_matrix,
+                                    measerror_density_matrix, error_matrix):
+        return self._superoperator.superoperator_methods.get_error_density_matrices(self, kraus_operator,
+                                                                                    stabilizer_protocol,
+                                                                                    noiseless_density_matrix,
+                                                                                    measerror_density_matrix,
+                                                                                    error_matrix)
 
     def _fuse_equal_config_up_to_permutation(self, superoperator):
         """
@@ -2833,7 +2839,6 @@ class QuantumCircuit:
                 node.reset_all_times()
 
         self._init_density_matrix()
-
 
     def __repr__(self):
         return "\nQuantumCircuit object containing {} qubits\n".format(self.num_qubits)

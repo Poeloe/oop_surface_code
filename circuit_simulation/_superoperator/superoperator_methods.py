@@ -2,6 +2,7 @@ import os
 import scipy.sparse as sp
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
+from circuit_simulation.basic_operations.basic_operations import CT
 from circuit_simulation._superoperator.superoperator import SuperoperatorElement
 from itertools import combinations, product, combinations_with_replacement
 from circuit_simulation.termcolor.termcolor import colored
@@ -140,7 +141,7 @@ def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=
     return fidelity
 
 
-def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
+def create_superoperator_decomposition(self, qubits, qubits_matrix):
     """
         Method returns a list containing all the possible combinations of Pauli matrix gates
         that can be applied to the specified qubits.
@@ -164,8 +165,14 @@ def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits)
 
         in which, in general, A -> {"A": single_qubit_A_gate_object} where A in {X, Y, Z, I}.
     """
+    # If Kraus decomposition is already created, return this
+    if self._superoperator_decomposition is not None:
+        return self._superoperator_decomposition
+
+    num_qubits = len(qubits_matrix)
+    # Create for each data qubit the full matrix size Pauli operator
     operations = [X_gate, Y_gate, Z_gate, I_gate]
-    gate_combinations = []
+    pauli_operators_per_qubit = []
 
     for qubit in qubits:
         rel_qubit = qubits_matrix.index(qubit)
@@ -173,9 +180,35 @@ def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits)
         for operation in operations:
             gates.append({operation.representation: self._create_1_qubit_gate(operation, rel_qubit,
                                                                               num_qubits=num_qubits)})
-        gate_combinations.append(gates)
+        pauli_operators_per_qubit.append(gates)
 
-    return list(product(*gate_combinations))
+    # Create all possible combinations of Pauli operators on the data qubits
+    decomposition = list(product(*pauli_operators_per_qubit))
+
+    # Post-process the decomposition data, such that the combination of gates is multiplied
+    superoperator_decomposition = {}
+    for element in decomposition:
+        kraus_operator = "".join([list(el.keys())[0] for el in element])
+        matrix = math.prod([list(el.values())[0] for el in element])
+        superoperator_decomposition[kraus_operator] = matrix
+
+    # Save the decomposition to the QC object, such that it only has to be constructed once for multiple iterations
+    self._superoperator_decomposition = superoperator_decomposition
+    return self._superoperator_decomposition
+
+
+def get_error_density_matrices(self, kraus_operator, stabilizer_protocol, noiseless_density_matrix,
+                               measerror_density_matrix, error_matrix):
+
+    if kraus_operator in self._error_density_matrix_lookup and stabilizer_protocol:
+        return self._error_density_matrix_lookup[kraus_operator]
+
+    error_density_matrix = error_matrix * CT(noiseless_density_matrix, error_matrix)
+    me_error_density_matrix = error_matrix * CT(measerror_density_matrix, error_matrix)
+
+    self._error_density_matrix_lookup[kraus_operator] = (error_density_matrix, me_error_density_matrix)
+
+    return error_density_matrix, me_error_density_matrix
 
 
 def fuse_equal_config_up_to_permutation(superoperator):

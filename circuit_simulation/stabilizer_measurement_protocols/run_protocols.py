@@ -204,6 +204,9 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
     qc = stab_protocols.create_quantum_circuit(protocol, pbar, **kwargs)
     protocol_method = getattr(stab_protocols, protocol)
 
+    if threaded:
+        set_gate_durations_from_file(gate_duration_file)
+
     # Run iterations of the protocol
     for iter in range(iterations):
         pbar.reset() if pbar else None
@@ -212,9 +215,7 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
         if pbar_2 is None:
             print(">>> At iteration {} of the {}.".format(iter + 1, iterations), end='\r', flush=True)
 
-        if threaded:
-            _init_random_seed(worker=threading.get_ident(), iteration=iter)
-            set_gate_durations_from_file(gate_duration_file)
+        # _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
         if print_run_order:
             return (None, None), []
