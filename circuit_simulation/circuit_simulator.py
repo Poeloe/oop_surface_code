@@ -1105,7 +1105,7 @@ class QuantumCircuit:
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
                          probabilistic=None, p_bell_success=None, bell_creation_duration=None, decoherence=None,
-                         user_operation=True):
+                         times=1, user_operation=True):
         """
             Creates a Bell pair between the supplied qubits. No actual circuit is applied, the requested Bell state is
             created between the qubits by appointing the corresponding density matrix to the qubits.
@@ -1149,7 +1149,6 @@ class QuantumCircuit:
         if noise and decoherence:
             self._N_decoherence([qubit1, qubit2])
 
-        times = 1
         self._total_lde_attempts += 1
         while probabilistic and random.random() > p_bell_success:
             times += 1
