@@ -74,12 +74,6 @@ def _additional_qc_arguments(**kwargs):
         'noise': True,
         'basis_transformation_noise': False,
         'thread_safe_printing': True,
-        'T1_lde': 2,
-        'T1_idle': (5 * 60),
-        'T2_idle': 10,
-        'T2_idle_electron': 1,
-        'T2_lde': 2,
-        'T1_idle_electron': 1000,
         'no_single_qubit_error': True
     }
     kwargs.update(additional_arguments)
