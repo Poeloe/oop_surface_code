@@ -41,7 +41,7 @@ def N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num
 def N_kraus_operators(self, tqubit, kraus_operators, density_matrix, num_qubits):
     result = []
     for kraus_op in kraus_operators:
-        kraus_op_full = self._create_1_qubit_gate(kraus_op, tqubit, num_qubits=num_qubits)
+        kraus_op_full = self._create_1_qubit_gate(kraus_op, tqubit, num_qubits=num_qubits, lookup=False)
         result.append(kraus_op_full * CT(density_matrix, kraus_op_full))
 
     return sum(result)

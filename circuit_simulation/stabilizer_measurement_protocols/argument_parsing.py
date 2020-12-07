@@ -174,5 +174,41 @@ def compose_parser():
                         type=int,
                         choices=[1, 0],
                         default=0)
+    parser.add_argument('-T1ni',
+                        '--T1_idle',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
+                        type=float,
+                        default=300)
+    parser.add_argument('-T2ni',
+                        '--T2_idle',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
+                        type=float,
+                        default=10)
+    parser.add_argument('-T1nl',
+                        '--T1_lde',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
+                        type=float,
+                        default=2)
+    parser.add_argument('-T2nl',
+                        '--T2_lde',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
+                        type=float,
+                        default=2)
+    parser.add_argument('-T1ei',
+                        '--T1_idle_electron',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
+                        type=float,
+                        default=1)
+    parser.add_argument('-T2ei',
+                        '--T2_idle_electron',
+                        help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
+                             'present, this should NOT be specified.',
+                        type=float,
+                        default=1000)
 
     return parser
