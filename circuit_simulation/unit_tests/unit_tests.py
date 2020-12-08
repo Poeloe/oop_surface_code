@@ -176,29 +176,29 @@ class TestGateApplication(unittest.TestCase):
                                                                                         [0, 0, 0, 0], [0, 0, 0, 0]]))
 
     def test_apply_SWAP_full_swap(self):
-        qc = QC(3, 0, noise=True, pn=0.1)
+        qc = QC(3, 0, noise=True, pg=0.1)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
         qc.CNOT(0, 1)
 
-        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pg=0.1)
         qc2.SWAP(0, 1, efficient=False)
 
         np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
                                              qc2.total_density_matrix()[0].toarray())
 
     def test_apply_SWAP_efficient_swap(self):
-        qc = QC(3, 0, noise=True, pn=0.1)
+        qc = QC(3, 0, noise=True, pg=0.1, pn=0.1)
         qc.create_bell_pair(1, 2)
         qc._uninitialised_qubits.append(0)
-        # Full SWAP is equal to three CNOT operations, last CNOT noiseless is should be equal to efficient SWAP result
+        # SWAP is equal to three CNOT operations
+        qc.CNOT(1, 0)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
-        qc.CNOT(0, 1, noise=False)
         # Qubit 1 is now uninitialised due to swapping. Measure it such that it disappears from the density matrix
         qc.measure(1)
 
-        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pg=0.1, pn=0.1)
         qc2.create_bell_pair(1, 2)
         qc2._uninitialised_qubits.append(0)
         qc2.SWAP(1, 0, efficient=True)
