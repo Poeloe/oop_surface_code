@@ -230,13 +230,11 @@ class TestErrorImplementation(unittest.TestCase):
     def test_amplitude_damping_channel(self):
         qc = QC(1, 0)
         density_matrix = sp.csr_matrix([[0, 0], [0, 1]])
-        compare_matrix = sp.csr_matrix([[1, 0], [0, 0]])
+        compare_matrix = sp.csr_matrix([[0.5, 0], [0, 0.5]])
 
         density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 10, 2.3)
-        fid = fidelity_elementwise(density_matrix, density_matrix_noise)
 
         np.testing.assert_array_almost_equal(compare_matrix.toarray(), density_matrix_noise.toarray(), 2)
-        self.assertLess(fid, 0.1)
 
     def test_phase_damping_channel(self):
         qc = QC(1, 0)

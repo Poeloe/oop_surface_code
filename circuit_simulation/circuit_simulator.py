@@ -1105,7 +1105,7 @@ class QuantumCircuit:
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
                          probabilistic=None, p_bell_success=None, bell_creation_duration=None, decoherence=None,
-                         times=1, user_operation=True):
+                         attempts=1, user_operation=True):
         """
             Creates a Bell pair between the supplied qubits. No actual circuit is applied, the requested Bell state is
             created between the qubits by appointing the corresponding density matrix to the qubits.
@@ -1139,6 +1139,9 @@ class QuantumCircuit:
             decoherence : bool
                 Applies decoherence to the qubits that wait on the operation to finish. If not specified, the global
                 decoherence value will be used.
+            attempts : int
+                How many attempts it should take to successfully create a Bell pair. Make sure to set probabilistic
+                to False when one wants a fixed number of attempts.
             user_operation : bool
                 If True, the operation will be logged as an user operation applied to the circuit.
         """
@@ -1151,7 +1154,7 @@ class QuantumCircuit:
 
         self._total_lde_attempts += 1
         while probabilistic and random.random() > p_bell_success:
-            times += 1
+            attempts += 1
             self._total_lde_attempts += 1
 
         _, qubits_1, _, num_qubits_1 = self._get_qubit_relative_objects(qubit1)
@@ -1174,10 +1177,13 @@ class QuantumCircuit:
 
         self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
 
-        self._increase_duration(bell_creation_duration*times, [qubit1, qubit2], kind='LDE')
+        self._increase_duration(bell_creation_duration * attempts, [qubit1, qubit2], kind='LDE')
+        # Add duration of pi pulses to the initialised qubit if LDE took longer than two times the inter pulse delay
+        self._increase_duration(math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration,
+                                [qubit1, qubit2])
 
         self._total_succeeded_lde += 1
-        self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
+        self._add_draw_operation("#{}".format(attempts), (qubit1, qubit2), noise)
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -2039,9 +2045,9 @@ class QuantumCircuit:
     def _N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=False, decoherence=True):
         self._noise.decoherence.N_decoherence(self, qubits, sub_circuit, sub_circuit_concurrent, decoherence)
 
-    def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
+    def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T, p=1/2):
         return self._noise.noise_maps.N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits,
-                                                                  waiting_time, T)
+                                                                  waiting_time, T, p)
 
     def _N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
         return self._noise.noise_maps.N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T)
