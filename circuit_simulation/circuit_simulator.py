@@ -1642,7 +1642,7 @@ class QuantumCircuit:
         return waiting_time
 
     def _wait_for_refocus(self, qubits):
-        def check_equality_to_0_or_1_state():
+        def equal_to_0_or_1_state():
             """
             If the state of te qubits is equal to |0> or |1>, then also no sequence is applied. This is checked here
             """
@@ -1654,7 +1654,7 @@ class QuantumCircuit:
                 return False
 
             dens = dens.toarray()
-            # State on qubit maybe noisy, therefore comparison is with tolerance
+            # State on qubit may be noisy, therefore comparison is with tolerance
             return np.allclose(dens, zero_state, 1e-3, 1e-3) or np.allclose(dens, one_state, 1e-3, 1e-3)
 
         if self.pulse_duration > 0:
@@ -1662,9 +1662,9 @@ class QuantumCircuit:
                 if qubit is None:
                     return
                 qubit_obj = self.qubits[qubit]
-                seq_not_zero = qubit_obj.sequence_time != 0
+                seq_past_margin = qubit_obj.sequence_time > 0.5e-3
                 # Check if qubit is initialised, not in |0> or |1> (with noise) and if sequence time is not 0
-                if qubit not in self._uninitialised_qubits and not check_equality_to_0_or_1_state() and seq_not_zero:
+                if qubit not in self._uninitialised_qubits and not equal_to_0_or_1_state() and seq_past_margin:
                     time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
                     self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
                 qubit_obj.reset_sequence_time()
