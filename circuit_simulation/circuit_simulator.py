@@ -606,14 +606,14 @@ class QuantumCircuit:
                 applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
-        # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
-        self._apply_waiting_time_to_fastest_sub_circuits()
-
         # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
             self._update_sub_circuit_duration_with_node_duration()
             self.total_duration += self._current_sub_circuit.total_duration
             self._current_sub_circuit.set_ran()
+
+        # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
+        self._apply_waiting_time_to_fastest_sub_circuits()
 
         # First apply left over waiting time of all qubits in the form of decoherence
         if self.noise:
@@ -1179,11 +1179,24 @@ class QuantumCircuit:
 
         self._increase_duration(bell_creation_duration * attempts, [qubit1, qubit2], kind='LDE')
         # Add duration of pi pulses to the initialised qubit if LDE took longer than two times the inter pulse delay
-        self._increase_duration(math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration,
-                                [qubit1, qubit2])
+        self._add_pulse_duration_while_lde([qubit1, qubit2], attempts)
 
         self._total_succeeded_lde += 1
         self._add_draw_operation("#{}".format(attempts), (qubit1, qubit2), noise)
+
+    def _add_pulse_duration_while_lde(self, lde_qubits, attempts):
+        total_pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
+
+        if total_pulse_time == 0:
+            return
+
+        node_qubits = self.get_node_qubits(lde_qubits)
+        # If there are any initialised qubits that are being decoupled, than additional pulses were necessary
+        if any(not self.qubits[qubit].equal_to_0_or_1_state() and qubit not in self._uninitialised_qubits
+               for qubit in node_qubits):
+                    self._increase_duration(total_pulse_time, lde_qubits)
+
+
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -1648,29 +1661,13 @@ class QuantumCircuit:
         return waiting_time
 
     def _wait_for_refocus(self, qubits):
-        def equal_to_0_or_1_state():
-            """
-            If the state of te qubits is equal to |0> or |1>, then also no sequence is applied. This is checked here
-            """
-            dens, _, _, _ = self._get_qubit_relative_objects(qubit)
-            zero_state = CT(ket_0).toarray()
-            one_state = CT(ket_1).toarray()
-            # Quick dimension check, such that no unnecessary big matrix comparison is performed
-            if dens.shape != zero_state.shape:
-                return False
-
-            dens = dens.toarray()
-            # State on qubit may be noisy, therefore comparison is with tolerance
-            return np.allclose(dens, zero_state, 1e-3, 1e-3) or np.allclose(dens, one_state, 1e-3, 1e-3)
-
         if self.pulse_duration > 0:
             for qubit in qubits:
                 if qubit is None:
                     return
                 qubit_obj = self.qubits[qubit]
-                seq_past_margin = qubit_obj.sequence_time > 0.5e-3
                 # Check if qubit is initialised, not in |0> or |1> (with noise) and if sequence time is not 0
-                if qubit not in self._uninitialised_qubits and not equal_to_0_or_1_state() and seq_past_margin:
+                if qubit not in self._uninitialised_qubits and qubit_obj.sequence_time > 0.5e-3:
                     time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
                     self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
                 qubit_obj.reset_sequence_time()

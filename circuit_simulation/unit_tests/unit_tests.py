@@ -232,7 +232,7 @@ class TestErrorImplementation(unittest.TestCase):
         density_matrix = sp.csr_matrix([[0, 0], [0, 1]])
         compare_matrix = sp.csr_matrix([[0.5, 0], [0, 0.5]])
 
-        density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 10, 2.3)
+        density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 20, 2.3)
 
         np.testing.assert_array_almost_equal(compare_matrix.toarray(), density_matrix_noise.toarray(), 2)
 
