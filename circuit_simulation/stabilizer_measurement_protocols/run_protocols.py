@@ -23,7 +23,7 @@ def _combine_idle_and_stabilizer_superoperator(dataframes):
                 (p_error_idle, p_lie_idle), p_value_idle = stab_idle_item
 
                 if p_lie == p_lie_idle:
-                    combined_dataframe.loc[(p_error, p_error_idle, p_lie), type] = (p_value + p_value_idle) / 2
+                    combined_dataframe.loc[(p_error, p_error_idle, p_lie), type] = p_value * (p_value_idle*2)
 
     if len(dataframes) < 2:
         return dataframes[0]
