@@ -351,7 +351,7 @@ def print_superoperator(self, superoperator, no_color):
 
 
 def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
-                               protocol_name=None):
+                               protocol_name=None, qubit_order=None):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -381,7 +381,7 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
     if file_name and os.path.exists(path_to_file):
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
-        data = _create_new_superoperator_dataframe(protocol_name, self)
+        data = _create_new_superoperator_dataframe(self, protocol_name, qubit_order)
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
@@ -441,14 +441,14 @@ def _update_totals_and_averages(self, data, totals, averages):
         data.iloc[0, data.columns.get_loc(value_name)] = average_value
 
 
-def _create_new_superoperator_dataframe(protocol_name, self):
+def _create_new_superoperator_dataframe(self, protocol_name, qubit_order):
     error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
     error_index.extend(error_index)
     lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
     index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
     columns = ['p', 's']
     circuit_results = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
-                       'ghz_fidelity', 'protocol_name']
+                       'ghz_fidelity', 'protocol_name', 'qubit_order']
     circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
                           'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
                           'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
@@ -463,6 +463,8 @@ def _create_new_superoperator_dataframe(protocol_name, self):
         value = 0
         if result == 'protocol_name':
             value = protocol_name
+        elif result == 'qubit_order':
+            value = str(qubit_order)
         elif result == 'ghz_fidelity' and self.ghz_fidelity is not None:
             value = self.ghz_fidelity
 

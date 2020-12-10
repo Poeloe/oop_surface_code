@@ -2416,20 +2416,20 @@ class QuantumCircuit:
             fid_no_me = fidelity_elementwise(error_density_matrix, total_density_matrix)
             fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
 
-            if fid_me != 0 and not self.cut_off_time_reached and not idle_data_qubit:
+            if fid_me != 0 and not self.cut_off_time_reached:
                 superoperator.append(SuperoperatorElement(fid_me, True, list(kraus_operator), me_error_density_matrix))
             if fid_no_me != 0:
                 superoperator.append(SuperoperatorElement(fid_no_me, False, list(kraus_operator), error_density_matrix))
 
         # Possible post-processing options for the superoperator
-        if combine:
+        if combine and not idle_data_qubit:
             superoperator = self._fuse_equal_config_up_to_permutation(superoperator)
         if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type, file_name=csv_file_name,
                                                                    use_exact_path=use_exact_path,
-                                                                   protocol_name=protocol_name)
+                                                                   protocol_name=protocol_name, qubit_order=qubits)
 
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
@@ -2650,7 +2650,7 @@ class QuantumCircuit:
         self._superoperator.superoperator_methods.print_superoperator(self, superoperator, no_color)
 
     def _superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
-                                    protocol_name=None):
+                                    protocol_name=None, qubit_order=None):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
             format that is used in the (distributed) surface code simulations.
@@ -2670,7 +2670,7 @@ class QuantumCircuit:
         """
         return self._superoperator.superoperator_methods.superoperator_to_dataframe(self, superoperator, proj_type,
                                                                                     file_name, use_exact_path,
-                                                                                    protocol_name)
+                                                                                    protocol_name, qubit_order)
 
     def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
         return self._superoperator.superoperator_methods.get_state_fidelity(self, qubits, compare_matrix,

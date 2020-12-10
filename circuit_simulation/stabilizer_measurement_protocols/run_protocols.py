@@ -15,6 +15,43 @@ from copy import copy
 import random
 
 
+def _combine_idle_and_stabilizer_superoperator(dataframes):
+    def combine_dataframes(stab, stab_idle, type):
+        for stab_item in stab.iteritems():
+            for stab_idle_item in stab_idle.iteritems():
+                (p_error, p_lie), p_value = stab_item
+                (p_error_idle, p_lie_idle), p_value_idle = stab_idle_item
+
+                if p_lie == p_lie_idle:
+                    combined_dataframe.loc[(p_error, p_error_idle, p_lie), type] = (p_value + p_value_idle) / 2
+
+    if len(dataframes) < 2:
+        return dataframes[0]
+
+    superoperator_stab = dataframes[0]
+    superoperator_idle = dataframes[1]
+
+    index = pd.MultiIndex.from_product([[item[0] for item in superoperator_stab.index if item[1]],
+                                        [item[0] for item in superoperator_idle.index if item[1]],
+                                        [True, False]],
+                                       names=['error_stab', 'error_idle', 'lie'])
+    combined_dataframe = pd.DataFrame(columns=superoperator_stab.columns, index=index)
+
+    combined_dataframe = combined_dataframe.sort_index()
+
+    combine_dataframes(superoperator_stab['s'], superoperator_idle['s'], 's')
+    combine_dataframes(superoperator_stab['p'], superoperator_idle['p'], 'p')
+
+    combined_dataframe.iloc[0, 2:] = superoperator_stab.iloc[0, 2:]
+    combined_dataframe.iloc[0, combined_dataframe.columns.get_loc('qubit_order')] = \
+        (superoperator_stab.iloc[0, superoperator_stab.columns.get_loc('qubit_order')] +
+         superoperator_idle.iloc[0, superoperator_idle.columns.get_loc('qubit_order')])
+    combined_dataframe = combined_dataframe[(combined_dataframe.T
+                                             .applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
+
+    return combined_dataframe
+
+
 def _init_random_seed(timestamp=None, worker=0, iteration=0):
     if timestamp is None:
         timestamp = time.time()
@@ -149,16 +186,14 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
                                 fn and os.path.exists(fn + "_idle.csv") else None)
 
     # Combine the superoperator results obtained for each worker
-    for (superoperator_succeed, superoperator_failed, superoperator_idle), print_line in zip(superoperator_results,
-                                                                                             print_lines_results):
+    for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
         normal = _combine_superoperator_dataframes(normal, superoperator_succeed)
         cut_off = _combine_superoperator_dataframes(cut_off, superoperator_failed)
-        idle = _combine_superoperator_dataframes(idle, superoperator_idle)
         print(*print_line)
 
     # Save superoperator dataframe to csv if exists and requested by user
     if fn:
-        for superoperator, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
+        for superoperator, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
             filename = fn + fn_add
             superoperator.to_csv(filename, sep=';') if superoperator is not None else None
             os.system("rsync -rvu {} {}".format(os.path.dirname(filename), cp_path)) if cp_path and superoperator is \
@@ -166,12 +201,12 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
 
 
 def main_series(fn, cp_path, **kwargs):
-    (normal, cut_off, idle), print_lines = main(**kwargs)
+    (normal, cut_off), print_lines = main(**kwargs)
     print(*print_lines)
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
     if fn and not args['print_run_order']:
-        for result, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
+        for result, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
             fn_new = fn + fn_add
             existing_file = pd.read_csv(fn_new, sep=';', index_col=[0, 1]) if os.path.exists(fn_new) else None
             result = _combine_superoperator_dataframes(result, existing_file)
@@ -183,7 +218,6 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
          color=False, draw_circuit=True, save_latex_pdf=False, to_console=False, **kwargs):
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
-    supop_dataframe_idle = None
     total_print_lines = []
 
     # Progress bar initialisation
@@ -238,17 +272,14 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
                                                 idle_data_qubit=idle_data_qubit, protocol_name=protocol)
             supop_dataframe.append(dataframe)
 
+        supop_dataframe = _combine_idle_and_stabilizer_superoperator(supop_dataframe)
         pbar.update(10) if pbar is not None else None
-
-        # Check if possible additional idle data qubit superoperator is present
-        if len(supop_dataframe) > 1:
-            supop_dataframe_idle = _combine_superoperator_dataframes(supop_dataframe_idle, supop_dataframe[1])
 
         # Fuse the superoperator dataframes obtained in each iteration
         if qc.cut_off_time_reached:
-            supop_dataframe_failed = _combine_superoperator_dataframes(supop_dataframe_failed, supop_dataframe[0])
+            supop_dataframe_failed = _combine_superoperator_dataframes(supop_dataframe_failed, supop_dataframe)
         else:
-            supop_dataframe_succeed = _combine_superoperator_dataframes(supop_dataframe_succeed, supop_dataframe[0])
+            supop_dataframe_succeed = _combine_superoperator_dataframes(supop_dataframe_succeed, supop_dataframe)
 
         total_print_lines.extend(qc.print_lines)
         total_print_lines.append("\nGHZ fidelity: {} ".format(qc.ghz_fidelity)) \
@@ -257,7 +288,7 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
             if draw_circuit else None
         qc.reset()
 
-    return (supop_dataframe_succeed, supop_dataframe_failed, supop_dataframe_idle), total_print_lines
+    return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines
 
 
 def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
