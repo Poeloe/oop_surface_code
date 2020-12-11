@@ -2721,7 +2721,7 @@ class QuantumCircuit:
             Parameters
             ----------
             meas_error : bool
-                Specify if there has been introduced an measurement error on purpose to the QuantumCircuit object.
+                Specify if there has been introduced a measurement error on purpose to the QuantumCircuit object.
                 This is needed to create the proper file name.
         """
         return self._draw.draw_circuit_latex.create_qasm_file(self, meas_error)
