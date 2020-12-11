@@ -8,7 +8,7 @@ import inspect
 
 class Superoperator:
 
-    def __init__(self, file_name, GHZ_success=1.1, file_name_idle=None, additional_superoperators=None):
+    def __init__(self, file_name, GHZ_success=1.1, additional_superoperators=None):
         """
             Superoperator(file_name, graph, GHZ_success=1.1)
 
@@ -56,10 +56,7 @@ class Superoperator:
                     the second round of star stabilizer measurements for that layer.
         """
         self.file_name = file_name.replace('.csv', '')
-        self.file_name_idle = file_name_idle.replace('.csv', '') if file_name_idle is not None else None
         self._path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
-        self._path_to_file_idle = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name_idle + ".csv") \
-                                  if file_name_idle is not None else None
         self.GHZ_success = GHZ_success
 
         self.pg = None
@@ -71,12 +68,6 @@ class Superoperator:
         self.ts = None
         self.p_bell = None
 
-        self.sup_op_elements_p, self.sup_op_elements_s = self._csv_to_superoperator(path_to_file=self._path_to_file,
-                                                                                    check_sum=True, set_attributes=True)
-        self.sup_op_elements_idle = self._csv_to_superoperator(path_to_file=self._path_to_file_idle)[0]
-        self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas = self\
-            ._convert_elements_to_before_projection()
-
         # Convert additional superoperators if present
         self.additional_superoperators = {}
         if additional_superoperators is not None:
@@ -87,7 +78,12 @@ class Superoperator:
                 self.additional_superoperators[id] = {'p': p, 's': s,
                                                       'p_before_meas': p_before_meas, 's_before_meas': s_before_meas}
 
-        # For speed up purposes, the superoperator has the stabilizers split into rounds as attributes
+        self.sup_op_elements_p, self.sup_op_elements_s = self._csv_to_superoperator(path_to_file=self._path_to_file,
+                                                                                    check_sum=True, set_attributes=True)
+        self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas = \
+            self._convert_elements_to_before_projection()
+
+        # For speed-up purposes, the superoperator has the stabilizers split into rounds as attributes
         self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
     def __repr__(self):
@@ -121,7 +117,9 @@ class Superoperator:
         sup_op_elements_p = []
         sup_op_elements_s = []
         with open(path_to_file) as file:
-            data_frame = pd.read_csv(file, sep=';', float_precision='round_trip', index_col=[0, 1])
+            data_frame = pd.read_csv(file, sep=';', float_precision='round_trip')
+            index = ['error_stab', 'lie'] if 'error_idle' not in data_frame else ['error_stab', 'error_idle', 'lie']
+            data_frame = data_frame.set_index(index)
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten
             if 'GHZ_success' in data_frame and self.GHZ_success == 1.1 and set_attributes:
@@ -130,12 +128,15 @@ class Superoperator:
 
             for index, row in data_frame.iterrows():
                 error_config = list(index[0])
-                lie = index[1]
+                error_config_idle = list(index[1]) if len(index) == 3 else None
+                lie = index[1] if error_config_idle is None else index[2]
                 p_prob = row['p']
                 s_prob = row['s']
 
-                sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config))
-                sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config))
+                sup_op_elements_p.append(SuperoperatorElement(p_prob, lie, error_config,
+                                                              error_array_idle=error_config_idle))
+                sup_op_elements_s.append(SuperoperatorElement(s_prob, lie, error_config,
+                                                              error_array_idle=error_config_idle))
 
         return sup_op_elements_p, sup_op_elements_s
 
@@ -305,7 +306,7 @@ class Superoperator:
 
 class SuperoperatorElement:
 
-    def __init__(self, p, lie, error_array, error_density_matrix=None, fused_configs=None):
+    def __init__(self, p, lie, error_array, error_density_matrix=None, fused_configs=None, error_array_idle=None):
         """
             SuperoperatorElement(p, lie, error_array)
 
@@ -325,6 +326,7 @@ class SuperoperatorElement:
         self.p = p
         self.lie = lie
         self.error_array = error_array
+        self.error_array_idle = error_array_idle
         self.error_density_matrix = error_density_matrix
         self.fused_configs = fused_configs if fused_configs is not None else {"".join(error_array):
                                                                               error_density_matrix}

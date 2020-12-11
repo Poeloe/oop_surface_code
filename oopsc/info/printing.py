@@ -28,7 +28,6 @@ def print_configuration(config, iters, **kwargs):
     settings = {key:value for key, value in kwargs.items() if value != 0 and value is not None}
     if settings['superoperator']:
         superoperator = settings['superoperator']
-        settings['superoperator idle'] = bool(superoperator.sup_op_elements_idle)
         settings['superoperator additional'] = bool(superoperator.additional_superoperators)
     pprint(settings)
     # print("\nusing config:")
