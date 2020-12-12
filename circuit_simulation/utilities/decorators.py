@@ -47,7 +47,7 @@ def skip_if_cut_off_reached(func=None, *, run_once=False):
     def should_run_once(self):
         nonlocal run_once_funcs
         nonlocal run_once
-        old_value = None
+        old_value = SKIP()
         if run_once:
             if func.__name__ not in run_once_funcs:
                 run_once_funcs[func.__name__] = 1
@@ -63,7 +63,7 @@ def skip_if_cut_off_reached(func=None, *, run_once=False):
     def determine_skip(*args, **kwargs):
         nonlocal run_once_funcs
         nonlocal run_once
-        old_value = None
+        old_value = SKIP()
         self = args[0]
 
         # When circuit operations ended, methods should no longer be skipped. Skipping only holds for circuit operations
@@ -73,21 +73,34 @@ def skip_if_cut_off_reached(func=None, *, run_once=False):
         # If the cut-off time of the QuantumCircuit object is reached, circuit operations must be skipped
         elif self.cut_off_time_reached:
             old_value = should_run_once(self)
-            retval = None if old_value is None else func(*args, **kwargs)
+            retval = SKIP() if old_value == SKIP() else func(*args, **kwargs)
 
         # If the cut-off time of the QuantumCircuit object is NOT reached, sub circuits should still run till cut-off
         # of the sub circuit itself is reached
         elif self._current_sub_circuit is not None and self._current_sub_circuit.cut_off_time_reached:
             old_value = should_run_once(self)
-            retval = None if old_value is None else func(*args, **kwargs)
+            retval = SKIP() if old_value == SKIP() else func(*args, **kwargs)
 
         # If nothing holds, the function should be ran as usual
         else:
             retval = func(*args, **kwargs)
 
-        if run_once and old_value is not None:
+        if run_once and old_value != SKIP():
             self._circuit_operations_ended = old_value
 
         return retval
     return determine_skip
 
+
+class SKIP:
+    """ Class is used as an return value, such that when cut off is reached the code will not end up in an infinite
+        loop due to the Failure Reset Levels off the protocols (if one returns None, the while loops will never get
+        the expected True value)"""
+
+    def __init__(self):
+        self.name = "SKIP"
+
+    def __eq__(self, other):
+        if type(other) != SKIP:
+            return False
+        return self.name == other.name

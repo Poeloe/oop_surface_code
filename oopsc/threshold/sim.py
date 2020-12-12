@@ -51,7 +51,6 @@ def sim_thresholds(
         lattices = [],
         perror = [],
         superoperator_filenames=[],
-        superoperator_filenames_idle=None,
         superoperator_filenames_additional=None,
         GHZ_successes=[1.1],
         networked_architecture=False,
@@ -99,10 +98,9 @@ def sim_thresholds(
         perror = []
         for i, superoperator_filename in enumerate(superoperator_filenames):
             for GHZ_success in GHZ_successes:
-                idle = superoperator_filenames_idle[i] if superoperator_filenames_idle is not None else None
                 additional = [superoperator_filenames_additional[i]] if superoperator_filenames_additional is not None \
                     else None
-                superoperator = so.Superoperator(superoperator_filename, GHZ_success, file_name_idle=idle,
+                superoperator = so.Superoperator(superoperator_filename, GHZ_success,
                                                  additional_superoperators=additional)
                 superoperators.append(superoperator)
                 perror.append(superoperator.pg)

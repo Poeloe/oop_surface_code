@@ -12,7 +12,6 @@ class SubQuantumCircuit:
         self._involved_nodes = involved_nodes if involved_nodes is not None else []
         self._cut_off_time_reached = False
         self._ran = False
-        self._concurrent_local_operations_applied = 0
         self._concurrent_swap_wait_applied = 0
 
     @property
@@ -56,14 +55,6 @@ class SubQuantumCircuit:
         return total_qubits
 
     @property
-    def all_concurrent_operations_applied(self):
-        return self._concurrent_local_operations_applied == 0
-
-    @property
-    def all_concurrent_swap_wait_applied(self):
-        return self._concurrent_swap_wait_applied == 0
-
-    @property
     def ran(self):
         return self._ran
 
@@ -88,19 +79,6 @@ class SubQuantumCircuit:
     def increase_duration(self, amount):
         self._total_duration += amount
 
-    def increase_amount_concurrent_operations_applied(self, amount=1):
-        """
-            Increases the amount of concurrent local operations that have been applied.
-
-            Since a QuantumCircuit does not actually work with concurrency it has to be emulated. At this point in
-            time, it is assumed that the same local operations are applied in each node that is involved in the sub
-            circuit and that they are applied concurrently. In order to keep good track of the duration of the
-            circuit, the duration of the sub circuit should only be increased when all of these concurrent local
-            operations at a point in time are applied to the sub circuit.
-        """
-        self._concurrent_local_operations_applied = ((self._concurrent_local_operations_applied + amount) %
-                                                     self.amount_involved_nodes)
-
     def increase_amount_concurrent_swap_wait(self, amount=1):
         self._concurrent_swap_wait_applied = ((self._concurrent_swap_wait_applied + amount) %
                                               self.amount_involved_nodes)
@@ -117,7 +95,6 @@ class SubQuantumCircuit:
         self._total_duration = 0
         self._ran = False
         self._cut_off_time_reached = False
-        self._concurrent_local_operations_applied = 0
         self._concurrent_swap_wait_applied = 0
 
     def __hash__(self):

@@ -27,6 +27,7 @@ if __name__ == "__main__":
         ["-pt", "--plot_title", "store", "plot filename", dict(type=str, default="", metavar="")],
         ["-ymin", "--ymin", "store", "limit yaxis min", dict(type=float, default=0.5, metavar="")],
         ["-ymax", "--ymax", "store", "limit yaxis max", dict(type=float, default=1, metavar="")],
+        ["-ttf", "--time_to_failure", "store_true", "time to failure axis", dict()],
 
     ]
 

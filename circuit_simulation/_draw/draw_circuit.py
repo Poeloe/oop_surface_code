@@ -6,10 +6,11 @@ import numpy as np
 from circuit_simulation.utilities.decorators import handle_none_parameters
 import itertools as it
 
+ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
 
 def draw_init(self, no_color):
     """ Returns an array containing the visual representation of the initial state of the qubits. """
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     init_state_repr = []
     for qubit, state in enumerate(self._qubit_array):
         node_name = self.get_node_name_from_qubit(qubit)
@@ -36,21 +37,13 @@ def draw_init(self, no_color):
 
 def draw_operations(self, init, no_color):
     """ Adds the visual representation of the operations applied on the qubits """
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-
     for draw_item in self._draw_order:
         # A level item sets the length of al qubit paths the same. This is usually used for points where a sub
         # circuit waits on another sub circuit to finish before continuing with the rest of the circuit
         if draw_item[0] == "LEVEL":
-            init = _level_qubit_paths(init)
-            total_duration = draw_item[1]
-            sub_circuit = draw_item[2]
-            if sub_circuit is not None:
-                sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
-                init[int(len(init)/2) - 1] += "{}{} took {:1.1e} s.{}".format(10*" ", sub_circuits, total_duration,
-                                                                            10*" ")
-                init = _level_qubit_paths(init)
+            init = _handle_level_entry(draw_item, init)
             continue
+
         gate = draw_item[0]
         qubits = draw_item[1]
         noise = draw_item[2]
@@ -62,57 +55,63 @@ def draw_operations(self, init, no_color):
             concurrent_qubits = sub_circuit.get_all_concurrent_qubits if sub_circuit is not None else []
 
         # Find qubits that are not involved in the current sub circuit
-        non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in range(self.num_qubits)]))
+        all_qubits = self.qubits.keys() if self.qubits else range(self.num_qubits)
+        non_involved_qubits = list(set(concurrent_qubits) ^ set([i for i in all_qubits]))
 
-        # Draw 2 qubit operations
+        # Draw 2 qubit operation
         if len(qubits) == 2:
-            if type(gate) in [SingleQubitGate, TwoQubitGate]:
-                control = gate.control_repr if type(gate) == TwoQubitGate else "o"
-                gate = gate.representation
-            elif "#" in gate:
-                control = gate
-            else:
-                control = "o"
-
-            if noise:
-                control = "~" + control if no_color else colored("~", 'red') + control
-                gate = "~" + gate if no_color else colored('~', 'red') + gate
-
-            cqubit = qubits[1]
-            tqubit = qubits[0]
-
-            init = _correct_path_length(init, cqubit, tqubit)
-
-            init[cqubit] += "---{}---".format(control)
-            init[tqubit] += "---{}---".format(gate)
-
-            cqubit_stripped = ansi_escape.sub("", init[cqubit])
-            tqubit_stripped = ansi_escape.sub("", init[tqubit])
-            longest_item = cqubit_stripped if len(cqubit_stripped) >= len(tqubit_stripped) else tqubit_stripped
-            current_qubits = list(set(self.get_node_qubits(cqubit) + self.get_node_qubits(tqubit)
-                                      + non_involved_qubits))
+            add_non_involved_qubits = _draw_two_qubit_operation(self, gate, init, no_color, noise, qubits)
+            non_involved_qubits.extend(add_non_involved_qubits)
+        # Draw single qubit operation
         else:
-            if type(gate) == SingleQubitGate:
-                gate = gate.representation
-            if noise:
-                gate = "~" + gate if no_color else colored("~", 'red') + gate
-            init[qubits[0]] += "---{}---".format(gate)
+            _draw_single_qubit_operation(gate, init, no_color, noise, qubits)
 
-            longest_item = ansi_escape.sub("", init[qubits[0]])
-            current_qubits = list(set(self.get_node_qubits(qubits[0]) + non_involved_qubits))
+        # Level the qubit lines of all qubits not concurrent with the sub circuit such that they grow in time
+        if non_involved_qubits:
+            _level_qubit_paths(init, qubit_indices=non_involved_qubits)
 
-        partial_update = list(np.array(init)[current_qubits]) if current_qubits != [] else init
-        for index, item in enumerate(partial_update):
-            item_stripped = ansi_escape.sub("", item)
-            diff = len(longest_item) - len(item_stripped)
-            if current_qubits != []:
-                init[current_qubits[index]] += diff * "-"
-            else:
-                init[index] += diff * '-'
+
+def _draw_single_qubit_operation(gate, init, no_color, noise, qubits):
+    if type(gate) == SingleQubitGate:
+        gate = gate.representation
+    if noise:
+        gate = "~" + gate if no_color else colored("~", 'red') + gate
+    init[qubits[0]] += "---{}---".format(gate)
+
+
+def _draw_two_qubit_operation(self, gate, init, no_color, noise, qubits):
+    if type(gate) in [SingleQubitGate, TwoQubitGate]:
+        control = gate.control_repr if type(gate) == TwoQubitGate else "o"
+        gate = gate.representation
+    elif "#" in gate:
+        control = gate
+    else:
+        control = "o"
+    if noise:
+        control = "~" + control if no_color else colored("~", 'red') + control
+        gate = "~" + gate if no_color else colored('~', 'red') + gate
+    cqubit = qubits[1]
+    tqubit = qubits[0]
+    _correct_path_length(init, cqubit, tqubit)
+    init[cqubit] += "---{}---".format(control)
+    init[tqubit] += "---{}---".format(gate)
+
+    return self.get_node_qubits(qubits)
+
+
+def _handle_level_entry(draw_item, init):
+    init = _level_qubit_paths(init)
+    total_duration = draw_item[1]
+    sub_circuit = draw_item[2]
+    if sub_circuit is not None:
+        sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
+        init[int(len(init) / 2) - 1] += "{}{}: {:1.1e} s.{}".format(5 * " ", sub_circuits, total_duration,
+                                                                    5 * " ")
+        init = _level_qubit_paths(init)
+    return init
 
 
 def _correct_path_length(init, qubit_1, qubit_2):
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     len_qubit_1 = len(ansi_escape.sub("", init[qubit_1]))
     len_qubit_2 = len(ansi_escape.sub("", init[qubit_2]))
 
@@ -123,15 +122,14 @@ def _correct_path_length(init, qubit_1, qubit_2):
         diff = len_qubit_2 - len_qubit_1
         init[qubit_1] += diff * "-"
 
-    return init
 
-
-def _level_qubit_paths(init):
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    init_lengths = [len(ansi_escape.sub("", item)) for item in init]
+def _level_qubit_paths(init, qubit_indices=None):
+    init_loop = np.array(init)[qubit_indices] if qubit_indices is not None else init
+    init_lengths = [len(ansi_escape.sub("", item)) for item in init_loop]
     longest_path = max(init_lengths)
+    qubit_indices = qubit_indices if qubit_indices is not None else range(len(init))
 
-    for index, path in enumerate(init):
+    for index, path in zip(qubit_indices, init_loop):
         path_length = len(ansi_escape.sub("", path))
         diff = longest_path - path_length
         init[index] += diff * "-"
@@ -140,7 +138,6 @@ def _level_qubit_paths(init):
 
 
 def color_qubit_lines(self, init):
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     colors = sorted(list(COLORS.keys()))
     colors.remove('white'), colors.remove('grey')
     node_color_dict = {}
@@ -154,7 +151,7 @@ def color_qubit_lines(self, init):
         node_name = self.get_node_name_from_qubit(i)
         if node_name is None: continue
         espaced_lines = ansi_escape.sub("", init[i])
-        init[i] = colored(espaced_lines, node_color_dict[node_name])
+        init[i] = colored(espaced_lines, node_color_dict[node_name], attrs=['bold'])
 
 
 @handle_none_parameters

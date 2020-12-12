@@ -175,31 +175,37 @@ class TestGateApplication(unittest.TestCase):
         np.testing.assert_array_equal(qc.total_density_matrix()[0].toarray(), np.array([[0, 0, 0, 0], [0, 1, 0, 0],
                                                                                         [0, 0, 0, 0], [0, 0, 0, 0]]))
 
-    def test_apply_SWAP_on_one_half_bell_pair(self):
-        qc = QC(3, 0, noise=True, pn=0.1)
+    def test_apply_SWAP_full_swap(self):
+        qc = QC(3, 0, noise=True, pg=0.1)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
-        qc.CNOT(0, 1, noise=False)
+        qc.CNOT(0, 1)
 
-        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pg=0.1)
         qc2.SWAP(0, 1, efficient=False)
 
         np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
                                              qc2.total_density_matrix()[0].toarray())
 
-    def test_apply_SWAP_efficient_on_one_half_bell_pair(self):
-        qc = QC(2, 0, noise=True, pn=0.1)
+    def test_apply_SWAP_efficient_swap(self):
+        qc = QC(3, 0, noise=True, pg=0.1, pn=0.1)
+        qc.create_bell_pair(1, 2)
+        qc._uninitialised_qubits.append(0)
+        # SWAP is equal to three CNOT operations
+        qc.CNOT(1, 0)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
-        qc.CNOT(0, 1, noise=False)
-        qc.measure(0)
+        # Qubit 1 is now uninitialised due to swapping. Measure it such that it disappears from the density matrix
+        qc.measure(1)
 
-        qc2 = QC(2, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pg=0.1, pn=0.1)
+        qc2.create_bell_pair(1, 2)
+        qc2._uninitialised_qubits.append(0)
         qc2.SWAP(1, 0, efficient=True)
-        qc2.measure(0)
+        # Measurement of qubit 1 is not necessary, since the density matrices are not fused with the efficient SWAP
 
-        np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
-                                             qc2.total_density_matrix()[0].toarray())
+        np.testing.assert_array_almost_equal(qc.get_combined_density_matrix([0])[0].toarray(),
+                                             qc2.get_combined_density_matrix([0])[0].toarray())
 
 
 class TestErrorImplementation(unittest.TestCase):
@@ -224,13 +230,11 @@ class TestErrorImplementation(unittest.TestCase):
     def test_amplitude_damping_channel(self):
         qc = QC(1, 0)
         density_matrix = sp.csr_matrix([[0, 0], [0, 1]])
-        compare_matrix = sp.csr_matrix([[1, 0], [0, 0]])
+        compare_matrix = sp.csr_matrix([[0.5, 0], [0, 0.5]])
 
-        density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 10, 2.3)
-        fid = fidelity_elementwise(density_matrix, density_matrix_noise)
+        density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 20, 2.3)
 
         np.testing.assert_array_almost_equal(compare_matrix.toarray(), density_matrix_noise.toarray(), 2)
-        self.assertLess(fid, 0.1)
 
     def test_phase_damping_channel(self):
         qc = QC(1, 0)
@@ -361,6 +365,24 @@ class TestMeasurement(unittest.TestCase):
             self.assertEqual(outcomes[0], outcomes[1])
             bell_matrix = 1/2 * np.array([[1, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 1]])
             np.testing.assert_array_equal(qc._qubit_density_matrix_lookup[5][0].toarray(), bell_matrix)
+
+    def test_measurement_arbitrary_qubit_1(self):
+        qc = QC(4, 0)
+        qc.X(2)
+        outcome = qc.measure(2, basis='Z', probabilistic=True)
+        resulting_matrix = np.array([[0, 0], [0, 1]])
+
+        self.assertEqual(outcome[0], 1)
+        np.testing.assert_array_equal(qc.get_combined_density_matrix([2])[0].toarray(), resulting_matrix)
+
+    def test_measurement_arbitrary_qubit(self):
+        qc = QC(4, 0)
+        qc.H(2)
+        outcome = qc.measure(2, basis='X', probabilistic=True)
+        resulting_matrix = np.array([[1/2, 1/2], [1/2, 1/2]])
+
+        self.assertEqual(outcome[0], 0)
+        np.testing.assert_array_almost_equal(qc.get_combined_density_matrix([2])[0].toarray(), resulting_matrix)
 
 
 class TestSeparatedDensityMatrices(unittest.TestCase):

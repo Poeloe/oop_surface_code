@@ -15,6 +15,55 @@ from copy import copy
 import random
 
 
+def _open_existing_superoperator_file(filename):
+    if not os.path.exists(filename):
+        return
+
+    existing_file = pd.read_csv(filename, sep=';')
+    index = ['error_config', 'lie'] if 'error_idle' not in existing_file else ['error_stab', 'error_idle', 'lie']
+
+    existing_file = existing_file.set_index(index)
+
+    return existing_file
+
+
+def _combine_idle_and_stabilizer_superoperator(dataframes):
+    def combine_dataframes(stab, stab_idle, type):
+        for stab_item in stab.iteritems():
+            for stab_idle_item in stab_idle.iteritems():
+                (p_error, p_lie), p_value = stab_item
+                (p_error_idle, p_lie_idle), p_value_idle = stab_idle_item
+
+                if p_lie == p_lie_idle:
+                    combined_dataframe.loc[(p_error, p_error_idle, p_lie), type] = p_value * (p_value_idle*2)
+
+    if len(dataframes) < 2:
+        return dataframes[0]
+
+    superoperator_stab = dataframes[0]
+    superoperator_idle = dataframes[1]
+
+    index = pd.MultiIndex.from_product([[item[0] for item in superoperator_stab.index if item[1]],
+                                        [item[0] for item in superoperator_idle.index if item[1]],
+                                        [True, False]],
+                                       names=['error_stab', 'error_idle', 'lie'])
+    combined_dataframe = pd.DataFrame(columns=superoperator_stab.columns, index=index)
+
+    combined_dataframe = combined_dataframe.sort_index()
+
+    combine_dataframes(superoperator_stab['s'], superoperator_idle['s'], 's')
+    combine_dataframes(superoperator_stab['p'], superoperator_idle['p'], 'p')
+
+    combined_dataframe.iloc[0, 2:] = superoperator_stab.iloc[0, 2:]
+    combined_dataframe.iloc[0, combined_dataframe.columns.get_loc('qubit_order')] = \
+        (superoperator_stab.iloc[0, superoperator_stab.columns.get_loc('qubit_order')] +
+         superoperator_idle.iloc[0, superoperator_idle.columns.get_loc('qubit_order')])
+    combined_dataframe = combined_dataframe[(combined_dataframe.T
+                                             .applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
+
+    return combined_dataframe
+
+
 def _init_random_seed(timestamp=None, worker=0, iteration=0):
     if timestamp is None:
         timestamp = time.time()
@@ -55,11 +104,29 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
 
     # Update the average of the other system characteristics
     dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])
-    dataframe_1['lde_attempts'] = (dataframe_1['lde_attempts'] + dataframe_2['lde_attempts'])
-    dataframe_1['avg_lde'] = dataframe_1['lde_attempts'] / corrected_written_to
+    dataframe_1['total_lde_attempts'] = (dataframe_1['total_lde_attempts'] + dataframe_2['total_lde_attempts'])
+
+    dataframe_1['avg_lde_attempts'] = dataframe_1['total_lde_attempts'] / corrected_written_to
     dataframe_1['avg_duration'] = dataframe_1['total_duration'] / corrected_written_to
 
+    # Update fidelity
+    dataframe_2['ghz_fidelity'] = dataframe_2['ghz_fidelity'].mul(written_to_new)
+    dataframe_1['ghz_fidelity'] = dataframe_1['ghz_fidelity'].mul(written_to_original)
+
+    dataframe_1['ghz_fidelity'] = (dataframe_1['ghz_fidelity'] + dataframe_2['ghz_fidelity']) / corrected_written_to
+
     return dataframe_1
+
+
+def _additional_qc_arguments(**kwargs):
+    additional_arguments = {
+        'noise': True,
+        'basis_transformation_noise': False,
+        'thread_safe_printing': True,
+        'no_single_qubit_error': True
+    }
+    kwargs.update(additional_arguments)
+    return kwargs
 
 
 def _print_circuit_parameters(**kwargs):
@@ -71,20 +138,43 @@ def _print_circuit_parameters(**kwargs):
     pm_1 = kwargs.get('measurement_error_probability_one_state')
     stab_type = kwargs.get('stab_type')
 
-    print("\nRunning the {} protocols, with pg={}, pm={}, pm_1={}{}, for a {} stabilizer {} time{}.\n"
-          .format(protocol, pg, pm, pm_1, (' and pn=' + str(pn) if protocol != 'monolithic' else ""),
-                  "plaquette" if stab_type == "Z" else "star", it, "s" if it > 1 else ""))
-
     print("All circuit parameters:\n-----------------------\n")
     pprint(kwargs)
     print('\n-----------------------\n')
 
 
-def main_threaded(*, it, workers, fn, **kwargs):
+def _additional_parsing_of_arguments(args):
+    # Pop the argument_file since it is no longer needed from this point
+    args.pop("argument_file")
+
+    # THIS IS NOT GENERIC, will error when directories are moved or renamed
+    file_dir = os.path.dirname(__file__)
+    look_up_table_dir = os.path.join(file_dir, '../gates', 'gate_lookup_tables')
+
+    if args['single_qubit_gate_lookup'] is not None:
+        with open(os.path.join(look_up_table_dir, args['single_qubit_gate_lookup']), 'rb') as obj:
+            args['single_qubit_gate_lookup'] = pickle.load(obj)
+
+    if args['two_qubit_gate_lookup'] is not None:
+        with open(os.path.join(look_up_table_dir, args['two_qubit_gate_lookup']), "rb") as obj2:
+            args['two_qubit_gate_lookup'] = pickle.load(obj2)
+
+    gate_duration_file = args.pop('gate_duration_file')
+    if gate_duration_file is not None and os.path.exists(gate_duration_file):
+        set_gate_durations_from_file(gate_duration_file)
+    elif gate_duration_file is not None:
+        raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
+
+    return args
+
+
+def main_threaded(*, iterations, fn, cp_path, **kwargs):
     # Run main method asynchronously with each worker getting an equal amount of iterations to run
     results = []
+    workers = iterations if 0 < iterations < cpu_count() else cpu_count()
+    thread_pool = Pool(workers)
+    kwargs['iterations'] = iterations // workers
     for _ in range(workers):
-        kwargs["it"] = it // workers
         kwargs["threaded"] = True
         kwargs["progress_bar"] = None
 
@@ -100,161 +190,150 @@ def main_threaded(*, it, workers, fn, **kwargs):
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
-    total_superoperator_succeed = (pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1])
-                                   if fn and os.path.exists(fn + ".csv") else None)
-    total_superoperator_failed = (pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if
-                                  fn and os.path.exists(fn + "_failed.csv") else None)
-    total_superoperator_idle = (pd.read_csv(fn + "_idle.csv", sep=';', index_col=[0, 1]) if
-                                  fn and os.path.exists(fn + "_idle.csv") else None)
+    normal = _open_existing_superoperator_file(fn + ".csv")
+    cut_off = _open_existing_superoperator_file(fn + "_failed.csv")
 
     # Combine the superoperator results obtained for each worker
-    for (superoperator_succeed, superoperator_failed, superoperator_idle), print_line in zip(superoperator_results,
-                                                                                             print_lines_results):
-        total_superoperator_succeed = _combine_superoperator_dataframes(total_superoperator_succeed,
-                                                                        superoperator_succeed)
-        total_superoperator_failed = _combine_superoperator_dataframes(total_superoperator_failed, superoperator_failed)
-        total_superoperator_idle = _combine_superoperator_dataframes(total_superoperator_idle, superoperator_idle)
+    for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
+        normal = _combine_superoperator_dataframes(normal, superoperator_succeed)
+        cut_off = _combine_superoperator_dataframes(cut_off, superoperator_failed)
         print(*print_line)
 
     # Save superoperator dataframe to csv if exists and requested by user
-    if total_superoperator_succeed is not None and fn:
-        total_superoperator_succeed.to_csv(fn + ".csv", sep=';')
-    if total_superoperator_failed is not None and fn:
-        total_superoperator_failed.to_csv(fn + "_failed.csv", sep=';')
-    if total_superoperator_idle is not None and fn:
-        total_superoperator_idle.to_csv(fn + "_idle.csv", sep=';')
+    if fn:
+        for superoperator, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
+            filename = fn + fn_add
+            superoperator.to_csv(filename, sep=';') if superoperator is not None else None
+            os.system("rsync -rvu {} {}".format(os.path.dirname(filename), cp_path)) if cp_path and superoperator is \
+                      not None else None
 
 
-def main(*, it, protocol, stabilizer_type, print_run_order, threaded=False, gate_duration_file=None,
-         **kwargs):
+def main_series(fn, cp_path, **kwargs):
+    (normal, cut_off), print_lines = main(**kwargs)
+    print(*print_lines)
+
+    # Save the superoperator to the according csv files (options: normal, cut-off, idle)
+    if fn and not args['print_run_order']:
+        for result, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
+            fn_new = fn + fn_add
+            existing_file = _open_existing_superoperator_file(fn_new)
+            result = _combine_superoperator_dataframes(result, existing_file)
+            if result is not None:
+                result.to_csv(fn_new, sep=';')
+
+
+def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=False, gate_duration_file=None,
+         color=False, draw_circuit=True, save_latex_pdf=False, to_console=False, **kwargs):
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
-    supop_dataframe_idle = None
     total_print_lines = []
 
     # Progress bar initialisation
     progress_bar = kwargs.pop('progress_bar')
+    if progress_bar:
+        from tqdm import tqdm
     pbar = tqdm(total=100, position=0) if progress_bar else None
-    pbar_2 = tqdm(total=it, position=1) if progress_bar and it > 1 else None
-
-    # Gather method arguments
-    operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
-    arguments = ['color', 'save_latex_pdf', 'draw_circuit', 'to_console']
-    protocol_args = {'operation': operation}
-    for argument in arguments:
-        argument_value = kwargs.pop(argument)
-        protocol_args[argument] = argument_value
+    pbar_2 = tqdm(total=iterations, position=1) if progress_bar and iterations > 1 else None
 
     # Get the QuantumCircuit object corresponding to the protocol and the protocol method by its name
-    qc = stab_protocols.create_quantum_circuit(protocol, **kwargs)
+    kwargs = _additional_qc_arguments(**kwargs)
+    qc = stab_protocols.create_quantum_circuit(protocol, pbar, **kwargs)
     protocol_method = getattr(stab_protocols, protocol)
 
+    if threaded:
+        set_gate_durations_from_file(gate_duration_file)
+
     # Run iterations of the protocol
-    for i in range(it):
+    for iter in range(iterations):
         pbar.reset() if pbar else None
-        if pbar_2 and it > 1:
+        if pbar_2 and iterations > 1:
             pbar_2.update(1)
         if pbar_2 is None:
-            print(">>> At iteration {} of the {}.".format(i + 1, it), end='\r', flush=True)
+            print(">>> At iteration {} of the {}.".format(iter + 1, iterations), end='\r', flush=True)
 
-        if threaded:
-            _init_random_seed(worker=threading.get_ident(), iteration=i)
-            set_gate_durations_from_file(gate_duration_file)
+        # _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
         if print_run_order:
             return (None, None), []
 
         # Run the user requested protocol
-        (supop_dataframe, cut_off), print_lines = protocol_method(qc, pbar=pbar, **protocol_args)
+        operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
+        superoperator_qubits_list = protocol_method(qc, operation=operation)
 
-        # Check if possible additional idle data qubit superoperator is present
-        if type(supop_dataframe) == list:
-            supop_dataframe_idle = _combine_superoperator_dataframes(supop_dataframe_idle, supop_dataframe[1])
-            supop_dataframe = supop_dataframe[0]
+        if draw_circuit:
+            qc.draw_circuit(no_color=not color, color_nodes=True)
+
+        if save_latex_pdf:
+            qc.draw_circuit_latex()
+
+        # If no superoperator qubits are returned, take the data qubits as such
+        if superoperator_qubits_list is None:
+            superoperator_qubits_list = [qc.data_qubits]
+        if type(superoperator_qubits_list[0]) == int:
+            superoperator_qubits_list = [superoperator_qubits_list]
+
+        supop_dataframe = []
+        for i, superoperator_qubits in enumerate(superoperator_qubits_list):
+            idle_data_qubit = 4 if i != 0 else False
+            _, dataframe = qc.get_superoperator(superoperator_qubits, stabilizer_type, no_color=(not color),
+                                                stabilizer_protocol=True, print_to_console=to_console,
+                                                idle_data_qubit=idle_data_qubit, protocol_name=protocol)
+            supop_dataframe.append(dataframe)
+
+        supop_dataframe = _combine_idle_and_stabilizer_superoperator(supop_dataframe)
+        pbar.update(10) if pbar is not None else None
 
         # Fuse the superoperator dataframes obtained in each iteration
-        if cut_off:
+        if qc.cut_off_time_reached:
             supop_dataframe_failed = _combine_superoperator_dataframes(supop_dataframe_failed, supop_dataframe)
         else:
             supop_dataframe_succeed = _combine_superoperator_dataframes(supop_dataframe_succeed, supop_dataframe)
 
-        total_print_lines.extend(print_lines)
+        total_print_lines.extend(qc.print_lines)
+        total_print_lines.append("\nGHZ fidelity: {} ".format(qc.ghz_fidelity)) \
+            if draw_circuit else None
+        total_print_lines.append("\nTotal circuit duration: {} seconds".format(qc.total_duration)) \
+            if draw_circuit else None
+        qc.reset()
 
-    return (supop_dataframe_succeed, supop_dataframe_failed, supop_dataframe_idle), total_print_lines
+    return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines
+
+
+def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
+                      meas_error_probabilities_one_state, csv_filename, no_progress_bar, pm_equals_pg,
+                      use_swap_gates, fixed_lde_attempts, **args):
+
+    meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
+    meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
+
+    # Loop over command line arguments
+    for protocol, pg, pn, pm, pm_1, lde in itertools.product(protocols, gate_error_probabilities,
+                                                             network_error_probabilities, meas_errors, meas_1_errors,
+                                                             fixed_lde_attempts):
+        pm = pg if pm is None or pm_equals_pg else pm
+        protocol = protocol + "_swap" if use_swap_gates else protocol
+
+        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}"\
+            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde) \
+            if csv_filename else None
+
+        print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}"
+              .format(args['iterations'], protocol, pg, pn, pm, pm_1, lde))
+
+        if args['threaded']:
+            main_threaded(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
+                          fixed_lde_attempts=lde, **args)
+        else:
+            main_series(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
+                        fixed_lde_attempts=lde, **args)
 
 
 if __name__ == "__main__":
     parser = compose_parser()
 
     args = vars(parser.parse_args())
+    args = _additional_parsing_of_arguments(args)
     _print_circuit_parameters(**copy(args))
 
-    # Pop the command line arguments from the list that should be evaluated first
-    it = args.pop('iterations')
-    protocols = args.pop('protocol')
-    meas_errors = args.pop('measurement_error_probability')
-    meas_1_errors = args.pop('measurement_error_probability_one_state')
-    meas_eq_gate = args.pop('pm_equals_pg')
-    network_errors = args.pop('network_error_probability')
-    gate_errors = args.pop('gate_error_probability')
-    filename = args.pop('csv_filename')
-    threaded = args.pop('threaded')
-    lkt_1q = args.pop('lookup_table_single_qubit_gates')
-    lkt_2q = args.pop('lookup_table_two_qubit_gates')
-    gate_duration_file = args.pop('gate_duration_file')
-    progress_bar = args.pop('no_progress_bar')
-    args.pop("argument_file")
-    use_swap_gates = args.pop('use_swap_gates')
-
-    # THIS IS NOT GENERIC, will error when directories are moved or renamed
-    file_dir = os.path.dirname(__file__)
-    look_up_table_dir = os.path.join(file_dir, '../gates', 'gate_lookup_tables')
-
-    if lkt_1q is not None:
-        with open(os.path.join(look_up_table_dir, lkt_1q), 'rb') as obj:
-            lkt_1q = pickle.load(obj)
-
-    if lkt_2q is not None:
-        with open(os.path.join(look_up_table_dir, lkt_2q), "rb") as obj2:
-            lkt_2q = pickle.load(obj2)
-
-    if gate_duration_file is not None and os.path.exists(gate_duration_file):
-        set_gate_durations_from_file(gate_duration_file)
-    elif gate_duration_file is not None:
-        raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
-
-    if progress_bar:
-        from tqdm import tqdm
-
-    meas_1_errors = [None] if meas_1_errors is None else meas_1_errors
-    meas_errors = [None] if meas_errors is None else meas_errors
-
     # Loop over all possible combinations of the user determined parameters
-    for protocol, pg, pn, pm, pm_1 in itertools.product(protocols, gate_errors, network_errors, meas_errors,
-                                                        meas_1_errors):
-        pm = pg if pm is None else pm
-        protocol = protocol + "_swap" if use_swap_gates else protocol
-
-        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}".format(filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "") \
-            if filename else None
-        print("\nRunning now {} iterations: protocol={}, pg={}, pn={}, pm={}, pm_1={}".format(it, protocol, pg, pn, pm,
-                                                                                             pm_1))
-        if threaded:
-            workers = it if 0 < it < cpu_count() else cpu_count()
-            thread_pool = Pool(workers)
-            main_threaded(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, lkt_1q=lkt_1q, lkt_2q=lkt_2q, fn=fn,
-                          progress_bar=progress_bar, gate_duration_file=gate_duration_file, workers=workers, **args)
-        else:
-            (normal, cut_off, idle), print_lines = main(it=it, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                                                        progress_bar=progress_bar, lkt_1q=lkt_1q, lkt_2q=lkt_2q,
-                                                        gate_duration_file=gate_duration_file, **args)
-            print(*print_lines)
-
-            # Save the superoperator to the according csv files (options: normal, cut-off, idle)
-            if filename and not args['print_run_order']:
-                for result, fn_add in zip([normal, cut_off, idle], ['.csv', '_failed.csv', '_idle.csv']):
-                    fn_new = fn + fn_add
-                    existing_file = pd.read_csv(fn_new, sep=';', index_col=[0, 1]) if os.path.exists(fn_new) else None
-                    result = _combine_superoperator_dataframes(result, existing_file)
-                    if result is not None:
-                        result.to_csv(fn_new,  sep=';')
+    run_for_arguments(**args)

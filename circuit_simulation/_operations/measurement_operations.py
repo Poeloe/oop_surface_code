@@ -71,7 +71,7 @@ def _get_prob_and_matrix_after_measurement(density_matrix_0, density_matrix_1, m
     return prob, temp_density_matrix
 
 
-def get_measurement_outcome_probability(qubit, density_matrix, outcome, keep_qubit=False):
+def _measure_arbitrary_qubit(qubit, density_matrix, outcome, keep_qubit=False):
     """
         Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
 

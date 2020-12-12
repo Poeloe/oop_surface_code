@@ -17,19 +17,13 @@ def compose_parser():
                              '--prb)',
                         type=int,
                         default=1)
-    parser.add_argument('-p',
-                        '--protocols',
-                        help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
+    parser.add_argument('-g',
+                        '--gates',
+                        help='Specifies which gate should be teleported.',
                         nargs="*",
-                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'duo_structure_2', 'plain'],
+                        choices=['cnot'],
                         type=str.lower,
                         default='monolithic')
-    parser.add_argument('-s',
-                        '--stabilizer_type',
-                        help='Specifies what the kind of stabilizer should be.',
-                        choices=['Z', 'X'],
-                        type=str.upper,
-                        default='Z')
     parser.add_argument('-dec',
                         '--decoherence',
                         help='Specifies if decoherence is present in the system.',
@@ -117,18 +111,9 @@ def compose_parser():
                         help="Use when the program should run in multi-threaded mode. Optional",
                         required=False,
                         action="store_true")
-    parser.add_argument("--to_console",
-                        help="Print the superoperator results to the console.",
-                        required=False,
-                        action="store_true")
     parser.add_argument("-draw",
                         "--draw_circuit",
                         help="Print a drawing of the circuit to the console",
-                        required=False,
-                        action="store_true")
-    parser.add_argument("--print_run_order",
-                        help="When added, the program will only print out the run order for the typed command. This can"
-                             "be useful for debugging or file naming purposes",
                         required=False,
                         action="store_true")
     parser.add_argument("-lkt_1q",
@@ -156,15 +141,15 @@ def compose_parser():
                         help="Specify the path to the file that contains the gate duration times.",
                         type=str,
                         required=False)
-    parser.add_argument("--no_progress_bar",
-                        help="Displays no progress bar for simulation.",
-                        action='store_false')
     parser.add_argument("-lde",
                         "--fixed_lde_attempts",
                         help="Specify the amount of fixed lde attempts before a pulse is sent to the nuclear qubits.",
                         type=int,
                         nargs="*",
                         default=[1000])
+    parser.add_argument("--no_progress_bar",
+                        help="Displays no progress bar for simulation.",
+                        action='store_false')
     parser.add_argument("-n_type",
                         "--network_noise_type",
                         help="Specify the network noise type. ",
@@ -176,7 +161,7 @@ def compose_parser():
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=300)
+                        default=600)
     parser.add_argument('-T2ni',
                         '--T2_idle',
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '

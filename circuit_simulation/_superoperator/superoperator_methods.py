@@ -2,13 +2,16 @@ import os
 import scipy.sparse as sp
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
+from circuit_simulation.basic_operations.basic_operations import CT
 from circuit_simulation._superoperator.superoperator import SuperoperatorElement
 from itertools import combinations, product, combinations_with_replacement
 from circuit_simulation.termcolor.termcolor import colored
+from circuit_simulation.basic_operations.basic_operations import fidelity_elementwise
 import pandas as pd
+import math
 
 
-def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_error=False, save=True,
+def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=True,
                                   file_name=None, qubits=None, idle_data_qubit=None):
     """
         Private method to calculate the noiseless variant of the density matrix.
@@ -40,10 +43,11 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
             The density matrix of the current system, but without noise
     """
     if self.cut_off_time_reached:
-        qc = self._return_QC_object(8, 2)
-        return qc.get_combined_density_matrix([7, 5, 3, 1])[0]
+        qc = self._return_QC_object(len(qubits)*2, 0)
+        qc._init_density_matrix_maximally_entangled_state(amount_qubits=len(qubits)*2)
+        return qc.get_combined_density_matrix([0, 2, 4, 6])[0]
     if stabilizer_protocol and not idle_data_qubit:
-        return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error)
+        return _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measure_error)
     if idle_data_qubit:
         init_type = 2 if idle_data_qubit == 4 else 5
         return self._return_QC_object(idle_data_qubit*2, init_type).total_density_matrix()[0]
@@ -74,7 +78,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
             qc_noiseless.apply_gate(parameters[0], parameters[1], parameters[2])
         elif operation == "measure":
             uneven_parity = True if measure_error and i == (len(self._user_operation_order) - 1) else False
-            qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=False)
+            qc_noiseless.measure(parameters[0], parameters[1], uneven_parity, probabilistic=True)
         else:
             method = getattr(qc_noiseless, operation)
             method(*parameters)
@@ -87,7 +91,7 @@ def get_noiseless_density_matrix(self, stabilizer_protocol, proj_type, measure_e
     return qc_noiseless.get_combined_density_matrix(qubits)[0]
 
 
-def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error):
+def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measure_error):
     """
         Method returns the noiseless density matrix of a stabilizer measurement in the monolithic architecture.
         Since this density matrix is equal for all equal kinds of stabilizer measurement protocols, this method
@@ -100,7 +104,9 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
         measure_error : bool
             True if the noiseless density matrix should contain a measurement error.
     """
-    qc = self._return_QC_object(9, 2)
+    num_qubits = len(qubits)*2 + 1
+    qc = self._return_QC_object(num_qubits=num_qubits, init=0)
+    qc._init_density_matrix_maximally_entangled_state(amount_qubits=num_qubits-1)
     qc.set_qubit_states({0: ket_p})
     gate = CZ_gate if proj_type == "Z" else CNOT_gate
     for i in range(1, qc.num_qubits, 2):
@@ -111,7 +117,31 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, measure_error
     return qc.get_combined_density_matrix([1])[0]
 
 
-def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
+def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
+    if qubits is None:
+        qubits = self.get_ghz_qubits()
+
+    if compare_matrix is None and set_ghz_fidelity:
+        # Create ghz state with the weight equal to the amount of ghz qubits
+        ghz_state = sp.lil_matrix((2**len(qubits), 2**len(qubits)))
+        ghz_state[0, 0] = 1/2; ghz_state[0, 2**len(qubits)-1] = 1/2
+        ghz_state[2**len(qubits)-1, 0] = 1/2; ghz_state[2**len(qubits)-1, 2**len(qubits)-1] = 1/2
+
+        compare_matrix = ghz_state
+
+    elif compare_matrix is None:
+        compare_matrix = get_noiseless_density_matrix(self, qubits=qubits)
+
+    noisy_matrix = self.get_combined_density_matrix(qubits)[0]
+    fidelity = fidelity_elementwise(compare_matrix, noisy_matrix)
+
+    if set_ghz_fidelity:
+        self.ghz_fidelity = fidelity
+
+    return fidelity
+
+
+def create_superoperator_decomposition(self, qubits, qubits_matrix):
     """
         Method returns a list containing all the possible combinations of Pauli matrix gates
         that can be applied to the specified qubits.
@@ -135,8 +165,14 @@ def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits)
 
         in which, in general, A -> {"A": single_qubit_A_gate_object} where A in {X, Y, Z, I}.
     """
+    # If Kraus decomposition is already created, return this
+    if self._superoperator_decomposition is not None:
+        return self._superoperator_decomposition
+
+    num_qubits = len(qubits_matrix)
+    # Create for each data qubit the full matrix size Pauli operator
     operations = [X_gate, Y_gate, Z_gate, I_gate]
-    gate_combinations = []
+    pauli_operators_per_qubit = []
 
     for qubit in qubits:
         rel_qubit = qubits_matrix.index(qubit)
@@ -144,9 +180,35 @@ def all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits)
         for operation in operations:
             gates.append({operation.representation: self._create_1_qubit_gate(operation, rel_qubit,
                                                                               num_qubits=num_qubits)})
-        gate_combinations.append(gates)
+        pauli_operators_per_qubit.append(gates)
 
-    return list(product(*gate_combinations))
+    # Create all possible combinations of Pauli operators on the data qubits
+    decomposition = list(product(*pauli_operators_per_qubit))
+
+    # Post-process the decomposition data, such that the combination of gates is multiplied
+    superoperator_decomposition = {}
+    for element in decomposition:
+        kraus_operator = "".join([list(el.keys())[0] for el in element])
+        matrix = math.prod([list(el.values())[0] for el in element])
+        superoperator_decomposition[kraus_operator] = matrix
+
+    # Save the decomposition to the QC object, such that it only has to be constructed once for multiple iterations
+    self._superoperator_decomposition = superoperator_decomposition
+    return self._superoperator_decomposition
+
+
+def get_error_density_matrices(self, kraus_operator, stabilizer_protocol, noiseless_density_matrix,
+                               measerror_density_matrix, error_matrix):
+
+    if kraus_operator in self._error_density_matrix_lookup and stabilizer_protocol:
+        return self._error_density_matrix_lookup[kraus_operator]
+
+    error_density_matrix = error_matrix * CT(noiseless_density_matrix, error_matrix)
+    me_error_density_matrix = error_matrix * CT(measerror_density_matrix, error_matrix)
+
+    self._error_density_matrix_lookup[kraus_operator] = (error_density_matrix, me_error_density_matrix)
+
+    return error_density_matrix, me_error_density_matrix
 
 
 def fuse_equal_config_up_to_permutation(superoperator):
@@ -262,7 +324,7 @@ def print_superoperator(self, superoperator, no_color):
     total = sum([supop_el.p for supop_el in superoperator])
     for supop_el in sorted(superoperator):
         probability = supop_el.p
-        self._print_lines.append("\nProbability: {}".format(probability))
+        self.append_print_lines("\nProbability: {}".format(probability))
         config = ""
         for gate in supop_el.error_array:
             if gate == "X":
@@ -276,16 +338,20 @@ def print_superoperator(self, superoperator, no_color):
             else:
                 config += (gate + " ")
         me = "me" if supop_el.lie else "no me"
-        self._print_lines.append("\n{} - {}".format(config, me))
-    self._print_lines.append("\n\nSum of the probabilities is: {}\n".format(total))
-    self._print_lines.append("\nTotal lde attempts: {}\n".format(self._total_lde_attempts))
-    self._print_lines.append("\n---- End of Superoperator ----\n")
+        self.append_print_lines("\n{} - {}".format(config, me))
+    self.append_print_lines("\n\nSum of the probabilities is: {}\n".format(total))
+    self.append_print_lines("\nTotal lde attempts: {}\n".format(self._total_lde_attempts))
+    self.append_print_lines("\nAverage lde attempts per successful lde: {}\n".format(
+        self._total_lde_attempts/self._total_succeeded_lde))
+
+    self.append_print_lines("\n---- End of Superoperator ----\n")
 
     if not self._thread_safe_printing:
         self.print()
 
 
-def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
+                               protocol_name=None, qubit_order=None):
     """
         Save the obtained superoperator results to a csv file format that is suitable with the superoperator
         format that is used in the (distributed) surface code simulations.
@@ -315,75 +381,34 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
     if file_name and os.path.exists(path_to_file):
         data = pd.read_csv(path_to_file, sep=';', index_col=[0, 1])
     else:
-        error_index = ["".join(combi) for combi in (combinations_with_replacement('IXYZ', 4))]
-        error_index.extend(error_index)
-        lie_index = [False if i / (len(error_index) / 2) < 1 else True for i, _ in enumerate(error_index)]
-
-        index = pd.MultiIndex.from_arrays([error_index, lie_index], names=['error_config', 'lie'])
-        columns = ['p', 's', 'pg', 'pm', 'pn', 'p_dec', 'ts', 'p_bell', 'bell_dur', 'meas_dur', 'written_to',
-                   'lde_attempts', 'total_duration', 'avg_lde', 'avg_duration']
-        data = pd.DataFrame(0., index=index, columns=columns)
-        data.iloc[0, data.columns.get_loc('pg')] = self.pg
-        data.iloc[0, data.columns.get_loc('pm')] = self.pm
-        data.iloc[0, data.columns.get_loc('pn')] = self.pn
-        data.iloc[0, data.columns.get_loc('p_dec')] = int(self.decoherence)
-        data.iloc[0, data.columns.get_loc('p_bell')] = self.p_bell_success
-        data.iloc[0, data.columns.get_loc('bell_dur')] = self.bell_creation_duration
-        data.iloc[0, data.columns.get_loc('meas_dur')] = self.measurement_duration
-        data.iloc[0, data.columns.get_loc('lde_attempts')] = 0
-        data.iloc[0, data.columns.get_loc('total_duration')] = 0
-        data.iloc[0, data.columns.get_loc('avg_lde')] = 0
-        data.iloc[0, data.columns.get_loc('avg_duration')] = 0
-        data.iloc[0, data.columns.get_loc("written_to")] = 0
+        data = _create_new_superoperator_dataframe(self, protocol_name, qubit_order)
 
     stab_type = 'p' if proj_type == "Z" else 's'
     opp_stab = 's' if proj_type == "Z" else 'p'
     written_to = data.iloc[0, data.columns.get_loc("written_to")]
 
     for supop_el in superoperator:
-        # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in
-        # error_array
-        error_array_str = "".join(sorted(supop_el.error_array))
-        zipped_items = zip([error_array_str,
-                            "".join(sorted(error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))],
-                           [stab_type, opp_stab])
-        for error_array, current_stab_type in zipped_items:
+        # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in error_array
+        error_array_str = "".join((supop_el.error_array))
+        opp_error_array_str = "".join((error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))
+
+        for error_array, current_stab_type in zip([error_array_str, opp_error_array_str], [stab_type, opp_stab]):
             current_index = (error_array, supop_el.lie)
-            if current_index in data.index:
-                current_value_stab = data.at[(error_array, supop_el.lie), current_stab_type]
-                new_value_stab = (current_value_stab * written_to + supop_el.p) / (written_to + 1) if \
-                    current_value_stab != 0. else supop_el.p / (written_to + 1)
-                data.at[current_index, current_stab_type] = new_value_stab
-            else:
-                data.loc[current_index, current_stab_type] = supop_el.p / (written_to + 1)
+            current_value_stab = data.loc[(error_array, supop_el.lie), current_stab_type]
 
-    if 'written_to' in data:
-        data.iloc[0, data.columns.get_loc("written_to")] += 1.0
-    else:
-        data['written_to'] = 0
-        data.iloc[0, data.columns.get_loc("written_to")] = 1
+            data.loc[current_index, current_stab_type] = (current_value_stab * written_to + supop_el.p)/(written_to + 1)
 
-    if 'total_duration' in data:
-        data.iloc[0, data.columns.get_loc("total_duration")] += self.total_duration
-    else:
-        data['total_duration'] = 0
-        data.iloc[0, data.columns.get_loc("total_duration")] = self.total_duration
+    _create_column_if_not_present(data, ['total_duration', 'total_lde_attempts', 'ghz_fidelity', 'avg_duration',
+                                         'avg_lde_attempts'])
 
-    if 'avg_duration' in data:
-        data.iloc[0, data.columns.get_loc("avg_duration")] = (data.iloc[0, data.columns.get_loc("total_duration")] /
-                                                              data.iloc[0, data.columns.get_loc("written_to")])
+    # Increase the amount of writes to the file
+    data.iloc[0, data.columns.get_loc("written_to")] += 1.0
 
-    if 'lde_attempts' in data:
-        data.iloc[0, data.columns.get_loc("lde_attempts")] += self._total_lde_attempts
-    else:
-        data['lde_attempts'] = 0
-        data.iloc[0, data.columns.get_loc("lde_attempts")] = self._total_lde_attempts
+    # Update values based on amounts of writes to the file
+    _update_totals_and_averages(self, data, ['total_duration', '_total_lde_attempts'], ['ghz_fidelity'])
 
-    if 'avg_lde' in data:
-        data.iloc[0, data.columns.get_loc("avg_lde")] = (data.iloc[0, data.columns.get_loc("lde_attempts")] /
-                                                         data.iloc[0, data.columns.get_loc("written_to")])
     # Remove rows that contain only zero probability
-    data = data[(data.T != 0).any()]
+    data = data[(data.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
 
     if file_name:
         data.to_csv(path_to_file, sep=';')
@@ -393,3 +418,56 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
         self.print()
 
     return data
+
+
+def _create_column_if_not_present(data, columns):
+    for column_name in columns:
+        if column_name not in data:
+            data.iloc[0, data.columns.get_loc(column_name)] = 0
+            data.iloc[1:, data.columns.get_loc(column_name)] = None
+
+
+def _update_totals_and_averages(self, data, totals, averages):
+    written_to = data.iloc[0, data.columns.get_loc("written_to")]
+    for total in totals:
+        value = getattr(self, total)
+        avg = total.strip('_').replace("total", 'avg')
+        data.iloc[0, data.columns.get_loc(total.strip('_'))] += value
+        data.iloc[0, data.columns.get_loc(avg)] = data.iloc[0, data.columns.get_loc(total.strip('_'))] / written_to
+
+    for value_name in averages:
+        value = getattr(self, value_name) if getattr(self, value_name) is not None else 0
+        average_value = (value + data.iloc[0, data.columns.get_loc(value_name)] * (written_to - 1)) / written_to
+        data.iloc[0, data.columns.get_loc(value_name)] = average_value
+
+
+def _create_new_superoperator_dataframe(self, protocol_name, qubit_order):
+    error_index = ["".join(i) for i in product("IXYZ", repeat=4)]
+    lie_index = [True, False]
+    index = pd.MultiIndex.from_product([error_index, lie_index], names=['error_config', 'lie'])
+    columns = ['p', 's']
+    circuit_results = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
+                       'ghz_fidelity', 'protocol_name', 'qubit_order']
+    circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
+                          'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
+                          'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
+    columns.extend(circuit_results)
+    columns.extend(circuit_properties)
+    dataframe = pd.DataFrame(0., index=index, columns=columns)
+    for prop in circuit_properties:
+        prop_value = getattr(self, prop) if getattr(self, prop) is not None else "None"
+        dataframe.iloc[0, dataframe.columns.get_loc(prop)] = prop_value
+        dataframe.iloc[1:, dataframe.columns.get_loc(prop)] = None
+    for result in circuit_results:
+        value = 0
+        if result == 'protocol_name':
+            value = protocol_name
+        elif result == 'qubit_order':
+            value = str(qubit_order)
+        elif result == 'ghz_fidelity' and self.ghz_fidelity is not None:
+            value = self.ghz_fidelity
+
+        dataframe.iloc[0, dataframe.columns.get_loc(result)] = value
+        dataframe.iloc[1:, dataframe.columns.get_loc(result)] = None
+
+    return dataframe

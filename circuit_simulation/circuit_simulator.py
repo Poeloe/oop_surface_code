@@ -2,13 +2,14 @@ import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
 from circuit_simulation.basic_operations.basic_operations import (
-    CT, KP, get_value_by_prob, fidelity_elementwise, trace
+    CT, KP, get_value_by_prob, fidelity_elementwise, trace, csr_matrix_equal
 )
 from circuit_simulation.states.states import *
 from circuit_simulation.gates.gates import *
 from circuit_simulation.gates.gate import SingleQubitGate
 from circuit_simulation.qubit.qubit import Qubit
 from circuit_simulation.sub_circuit.sub_quantum_circuit import SubQuantumCircuit
+from circuit_simulation.node.node import Node
 from scipy import sparse as sp
 import hashlib
 from circuit_simulation._superoperator.superoperator import SuperoperatorElement
@@ -17,8 +18,9 @@ from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
-from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached
+from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached, SKIP
 from copy import copy
+import pickle
 
 
 class QuantumCircuit:
@@ -62,7 +64,7 @@ class QuantumCircuit:
             p_dec : float [0-1], optional, default=0
                 The overall amount of decoherence in the system. This is only applied when noise is True and
                 the value is greater than 0.
-            p_bell_success : float [0-1], optional, default=1
+            lde_success : float [0-1], optional, default=1
                 Specifies the success rate of the creation of Bell pairs. Default value is 1, which equals the case
                 that a Bell pair creation always instantly succeeds.
             basis_transformation_noise : bool, optional, default = None
@@ -74,7 +76,7 @@ class QuantumCircuit:
             measurement_duration : float, optional, default=4
                 In case of decoherence, the measurement duration is used to determine the amount of decoherence that
                 should be applied for a measurement operation
-            bell_creation_duration : float, optional, default=4
+            lde_duration : float, optional, default=4
                 In case of decoherence, the bell creation duration is used to determine the amount of decoherence that
                 should be applied for a measurement operation
             network_noise_type : int, optional, default=0
@@ -134,16 +136,18 @@ class QuantumCircuit:
 
     def __init__(self, num_qubits, init_type=0, noise=False, basis_transformation_noise=None, pg=0.001, pm=0.001,
                  pm_1=None, pn=None, decoherence=False, T1_idle=None, T2_idle=None, T1_idle_electron=None,
-                 T2_idle_electron=None, T1_lde=None, T2_lde=None, p_bell_success=1, time_step=1, measurement_duration=1,
-                 bell_creation_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
+                 T2_idle_electron=None, T1_lde=None, T2_lde=None, lde_success=1, time_step=1, measurement_duration=1,
+                 lde_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=1000000):
+                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf):
 
         # Basic attributes
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.qubits = None
         self.nodes = None
+        self.ghz_qubits = None
+        self.ghz_fidelity = None
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
         self._draw_order = []
@@ -178,7 +182,7 @@ class QuantumCircuit:
         self.T1_lde = T1_lde
         self.T2_lde = T2_lde
         self.total_duration = 0
-        self.bell_creation_duration = bell_creation_duration
+        self.bell_creation_duration = lde_duration
         self.measurement_duration = measurement_duration
         self.pulse_duration = pulse_duration
         self.cut_off_time = cut_off_time
@@ -186,14 +190,19 @@ class QuantumCircuit:
 
         # Probabilistic nature attributes
         self.probabilistic = probabilistic
-        self.p_bell_success = p_bell_success
+        self.p_bell_success = lde_success
         self.fixed_lde_attempts = fixed_lde_attempts
         self._total_lde_attempts = 0
+        self._total_succeeded_lde = 0
 
         # Sub circuit attributes
         self._sub_circuits = {}
         self._current_sub_circuit = None
         self._circuit_operations_ended = False
+
+        # Superoperator attributes
+        self._superoperator_decomposition = None
+        self._error_density_matrix_lookup = {}
 
         self._init_density_matrix()
 
@@ -234,7 +243,7 @@ class QuantumCircuit:
     def _init_density_matrix_maximally_entangled_state(self, bell_type=1, amount_qubits=8, draw=True):
         """ Realises init_type option 2. See class description for more info. """
 
-        return self._quantum_circuit_init.quantum_circuit_init\
+        return self._quantum_circuit_init.quantum_circuit_init \
             .init_density_matrix_maximally_entangled_state(self, bell_type, amount_qubits, draw)
 
     def _init_density_matrix_ket_p_and_CNOTS(self):
@@ -404,6 +413,31 @@ class QuantumCircuit:
         for qubit in qubits:
             self._qubit_density_matrix_lookup[qubit] = (new_density_matrix, qubits)
 
+    def _reset_density_matrices(self, qubits, state=None):
+        """
+            Method resets the density matrices of the given qubits. If the qubit is in a density matrix with a qubit
+            not given, it will also reset the density matrix of this qubit
+
+            Parameters
+            ----------
+            qubits : list
+                List of qubits of which the density matrix should be reset.
+            state : State
+                Single qubit state with which the qubits should be reset. If None, |0> is used.
+        """
+        skip_qubits = []
+        for qubit in qubits:
+            # Skip qubits that have already been reset
+            if qubit not in skip_qubits:
+                state = state if state else ket_0
+                _, matrix_qubits, _, _ = self._get_qubit_relative_objects(qubit)
+                # Loop over the qubits that are in the same density matrix as the qubit
+                for matrix_qubit in matrix_qubits:
+                    if matrix_qubit not in skip_qubits:
+                        self._qubit_density_matrix_lookup[matrix_qubit] = (CT(state), [matrix_qubit])
+                        # Add the qubit to the skip list
+                        skip_qubits.append(matrix_qubit)
+
     def get_combined_density_matrix(self, qubits):
         """
             Returns the combined density matrix of the qubits requested and returns a list of the qubits that span
@@ -443,6 +477,13 @@ class QuantumCircuit:
                 density_matrices.append(density_matrix)
                 skip_qubits.extend(qubits)
         return KP(*density_matrices), skip_qubits
+
+    def export_density_matrix(self, location, density_matrix=None):
+        if density_matrix is None:
+            density_matrix = self.total_density_matrix()
+
+        with open(location, 'wb') as file_location:
+            pickle.dump(density_matrix, file_location)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -490,7 +531,7 @@ class QuantumCircuit:
         if qubits is None:
             qubits = []
             for node in involved_nodes:
-                copy_qubits = copy(self.nodes[node])
+                copy_qubits = copy(self.nodes[node].qubits)
                 qubits.extend(copy_qubits)
 
         sub_circuit = SubQuantumCircuit(name, qubits, waiting_qubits, concurrent_sub_circuit_objects, involved_nodes)
@@ -532,6 +573,7 @@ class QuantumCircuit:
         started_sub_circuit = self._sub_circuits[name]
         started_sub_circuit.set_ran(False)
         if current_sub_circuit is not None and not current_sub_circuit.ran:
+            self._update_sub_circuit_duration_with_node_duration()
             current_sub_circuit.set_ran()
             if current_sub_circuit.all_ran or forced_level:
                 added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
@@ -539,11 +581,13 @@ class QuantumCircuit:
                 self._draw_order.append(["LEVEL", added_dur, current_sub_circuit])
                 self.total_duration += added_dur
                 if self.total_duration > self.cut_off_time:
-                    self._apply_decoherence_to_fastest_sub_circuits(cut_off_time_reached=True)
                     self.cut_off_time_reached = True
-                else:
-                    self._apply_decoherence_to_fastest_sub_circuits()
+
+                self._apply_waiting_time_to_fastest_sub_circuits()
                 self._draw_order.append(["LEVEL", None, None])
+                # Reset all the sub_circuits when all ran or when a forced level is requested
+                [sub_circuit.reset() for sub_circuit in current_sub_circuit.concurrent_sub_circuits
+                 + [current_sub_circuit]]
 
         started_sub_circuit.reset()
         self._current_sub_circuit = started_sub_circuit
@@ -562,16 +606,18 @@ class QuantumCircuit:
                 applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
-        # First apply left over waiting time of all qubits in the form of decoherence
-        self._N_decoherence(decoherence=self.decoherence)
-
-        # Apply decoherence to the fastest sub circuits if applicable
-        self._apply_decoherence_to_fastest_sub_circuits()
-
         # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
+            self._update_sub_circuit_duration_with_node_duration()
             self.total_duration += self._current_sub_circuit.total_duration
             self._current_sub_circuit.set_ran()
+
+        # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
+        self._apply_waiting_time_to_fastest_sub_circuits()
+
+        # First apply left over waiting time of all qubits in the form of decoherence
+        if self.noise:
+            self._N_decoherence(decoherence=self.decoherence)
 
         self._draw_order.append(["LEVEL", self._current_sub_circuit.total_duration, self._current_sub_circuit])
         self._current_sub_circuit = None
@@ -581,7 +627,7 @@ class QuantumCircuit:
         if total:
             self._circuit_operations_ended = True
 
-    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None):
+    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, ghz_qubit=None):
         """
             Defines a node for the QuantumCircuit object. This is especially useful when working with a networked
             architecture. For now it is assumed that one uses an NV-center as a node.
@@ -599,6 +645,8 @@ class QuantumCircuit:
             self.nodes = {}
         if self.qubits is None:
             self.qubits = {}
+        if self.ghz_qubits is None:
+            self.ghz_qubits = {}
 
         if electron_qubits is None:
             electron_qubits = []
@@ -610,33 +658,51 @@ class QuantumCircuit:
         elif type(data_qubits) == int:
             data_qubits = [data_qubits]
 
-        self.nodes.update({name: qubits})
+        node = Node(name, qubits, self, electron_qubits, data_qubits, ghz_qubit)
+        self.nodes.update({name: node})
         for qubit in qubits:
             qubit_type = 'e' if qubit in electron_qubits else 'n'
             is_data_qubit = qubit in data_qubits
+            is_ghz_qubit = qubit == ghz_qubit
             T1_idle = self.T1_idle if qubit_type == 'n' else self.T1_idle_electron
             T2_idle = self.T2_idle if qubit_type == 'n' else self.T2_idle_electron
             T1_lde = self.T1_lde if qubit_type == 'n' else None
             T2_lde = self.T2_lde if qubit_type == 'n' else None
-            q = Qubit(self, qubit, qubit_type, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde, T2_lde=T2_lde,
-                      is_data_qubit=is_data_qubit)
+            q = Qubit(self, qubit, qubit_type, node=name, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde,
+                      T2_lde=T2_lde, is_data_qubit=is_data_qubit, is_ghz_qubit=is_ghz_qubit)
             self.qubits[qubit] = q
+            if is_ghz_qubit:
+                self.ghz_qubits[qubit] = q
 
-    def get_node_qubits(self, qubit):
+    def get_node_qubits(self, qubits):
         """
             Returns the qubits of a node of which the supplied qubit is part of.
 
             Parameters
             ----------
-            qubit : int
+            qubits : list
                 Qubit index of the qubit of which the node qubits should be returned
         """
         if self.nodes is None:
             return []
-        for node_qubits in self.nodes.values():
-            if qubit in node_qubits:
-                return node_qubits
-        return []
+
+        if type(qubits) == int:
+            qubits = [qubits]
+
+        node_qubits = []
+        for node in self.nodes.values():
+            if any(node.qubit_in_node(qubit) for qubit in qubits):
+                node_qubits.extend(node.qubits)
+        return node_qubits
+
+    def get_ghz_qubits(self):
+        return list(self.ghz_qubits.keys())
+
+    @property
+    def data_qubits(self):
+        if self.qubits is None:
+            return []
+        return [qubit.index for qubit in self.qubits.values() if qubit.is_data_qubit]
 
     def get_node_name_from_qubit(self, qubit):
         """
@@ -649,13 +715,15 @@ class QuantumCircuit:
         """
         if self.nodes is None:
             return
-        for key, values in self.nodes.items():
-            if qubit in values:
-                return key
+        if self.qubits is not None:
+            if qubit in self.qubits:
+                return self.qubits[qubit].node
 
-    def _apply_decoherence_to_fastest_sub_circuits(self, cut_off_time_reached=False):
+    def _apply_waiting_time_to_fastest_sub_circuits(self):
         """
-            Applies decoherence to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
+            Applies waiting time to the qubits that have been waiting for a slowest concurrent sub circuit to finish.
+            Also adds waiting time to the qubits that are not part of the current concurrent sub circuits,
+            but are initialised and therefore waiting as well.
         """
         if not self.decoherence:
             return
@@ -665,14 +733,23 @@ class QuantumCircuit:
 
         for sub_circuit in all_sub_circuits:
             if (longest_duration - sub_circuit.total_duration) > 0:
-                # If the cut-off time is reached, all remaining decoherence should be applied
-                qubits = sub_circuit.waiting_qubits if not cut_off_time_reached else sorted(self.qubits.keys())
-                self._increase_duration(longest_duration - sub_circuit.total_duration, [],
-                                        included_qubits=qubits,
-                                        sub_circuit=sub_circuit, skip_check=True)
-                # Apply decoherence on all qubits (based on the waiting time)
-                self._N_decoherence(sub_circuit=sub_circuit, sub_circuit_concurrent=False)
+                if sub_circuit.waiting_qubits is not None:
+                    waiting_qubits = sub_circuit.waiting_qubits
+                else:
+                    waiting_qubits = [qubit for qubit in sub_circuit.qubits if qubit not in self._uninitialised_qubits]
+
+                self._increase_qubit_duration(longest_duration - sub_circuit.total_duration,
+                                              included_qubits=waiting_qubits)
+
                 self._check_if_cut_off_time_is_reached()
+
+        # Apply waiting time to all node qubits that are not part of the current concurrent sub circuits and initialised
+        left_over_qubits = list(set([qubit for node in self.nodes.values() for qubit in node.qubits])
+                                .difference(self._current_sub_circuit.get_all_concurrent_qubits +
+                                            self._uninitialised_qubits))
+        if not left_over_qubits:
+            return
+        self._increase_qubit_duration(longest_duration, included_qubits=left_over_qubits)
 
     def correct_for_failed_ghz_check(self, success_dict):
         """
@@ -694,7 +771,7 @@ class QuantumCircuit:
                                                       self._sub_circuits[sc_name]) for sc_name, success
                                                      in success_dict.items() if not success])
         data_qubit_shortest = [self.qubits[qubit_index] for qubit_index in self.get_node_qubits(
-                               shortest_failed_sc.qubits[0]) if self.qubits[qubit_index].is_data_qubit][0]
+            shortest_failed_sc.qubits[0]) if self.qubits[qubit_index].is_data_qubit][0]
 
         all_sub_circuits = self._current_sub_circuit.concurrent_sub_circuits + [self._current_sub_circuit]
 
@@ -713,8 +790,7 @@ class QuantumCircuit:
                         qubit._waiting_time_idle = data_qubit_shortest.waiting_time_idle
                         qubit._waiting_time_lde = data_qubit_shortest.waiting_time_lde
 
-    def _increase_duration(self, amount, excluded_qubits, sub_circuit=None, included_qubits=None,
-                           kind='idle', skip_check=False):
+    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle', involved_nodes=None):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -735,26 +811,23 @@ class QuantumCircuit:
         """
         if amount == 0:
             return
-        if self._current_sub_circuit is None and sub_circuit is None:
+        if self._current_sub_circuit is None:
             self.total_duration += amount
 
-        # At this point in time, if sub_circuit parameter is specified the method is invoked by the
-        # 'apply_decoherence_to_fastest_sub_circuit' method and no time increase is needed for the sub circuit
-        elif sub_circuit is None:
-            current_sub_circuit = self._current_sub_circuit
-            # If excluded qubits are in the same node it is a local operation, then it must be checked if all
-            # concurrent local operations have been applied before increasing the total duration of the sub circuit
-            if (len(excluded_qubits) > 0 and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
-                                                 for ex_qubit in excluded_qubits)):
-                current_sub_circuit.increase_amount_concurrent_operations_applied()
-            if current_sub_circuit.all_concurrent_operations_applied:
-                current_sub_circuit.increase_duration(amount)
+        else:
+            if involved_nodes is None:
+                involved_nodes = list(set([self.get_node_name_from_qubit(qubit) for qubit in excluded_qubits]))
+            # if not all([node in self._current_sub_circuit.involved_nodes for node in involved_nodes]):
+            #     raise ValueError("Operation is applied on a qubit in a node not involved in the current sub circuit. "
+            #                      "Increasing duration cannot handle this at this point in time.")
+
+            for node in involved_nodes:
+                self.nodes[node].increase_sub_circuit_time(amount)
 
         if self.qubits is not None:
-            self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind)
+            self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind, involved_nodes)
 
-        if not skip_check:
-            self._check_if_cut_off_time_is_reached()
+        self._check_if_cut_off_time_is_reached()
 
     def _check_if_cut_off_time_is_reached(self):
         """
@@ -773,7 +846,8 @@ class QuantumCircuit:
             if self.total_duration > self.cut_off_time:
                 self.cut_off_time_reached = True
 
-    def _increase_qubit_duration(self, amount, excluded_qubits, included_qubits, kind):
+    def _increase_qubit_duration(self, amount, excluded_qubits=None, included_qubits=None, kind='idle',
+                                 involved_nodes=None):
         """
             Increase the idle time of the given qubit objects. This is used to determine the amount of decoherence that
             a qubit is supposed to experience.
@@ -794,20 +868,38 @@ class QuantumCircuit:
         if not included_qubits:
             if self._current_sub_circuit is not None:
                 # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
-                if excluded_qubits and all(ex_qubit in self.get_node_qubits(excluded_qubits[0])
-                                           for ex_qubit in excluded_qubits):
-                    involved_qubits = self.get_node_qubits(excluded_qubits[0])
+                if involved_nodes:
+                    involved_qubits = [qubit for node in involved_nodes for qubit in self.nodes[node].qubits]
                 else:
                     involved_qubits = self._current_sub_circuit.qubits
             else:
                 involved_qubits = [i for i in range(self.num_qubits)]
 
             excluded_qubits_copy.extend(self._uninitialised_qubits)
-            # apply waiting time to the qubits not involved in the operation.
+            # apply waiting time to the qubits not taking part in the operation.
             included_qubits = sorted(list(set(involved_qubits).difference(excluded_qubits_copy)))
+
         for qubit in included_qubits:
             current_qubit = self.qubits[qubit]
             current_qubit.increase_waiting_time(amount, waiting_type=kind)
+
+    def _update_sub_circuit_duration_with_node_duration(self):
+        max_duration = max(self.nodes[node].sub_circuit_time for node in self._current_sub_circuit.involved_nodes)
+
+        # Apply decoherence to the initialised qubits of a node that has a shorter duration than the max_duration
+        for node in self._current_sub_circuit.involved_nodes:
+            current_node = self.nodes[node]
+            if current_node.sub_circuit_time < max_duration:
+                amount = max_duration - current_node.sub_circuit_time
+                initialised_node_qubits = [qubit for qubit in current_node.qubits
+                                           if qubit not in self._uninitialised_qubits]
+
+                self._increase_duration(amount, [], included_qubits=initialised_node_qubits, involved_nodes=[node])
+
+        self._current_sub_circuit.increase_duration(max_duration)
+
+        # reset the sub_circuit_time for the nodes, since the sub circuit time is updated
+        [self.nodes[node].reset_sub_circuit_time() for node in self._current_sub_circuit.involved_nodes]
 
     def _update_uninitialised_qubit_register(self, qubits, update_type):
         """
@@ -825,7 +917,9 @@ class QuantumCircuit:
             raise ValueError("Type can only be 'remove', 'add' or 'swap'.")
 
         if update_type.lower() == 'remove':
-            self._uninitialised_qubits = list(set(self._uninitialised_qubits) ^ set(qubits))
+            self._uninitialised_qubits = [qubit for qubit in self._uninitialised_qubits if qubit not in qubits]
+            # When a qubit is initialised, the pulse sequence should be reset
+            [self.qubits[qubit].reset_sequence_time() for qubit in qubits if self.qubits is not None]
         if update_type.lower() == 'add':
             self._uninitialised_qubits.extend(qubits)
             self._uninitialised_qubits = list(set(self._uninitialised_qubits))
@@ -844,8 +938,8 @@ class QuantumCircuit:
                                                 Setter and getter Methods
         ---------------------------------------------------------------------------------------------------------
     """
-
-    def set_qubit_states(self, qubit_dict, user_operation=True):
+    @handle_none_parameters
+    def set_qubit_states(self, qubit_dict, p_prep=0, noise=None, user_operation=True):
         """
         qc.set_qubit_states(dict)
 
@@ -874,6 +968,9 @@ class QuantumCircuit:
             _, _, _, rel_num_qubits = self._get_qubit_relative_objects(tqubit)
             if rel_num_qubits > 1 or tqubit >= self.num_qubits:
                 raise ValueError("Qubit is not suitable to set state for.")
+
+            if noise and p_prep > 0:
+                state = self._N_preparation(state, p_prep)
 
             self._qubit_array[tqubit] = state
             self._qubit_density_matrix_lookup[tqubit] = (CT(state), [tqubit])
@@ -1007,8 +1104,8 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
-                         probabilistic=None, p_bell_success=None, bell_creation_duration=None,  decoherence=None,
-                         user_operation=True):
+                         probabilistic=None, p_bell_success=None, bell_creation_duration=None, decoherence=None,
+                         attempts=1, user_operation=True):
         """
             Creates a Bell pair between the supplied qubits. No actual circuit is applied, the requested Bell state is
             created between the qubits by appointing the corresponding density matrix to the qubits.
@@ -1035,13 +1132,16 @@ class QuantumCircuit:
                 probabilistic variable is used.
             p_bell_success : float
                 The success rate of the Bell pair creation attempt in case the creation is probabilistic. If not
-                specified the global p_bell_success value is used.
+                specified the global lde_success value is used.
             bell_creation_duration : float
                 The time it takes to do a Bell pair creation attempt. If not specified, the global
-                bell_creation_duration value will be used.
+                lde_duration value will be used.
             decoherence : bool
                 Applies decoherence to the qubits that wait on the operation to finish. If not specified, the global
                 decoherence value will be used.
+            attempts : int
+                How many attempts it should take to successfully create a Bell pair. Make sure to set probabilistic
+                to False when one wants a fixed number of attempts.
             user_operation : bool
                 If True, the operation will be logged as an user operation applied to the circuit.
         """
@@ -1052,18 +1152,19 @@ class QuantumCircuit:
         if noise and decoherence:
             self._N_decoherence([qubit1, qubit2])
 
-        times = 1
         self._total_lde_attempts += 1
         while probabilistic and random.random() > p_bell_success:
-            times += 1
+            attempts += 1
             self._total_lde_attempts += 1
 
         _, qubits_1, _, num_qubits_1 = self._get_qubit_relative_objects(qubit1)
         _, qubits_2, _, num_qubits_2 = self._get_qubit_relative_objects(qubit2)
 
-        if (num_qubits_1 > 1 or num_qubits_2 > 1) and (qubits_1 != qubits_2) and (not all(qubit in qubits_1 for qubit
-                                                                                  in [qubit1, qubit2])):
-            raise ValueError("Qubits are not suitable to create a Bell pair this way.")
+        # If qubits are not single qubit states or in a state with different qubits the matrix should be reset
+        if ((num_qubits_1 > 2 or num_qubits_2 > 2) or
+            (num_qubits_1 > 2 and not all(qubit in qubits_1 for qubit in qubits_2))):
+            reset_qubits = qubits_1 + qubits_2
+            self._reset_density_matrices(reset_qubits)
 
         new_density_matrix = self._get_bell_state_by_type(bell_state_type)
 
@@ -1075,54 +1176,27 @@ class QuantumCircuit:
                                                   qubit2: (new_density_matrix, qubits)})
 
         self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
-        lde_time, idle_time = self._calculate_duration_bell_pair_creation(times,
-                                                                          bell_creation_duration=bell_creation_duration)
 
-        self._increase_duration(lde_time, [qubit1, qubit2], kind='LDE')
-        if self.pulse_duration > 0:
-            self._increase_duration(idle_time, [], kind='idle')
+        self._increase_duration(bell_creation_duration * attempts, [qubit1, qubit2], kind='LDE')
+        # Add duration of pi pulses to the initialised qubit if LDE took longer than two times the inter pulse delay
+        self._add_pulse_duration_while_lde([qubit1, qubit2], attempts)
 
-        self._add_draw_operation("#{}".format(times), (qubit1, qubit2), noise)
+        self._total_succeeded_lde += 1
+        self._add_draw_operation("#{}".format(attempts), (qubit1, qubit2), noise)
 
-    @handle_none_parameters
-    def _calculate_duration_bell_pair_creation(self, attempts_till_success, fixed_lde_attempts=None,
-                                               bell_creation_duration=None, pulse_duration=None):
-        """
-            Returns the lde waiting time and the idle waiting time based on the sequence parameters present for the
-            system. The pulse sequence is used to keep the nuclear qubit more coherent, but therefore only at certain
-            places in the pulse sequence, the states can be swapped. Consider the following pulse sequence containing 8
-            pulses:
+    def _add_pulse_duration_while_lde(self, lde_qubits, attempts):
+        total_pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
 
-            n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n |
+        if total_pulse_time == 0:
+            return
 
-            Only at the '|' signs the state of the qubit can be swapped. 'n' is the predetermined fixed_lde_attempts
-            that can be made before a pulse (pi) is applied. By the amount of lde attempts it to took create a Bell
-            pair it is thus determined how much of the time is lde waiting time (qubits in node experiencing more
-            decoherence due to bell pair creation attempts) and how much is idle time which the qubits experience
-            after the Bell pair is created but it must be waited before the pulse refocuses.
+        node_qubits = self.get_node_qubits(lde_qubits)
+        # If there are any initialised qubits that are being decoupled, than additional pulses were necessary
+        if any(not self.qubits[qubit].equal_to_0_or_1_state() and qubit not in self._uninitialised_qubits
+               for qubit in node_qubits):
+                    self._increase_duration(total_pulse_time, lde_qubits)
 
-            Parameters
-            ----------
-            attempts_till_success : int
-                Amount of Bell pair creation attempts it took to create a Bell pair.
-            fixed_lde_attempts : int
-                Amount of Bell pair creation attempts before a pulse of the pulse sequence is applied ('n' in the
-                sequence shown above).
-            bell_creation_duration : float
-                Time it takes to do one Bell pair creation attempt.
-            pulse_duration : float
-                The duration of the pulse ('pi' in the sequence shown above).
-        """
-        n_pulses_before_success = math.floor(
-            1 + (attempts_till_success - fixed_lde_attempts) / (2 * fixed_lde_attempts))
-        lde_time = attempts_till_success * bell_creation_duration + n_pulses_before_success * pulse_duration
 
-        total_amount_pulses = math.ceil(attempts_till_success / (2 * fixed_lde_attempts))
-        n_pulses_after_success = total_amount_pulses - n_pulses_before_success
-        idle_time = ((total_amount_pulses * (2 * fixed_lde_attempts) - attempts_till_success) * bell_creation_duration
-                     + n_pulses_after_success * pulse_duration)
-
-        return lde_time, idle_time
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -1182,7 +1256,7 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
-                   reverse=False, user_operation=True):
+                   reverse=False, electron_is_target=False, user_operation=True):
         """
             General method to apply a two- or single-qubit gate to the circuit.
 
@@ -1205,16 +1279,31 @@ class QuantumCircuit:
             decoherence : bool
                 If True, the duration of the gate operation will be added to the qubits that are known to be waiting
                 on this operation to finish. If not specified, the global decoherence variable is used.
+            reverse : bool
+                Reverses the order how density matrices of the qubits are fused. Normally the cqubit density matrix
+                is fused on top of the tqubit density matrix. This parameter is typically used rearrange qubits in the
+                density matrix, such that qubit measurement is faster eventually.
+            electron_is_target : bool
+                When working with decoherence in NV centers, the case that the electron qubit is the control qubit
+                needs to be handled differently. This is ensured when this boolean is set to True.
             user_operation : bool
                 If True, the system will log this as a by the user applied operation on the circuit.
         """
         if user_operation:
             self._user_operation_order.append({"apply_gate": [gate, tqubit, cqubit, noise, conj, pg, draw]})
 
+        # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
+        self._wait_for_refocus([tqubit, cqubit])
+
         qubits = [tqubit] if cqubit is None else [tqubit, cqubit]
 
         if noise and decoherence:
             self._N_decoherence(qubits)
+
+        if electron_is_target:
+            draw = self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
+                                                                                    decoherence=decoherence,
+                                                                                    draw=draw, gate=gate)
 
         if type(gate) == SingleQubitGate:
             noise = noise and not self.no_single_qubit_error
@@ -1225,10 +1314,16 @@ class QuantumCircuit:
             raise ValueError("Gate object was not recognised. Please create an gate object to apply this gate.")
 
         self._set_density_matrix(tqubit, new_density_matrix)
-        self._increase_duration(gate.duration, qubits)
+        gate_duration = gate.duration if not self.qubits or self.qubits[tqubit].qubit_type != 'e' else \
+            gate.duration_electron
+        self._increase_duration(gate_duration, qubits)
 
         if draw:
             self._add_draw_operation(gate, qubits, noise)
+
+        if electron_is_target:
+            self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
+                                                                             decoherence=decoherence, draw=draw)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -1277,7 +1372,7 @@ class QuantumCircuit:
         return new_density_matrix
 
     @handle_none_parameters
-    def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False):
+    def _create_1_qubit_gate(self, gate, tqubit, *, num_qubits=None, conj=False, lookup=True):
         """
             Private method that is used to create the single-qubit gate matrix used in for example the
             apply_1_qubit_gate method.
@@ -1299,7 +1394,7 @@ class QuantumCircuit:
                 Returns a matrix with dimensions equal to the dimensions of the density matrix of
                 the system.
         """
-        return self._operations.gate_operations.create_1_qubit_gate(self, gate, tqubit, num_qubits, conj)
+        return self._operations.gate_operations.create_1_qubit_gate(self, gate, tqubit, num_qubits, conj, lookup)
 
     def X(self, tqubit, times=1, noise=None, pg=None, draw=True, user_operation=True):
         """ Applies the pauli X gate to the specified target qubit. See apply_1_qubit_gate for more info """
@@ -1340,9 +1435,9 @@ class QuantumCircuit:
                 Angle of rotation that should be applied. Value should be specified in radians
         """
         R_gate = SingleQubitGate("Rotation gate",
-                      np.array([[np.cos(theta/2), -1j * np.sin(theta/2)],
-                                [-1j * np.sin(theta/2), np.cos(theta/2)]]),
-                      "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                                 np.array([[np.cos(theta/2), -1j * np.sin(theta/2)],
+                                           [-1j * np.sin(theta/2), np.cos(theta/2)]]),
+                                 "Rx({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -1356,9 +1451,9 @@ class QuantumCircuit:
                 Angle of rotation that should be applied. Value should be specified in radians
         """
         R_gate = SingleQubitGate("Rotation gate",
-                      np.array([[np.cos(theta / 2), -1 * np.sin(theta / 2)],
-                                [1 * np.sin(theta / 2), np.cos(theta / 2)]]),
-                      "Ry({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                                 np.array([[np.cos(theta / 2), -1 * np.sin(theta / 2)],
+                                           [1 * np.sin(theta / 2), np.cos(theta / 2)]]),
+                                 "Ry({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -1373,9 +1468,9 @@ class QuantumCircuit:
 
         """
         R_gate = SingleQubitGate("Rotation gate",
-                      np.array([np.exp(-1j * theta / 2), 0],
-                               [0, np.exp(1j * theta / 2)]),
-                      "Rz({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
+                                 np.array([np.exp(-1j * theta / 2), 0],
+                                          [0, np.exp(1j * theta / 2)]),
+                                 "Rz({})".format(str(Fr(theta/np.pi)) + "\u03C0"))
 
         for _ in range(times):
             self.apply_gate(R_gate, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
@@ -1437,7 +1532,7 @@ class QuantumCircuit:
         new_density_matrix = two_qubit_gate.dot(CT(density_matrix, two_qubit_gate))
 
         if noise:
-            times = 2 if gate.name.lower() == 'swap' else 1
+            times = 3 if gate.name.lower() == 'swap' else 1
             new_density_matrix = self._N_two_qubit_gate(pg, rel_cqubit, rel_tqubit, new_density_matrix,
                                                         num_qubits=rel_num_qubits, times=times)
 
@@ -1502,9 +1597,7 @@ class QuantumCircuit:
             Applies the SWAP gate to specified qubits. The efficient parameter is used, when no actual circuit has
             to be applied, but the qubits can be swapped by swapping the qubit indices in the qubit density matrix
             lookup table.
-
         """
-        # If pulse sequence is taken into account, the SWAP gate must wait for the right point in the sequence
         if efficient:
             if user_operation:
                 self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
@@ -1527,6 +1620,59 @@ class QuantumCircuit:
         self.two_qubit_gate_NV(cqubit, tqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
         self.S(tqubit, conj=True, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
+    @handle_none_parameters
+    def _determine_additional_waiting_pulse_sequence(self, qubit: Qubit, fixed_lde_attempts=None,
+                                                     bell_creation_duration=None, pulse_duration=None):
+        """
+            Returns the lde waiting time and the idle waiting time based on the sequence parameters present for the
+            system. The pulse sequence is used to keep the nuclear qubit more coherent, but therefore only at certain
+            places in the pulse sequence, the states can be swapped. Consider the following pulse sequence containing 8
+            pulses:
+
+            n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n | n - pi - n |
+
+            Only at the '|' signs the state of the qubit can be swapped. 'n' is the predetermined fixed_lde_attempts
+            that can be made before a pulse (pi) is applied. By the amount of lde attempts it to took create a Bell
+            pair it is thus determined how much of the time is lde waiting time (qubits in node experiencing more
+            decoherence due to bell pair creation attempts) and how much is idle time which the qubits experience
+            after the Bell pair is created but it must be waited before the pulse refocuses.
+
+            Parameters
+            ----------
+            attempts_till_success : int
+                Amount of Bell pair creation attempts it took to create a Bell pair.
+            fixed_lde_attempts : int
+                Amount of Bell pair creation attempts before a pulse of the pulse sequence is applied ('n' in the
+                sequence shown above).
+            bell_creation_duration : float
+                Time it takes to do one Bell pair creation attempt.
+            pulse_duration : float
+                The duration of the pulse ('pi' in the sequence shown above).
+        """
+        if qubit.qubit_type == 'e':
+            return 0
+
+        sequence_time = qubit.sequence_time
+        n = fixed_lde_attempts * bell_creation_duration
+        full_sequence = (2 * n) + pulse_duration
+
+        waiting_time = full_sequence - (sequence_time % full_sequence)
+
+        return waiting_time
+
+    def _wait_for_refocus(self, qubits):
+        if self.pulse_duration > 0:
+            for qubit in qubits:
+                if qubit is None:
+                    return
+                qubit_obj = self.qubits[qubit]
+                # Check if qubit is initialised, not in |0> or |1> (with noise) and if sequence time is not 0
+                if qubit not in self._uninitialised_qubits and qubit_obj.sequence_time > 0.5e-3:
+                    time_till_swap = self._determine_additional_waiting_pulse_sequence(qubit_obj)
+                    self._increase_duration(time_till_swap, [], involved_nodes=[qubit_obj.node])
+                qubit_obj.reset_sequence_time()
+
+
     """
         ---------------------------------------------------------------------------------------------------------
                                             Protocol gate sequences
@@ -1546,8 +1692,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
-                    return
+                # If loop necessary for proper cut-off handling
+                if type(measurement_outcomes) == SKIP:
+                    return measurement_outcomes
                 success = measurement_outcomes[0] == measurement_outcomes[1]
                 if not retry:
                     return success
@@ -1568,8 +1715,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
-                    return
+                # If loop necessary for proper cut-off handling
+                if type(measurement_outcomes) == SKIP:
+                    return measurement_outcomes
                 return measurement_outcomes[0] == measurement_outcomes[1]
             else:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
@@ -1588,8 +1736,9 @@ class QuantumCircuit:
                                   pm=pm, pg=pg, user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1],
                                                 noise=noise, pm=pm, user_operation=user_operation)
-            if measurement_outcomes is None:
-                return
+            # If loop necessary for proper cut-off handling
+            if type(measurement_outcomes) == SKIP:
+                return measurement_outcomes
             success = (measurement_outcomes[0] == measurement_outcomes[1] and
                        measurement_outcomes[2] == measurement_outcomes[3])
             if not retry:
@@ -1613,9 +1762,9 @@ class QuantumCircuit:
                     self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 measurement_outcomes = self.measure([qubit_1, qubit_2], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                # If measurement_outcomes is None the cut-off time is reached and method should return
-                if measurement_outcomes is None:
-                    return
+                # If loop necessary for proper cut-off handling
+                if type(measurement_outcomes) == SKIP:
+                    return measurement_outcomes
                 parity.append(measurement_outcomes[0] == measurement_outcomes[1])
             return all(parity)
 
@@ -1644,8 +1793,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
-                    return
+                # If loop necessary for proper cut-off handling
+                if type(measurement_outcomes) == SKIP:
+                    return measurement_outcomes
                 success = measurement_outcomes[0] == measurement_outcomes[1]
 
                 if draw_X_gate and self._sub_circuits and not drawn:
@@ -1692,8 +1842,9 @@ class QuantumCircuit:
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
-                if measurement_outcomes is None:
-                    return
+                # If loop necessary for proper cut-off handling
+                if type(measurement_outcomes) == SKIP:
+                    return measurement_outcomes
                 success = measurement_outcomes[0] == measurement_outcomes[1]
 
                 if draw_X_gate and self._sub_circuits and not drawn:
@@ -1728,8 +1879,9 @@ class QuantumCircuit:
                                                              user_operation=user_operation)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
-            if measurement_outcomes is None:
-                return
+            # If loop necessary for proper cut-off handling
+            if type(measurement_outcomes) == SKIP:
+                return measurement_outcomes
             success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
 
             if draw_X_gate and self._sub_circuits and not drawn:
@@ -1760,8 +1912,9 @@ class QuantumCircuit:
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
-            if measurement_outcomes is None:
-                return
+            # If loop necessary for proper cut-off handling
+            if type(measurement_outcomes) == SKIP:
+                return measurement_outcomes
             success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
 
             if draw_X_gate and self._sub_circuits and not drawn:
@@ -1776,6 +1929,49 @@ class QuantumCircuit:
 
             if not retry:
                 return success
+
+    def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
+                               electron_qubit=None, end_circuit=True):
+
+        # Function is here, such that user parameters are not overwritten in the loop
+        def node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit):
+            if cqubit is None:
+                cqubit = self.nodes[node].ghz_qubit
+            ghz_qubit = cqubit
+            if tqubit is None:
+                data_qubits = self.nodes[node].data_qubits
+            else:
+                data_qubits = [tqubit] if type(tqubit) is not list else tqubit
+
+            if swap:
+                electron_qubit = self.nodes[node].electron_qubits[0] if electron_qubit is None else electron_qubit
+
+            self.start_sub_circuit(node)
+            for data_qubit in data_qubits:
+                cqubit = ghz_qubit if swap else cqubit
+                if swap:
+                    self.SWAP(electron_qubit, cqubit, efficient=True)
+                    cqubit = electron_qubit
+                self.apply_gate(operation, cqubit=cqubit, tqubit=data_qubit)
+            self.measure(cqubit, probabilistic=False)
+
+        # Main code of the method
+        if nodes is None:
+            nodes = [self.get_node_name_from_qubit(cqubit)]
+        if tqubit is None:
+            tqubits = [None for _ in range(len(nodes))]
+        elif type(tqubit) == int:
+            tqubits = [tqubit for _ in range(len(nodes))]
+        elif type(tqubit) == list:
+            tqubits = tqubit
+        else:
+            raise ValueError("The target qubit must be either None, int or list. It was {}".format(type(tqubit)))
+
+        for node, tqubit in zip(nodes, tqubits):
+            node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
+
+        if end_circuit:
+            self.end_current_sub_circuit(total=True)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -1846,9 +2042,9 @@ class QuantumCircuit:
     def _N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=False, decoherence=True):
         self._noise.decoherence.N_decoherence(self, qubits, sub_circuit, sub_circuit_concurrent, decoherence)
 
-    def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
+    def _N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T, p=1/2):
         return self._noise.noise_maps.N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits,
-                                                                  waiting_time, T)
+                                                                  waiting_time, T, p)
 
     def _N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
         return self._noise.noise_maps.N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T)
@@ -2029,13 +2225,19 @@ class QuantumCircuit:
                                                                              pm=pm_1 if pm_1 is not None else pm)
                 # TODO: Measuring qubits other than the first qubit does not yet work properly. Must be looked at
                 else:
-                    print("\nWarning: The measurement of a qubit that is not the first qubit of the density matrix is "
-                          "slow. The order of the density matrix is: {}. You want to measure qubit {}.".format(
-                        qubits, qubit))
-                    prob_0, density_matrix_0 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=0)
-                    prob_1, density_matrix_1 = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=1)
+                    self.append_print_lines("\nWarning: The measurement of a qubit that is not the first qubit of the "
+                                            "density matrix is slow. The order of the density matrix is: {}. You want "
+                                            "to measure qubit {}.".format(qubits, qubit))
+                    prob_0, density_matrix_0 = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                             outcome=0)
+                    prob_1, density_matrix_1 = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                             outcome=1)
+
+                    if noise:
+                        # Keep pm_1 on None, such that the if loop below is evaluated correctly
+                        pmeas_1 = pm_1 if pm_1 is not None else pm
+                        density_matrix_0 = (1-pm) * density_matrix_0 + pm * density_matrix_1
+                        density_matrix_1 = (1-pmeas_1) * density_matrix_1 + pmeas_1 * density_matrix_0
 
                 probs = [prob_0, prob_1]
                 if round(sum(probs), 10) != 1 and pm_1 is None:
@@ -2054,14 +2256,14 @@ class QuantumCircuit:
                     prob, new_density_matrix = self._measurement_first_qubit(density_matrix, measure=outcome_new,
                                                                              noise=noise, pm=pm)
                 else:
-                    print("\nWarning: The measurement of a qubit that is not the first qubit of the density matrix is "
-                          "slow. The order of the density matrix is: {}. You want to measure qubit {}.".format(
-                           qubits, qubit))
-                    prob, new_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                         outcome=outcome_new)
+                    self.append_print_lines("\nWarning: The measurement of a qubit that is not the first qubit of the "
+                                            "density matrix is slow. The order of the density matrix is: {}. You want "
+                                            "to measure qubit {}.".format(qubits, qubit))
+                    prob, new_density_matrix = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                             outcome=outcome_new)
                     if noise:
-                        _, wrong_density_matrix = self._get_measurement_outcome_probability(rel_qubit, density_matrix,
-                                                                                            outcome=outcome_new ^ 1)
+                        _, wrong_density_matrix = self._measure_arbitrary_qubit(rel_qubit, density_matrix,
+                                                                                outcome=outcome_new ^ 1)
                         new_density_matrix = (1 - pm) * new_density_matrix + pm * wrong_density_matrix
 
                 probs = [prob, prob]
@@ -2087,7 +2289,7 @@ class QuantumCircuit:
 
         return measurement_outcomes
 
-    def _get_measurement_outcome_probability(self, qubit, density_matrix, outcome, keep_qubit=False):
+    def _measure_arbitrary_qubit(self, qubit, density_matrix, outcome, keep_qubit=False):
         """
             Method returns the probability and new density matrix for the given measurement outcome of the given qubit.
 
@@ -2116,8 +2318,8 @@ class QuantumCircuit:
             outcome : int [0,1]
                 Outcome for which the probability and resulting density matrix should be calculated
         """
-        return self._operations.measurement_operations.get_measurement_outcome_probability(qubit, density_matrix,
-                                                                                           outcome, keep_qubit)
+        return self._operations.measurement_operations._measure_arbitrary_qubit(qubit, density_matrix,
+                                                                                outcome, keep_qubit)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -2128,7 +2330,7 @@ class QuantumCircuit:
     def get_superoperator(self, qubits, proj_type, *, stabilizer_protocol=False, save_noiseless_density_matrix=False,
                           combine=True, most_likely=True, print_to_console=True, file_name_noiseless=None,
                           file_name_measerror=None, no_color=False, csv_file_name=None,
-                          use_exact_path=False, idle_data_qubit=False):
+                          use_exact_path=False, idle_data_qubit=False, protocol_name=None):
         """
             Returns the superoperator for the system. The superoperator is determined by taking the fidelities
             of the density matrix of the system [rho_real] and the density matrices obtained with any possible
@@ -2201,39 +2403,33 @@ class QuantumCircuit:
 
         # Get all combinations of gates ([X, Y, Z, I]) possible on the given qubits
         total_density_matrix, qubits_matrix = self.get_combined_density_matrix(qubits)
-        all_gate_combinations = self._all_single_qubit_gate_possibilities(qubits, qubits_matrix,
-                                                                          num_qubits=len(qubits_matrix))
+        superoperator_decomposition = self._create_superoperator_decomposition(qubits, qubits_matrix)
 
-        for combination in all_gate_combinations:
-            total_error_gate = None
-            for gate_dict in combination:
-                gate = list(gate_dict.values())[0]
-                if total_error_gate is None:
-                    total_error_gate = gate
-                    continue
-                total_error_gate = total_error_gate * gate
+        for kraus_operator, error_matrix in superoperator_decomposition.items():
 
-            error_density_matrix = total_error_gate * CT(noiseless_density_matrix, total_error_gate)
-            me_error_density_matrix = total_error_gate * CT(measerror_density_matrix, total_error_gate)
+            error_density_matrix, me_error_density_matrix = self._get_error_density_matrices(kraus_operator,
+                                                                                             stabilizer_protocol,
+                                                                                             noiseless_density_matrix,
+                                                                                             measerror_density_matrix,
+                                                                                             error_matrix)
 
             fid_no_me = fidelity_elementwise(error_density_matrix, total_density_matrix)
             fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
 
-            operators = [list(applied_gate.keys())[0] for applied_gate in combination]
-
-            if fid_me != 0 and not self.cut_off_time_reached and not idle_data_qubit:
-                superoperator.append(SuperoperatorElement(fid_me, True, operators, me_error_density_matrix))
+            if fid_me != 0 and not self.cut_off_time_reached:
+                superoperator.append(SuperoperatorElement(fid_me, True, list(kraus_operator), me_error_density_matrix))
             if fid_no_me != 0:
-                superoperator.append(SuperoperatorElement(fid_no_me, False, operators, error_density_matrix))
+                superoperator.append(SuperoperatorElement(fid_no_me, False, list(kraus_operator), error_density_matrix))
 
         # Possible post-processing options for the superoperator
-        if combine:
+        if combine and not idle_data_qubit:
             superoperator = self._fuse_equal_config_up_to_permutation(superoperator)
         if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
 
         superoperator_dataframe = self._superoperator_to_dataframe(superoperator, proj_type, file_name=csv_file_name,
-                                                                   use_exact_path=use_exact_path)
+                                                                   use_exact_path=use_exact_path,
+                                                                   protocol_name=protocol_name, qubit_order=qubits)
 
         if print_to_console:
             self._print_superoperator(superoperator, no_color)
@@ -2351,7 +2547,7 @@ class QuantumCircuit:
 
         return file_path
 
-    def _all_single_qubit_gate_possibilities(self, qubits, qubits_matrix, num_qubits):
+    def _create_superoperator_decomposition(self, qubits, qubits_matrix):
         """
             Method returns a list containing all the possible combinations of Pauli matrix gates
             that can be applied to the specified qubits.
@@ -2375,8 +2571,15 @@ class QuantumCircuit:
 
             in which, in general, A -> {"A": single_qubit_A_gate_object} where A in {X, Y, Z, I}.
         """
-        return self._superoperator.superoperator_methods.all_single_qubit_gate_possibilities(self, qubits,
-                                                                                             qubits_matrix, num_qubits)
+        return self._superoperator.superoperator_methods.create_superoperator_decomposition(self, qubits, qubits_matrix)
+
+    def _get_error_density_matrices(self, kraus_operator, stabilizer_protocol, noiseless_density_matrix,
+                                    measerror_density_matrix, error_matrix):
+        return self._superoperator.superoperator_methods.get_error_density_matrices(self, kraus_operator,
+                                                                                    stabilizer_protocol,
+                                                                                    noiseless_density_matrix,
+                                                                                    measerror_density_matrix,
+                                                                                    error_matrix)
 
     def _fuse_equal_config_up_to_permutation(self, superoperator):
         """
@@ -2446,7 +2649,8 @@ class QuantumCircuit:
         """ Prints the superoperator in a clear way to the console """
         self._superoperator.superoperator_methods.print_superoperator(self, superoperator, no_color)
 
-    def _superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False):
+    def _superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, use_exact_path=False,
+                                    protocol_name=None, qubit_order=None):
         """
             Save the obtained superoperator results to a csv file format that is suitable with the superoperator
             format that is used in the (distributed) surface code simulations.
@@ -2465,7 +2669,12 @@ class QuantumCircuit:
                 in the 'csv_files' directory, so the string should NOT contain any '/'. These will be removed.
         """
         return self._superoperator.superoperator_methods.superoperator_to_dataframe(self, superoperator, proj_type,
-                                                                                    file_name, use_exact_path)
+                                                                                    file_name, use_exact_path,
+                                                                                    protocol_name, qubit_order)
+
+    def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
+        return self._superoperator.superoperator_methods.get_state_fidelity(self, qubits, compare_matrix,
+                                                                            set_ghz_fidelity)
 
     """
         ----------------------------------------------------------------------------------------------------------
@@ -2512,7 +2721,7 @@ class QuantumCircuit:
             Parameters
             ----------
             meas_error : bool
-                Specify if there has been introduced an measurement error on purpose to the QuantumCircuit object.
+                Specify if there has been introduced a measurement error on purpose to the QuantumCircuit object.
                 This is needed to create the proper file name.
         """
         return self._draw.draw_circuit_latex.create_qasm_file(self, meas_error)
@@ -2539,6 +2748,9 @@ class QuantumCircuit:
         """
         self._draw.draw_circuit.add_draw_operation(self, operation, qubits, noise, _current_sub_circuit=sub_circuit,
                                                    sub_circuit_concurrent=sub_circuit_concurrent)
+
+    def level_circuit_drawing(self):
+        return self._draw_order.append(['LEVEL', None, None])
 
     def _correct_drawing_for_n_top_qubit_additions(self, n=1):
         """
@@ -2610,6 +2822,7 @@ class QuantumCircuit:
 
         # Probabilistic nature attributes
         self._total_lde_attempts = 0
+        self._total_succeeded_lde = 0
 
         # Sub circuit attributes
         self._current_sub_circuit = None
@@ -2621,9 +2834,13 @@ class QuantumCircuit:
         if self.qubits is not None:
             for qubit in self.qubits.values():
                 qubit.reset_waiting_time()
+                qubit.reset_sequence_time()
+
+        if self.nodes is not None:
+            for node in self.nodes.values():
+                node.reset_all_times()
 
         self._init_density_matrix()
-
 
     def __repr__(self):
         return "\nQuantumCircuit object containing {} qubits\n".format(self.num_qubits)

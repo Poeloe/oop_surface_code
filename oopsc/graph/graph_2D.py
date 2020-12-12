@@ -20,6 +20,8 @@ Qubits: qID (td, y, x)          Stabilizers: sID (ertype, y, x)
 
 The 2D graph (toric/planar) is a square lattice with 1 layer of these unit cells.
 '''
+from ..plot import plot_graph_lattice as pgl
+from ..plot import plot_unionfind as puf
 import random
 import numpy as np
 from ..superoperator import superoperator as so
@@ -61,19 +63,19 @@ class toric(object):
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.plot_config = plot_config
-        # self.gl_plot = pgl.plot_2D(self, **plot_config) if self.plot2D else None
+        self.gl_plot = pgl.plot_2D(self, **plot_config) if self.plot2D else None
 
         self.superoperator = None
 
     def __repr__(self):
         return f"2D {self.__class__.__name__} graph object with"
 
-    # def init_uf_plot(self):
-    #     '''
-    #     Initializes plot of unionfind decoder.
-    #     '''
-    #     self.uf_plot = puf.plot_2D(self, **self.plot_config)
-    #     return self.uf_plot
+    def init_uf_plot(self):
+        '''
+        Initializes plot of unionfind decoder.
+        '''
+        self.uf_plot = puf.plot_2D(self, **self.plot_config)
+        return self.uf_plot
 
 
     def count_matching_weight(self, z=0):
@@ -156,7 +158,7 @@ class toric(object):
                     qubit.E[0].state = 1
                     qubit.E[1].state = 1
 
-        # if self.gl_plot: self.gl_plot.plot_erasures()
+        if self.gl_plot: self.gl_plot.plot_erasures()
 
 
     def init_pauli(self, pX=0, pZ=0, **kwargs):
@@ -169,7 +171,7 @@ class toric(object):
             if pZ != 0 and random.random() < pZ:
                 qubit.E[1].state = 1
 
-        # if self.gl_plot: self.gl_plot.plot_errors()
+        if self.gl_plot: self.gl_plot.plot_errors()
 
     def measure_stab(self, **kwargs):
         """
@@ -187,14 +189,14 @@ class toric(object):
                         stab.parity = 1 - stab.parity
                     stab.state = stab.parity
 
-        # if self.gl_plot: self.gl_plot.plot_syndrome()
+        if self.gl_plot: self.gl_plot.plot_syndrome()
 
 
     def logical_error(self, z=0):
         """
         Finds whether there are any logical errors on the lattice/self. The logical error is returned as [Xvertical, Xhorizontal, Zvertical, Zhorizontal], where each item represents a homological Loop
         """
-        # if self.gl_plot: self.gl_plot.plot_final()
+        if self.gl_plot: self.gl_plot.plot_final()
 
         logical_error = [0, 0, 0, 0]
 
@@ -203,10 +205,10 @@ class toric(object):
                 logical_error[0] = 1 - logical_error[0]
             if self.Q[z][(1, i, 0)].E[0].state:
                 logical_error[1] = 1 - logical_error[1]
-            # if self.Q[z][(1, 0, i)].E[1].state:
-            #     logical_error[2] = 1 - logical_error[2]
-            # if self.Q[z][(0, i, 0)].E[1].state:
-            #     logical_error[3] = 1 - logical_error[3]
+            if self.Q[z][(1, 0, i)].E[1].state:
+                logical_error[2] = 1 - logical_error[2]
+            if self.Q[z][(0, i, 0)].E[1].state:
+                logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
@@ -217,8 +219,8 @@ class toric(object):
             implementation. When a superoperator is used that represents iid error on the stabilizer qubits, then
             this method ensures a similar error implementation as the usual iid error implementation (see the
             'apply_and_measure_errors' method). This way, threshold simulation results with the superoperator
-            implementation can be compared with the usual implementation to verify the implementation.
 
+            implementation can be compared with the usual implementation to verify the implementation.
             Parameters
             ----------
             z : int, optional, z=0
@@ -306,69 +308,102 @@ class toric(object):
                           measurement_errors=measurement_errors_s2,
                           GHZ_success=self.superoperator.GHZ_success)
 
-    def stabilizer_cycle_three_superoperators(self, z=0):
+    def stabilizer_cycle_weight_four_two_architecture(self, z=0):
         self.set_qubit_states_to_state_previous_layer(z)
 
-        second_round_p_sup = self.superoperator.additional_superoperators[0]['p_before_meas']
-        second_round_s_sup = self.superoperator.additional_superoperators[0]['s_before_meas']
-        idle_superoperator = self.superoperator.sup_op_elements_idle
-        second_round_p_stab_1 = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
-                                 if (divmod(i, self.size/2)[0] % 2) == 0]
-        second_round_p_stab_2 = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
-                                 if (divmod(i, self.size/2)[0] % 2) == 1]
-        second_round_s_stab_1 = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
-                                 if (divmod(i, self.size/2)[0] % 2) == 0]
-        second_round_s_stab_2 = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
-                                 if (divmod(i, self.size/2)[0] % 2) == 1]
+        first_round_p_sup = self.superoperator.additional_superoperators[0]['p_before_meas']
+        first_round_s_sup = self.superoperator.additional_superoperators[0]['s_before_meas']
 
-        # First apply error and measure plaquette stabilizers in two rounds
-        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z],
-                                                            self.superoperator.sup_op_elements_p_before_meas)
+        second_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
+                                if (divmod(i, self.size/2)[0] % 2) == 0]
+        third_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
+                               if (divmod(i, self.size/2)[0] % 2) == 1]
+        p_second_and_third_round_stabs = [second_round_p_stabs, third_round_p_stabs]
+
+        second_round_s_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
+                                if (divmod(i, self.size/2)[0] % 2) == 0]
+        third_round_s_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
+                               if (divmod(i, self.size/2)[0] % 2) == 1]
+        s_second_and_third_round_stabs = [second_round_s_stabs, third_round_s_stabs]
+
+        # ------------------------------- Plaquette stabilizers --------------------------------
+
+        # First round is weight two superoperator, can be applied without any special alterations
+        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z], first_round_p_sup)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
                           measurement_errors=measurement_errors_p1,
                           GHZ_success=self.superoperator.GHZ_success)
 
-        # Second round is split in two, where half the round is measured and half the qubits gets idle error
-        meas_errors_p2_1, _ = self.superoperator_error(second_round_p_stab_1, second_round_p_sup)
-        _, _ = self.superoperator_error(second_round_p_stab_2, idle_superoperator)
+        # Second and third round are different. Half of qubits are involved in stabilizer measurement,
+        # other half is idle. Idle error should be included in the superoperator
+        for stabs in p_second_and_third_round_stabs:
+            meas_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_p_before_meas,
+                                                      architecture="weight_two_four")
 
-        self.measure_stab(stabs=second_round_p_stab_1,
-                          z=z,
-                          measurement_errors=meas_errors_p2_1,
-                          GHZ_success=self.superoperator.GHZ_success)
+            self.measure_stab(stabs=stabs,
+                              z=z,
+                              measurement_errors=meas_errors,
+                              GHZ_success=self.superoperator.GHZ_success)
 
-        # Second part round two, now the other half is measured and the other half gets idle error
-        _, _ = self.superoperator_error(second_round_p_stab_1, idle_superoperator)
-        meas_errors_p2_2, _ = self.superoperator_error(second_round_p_stab_2, second_round_p_sup)
-        self.measure_stab(stabs=second_round_p_stab_2,
-                          z=z,
-                          measurement_errors=meas_errors_p2_2,
-                          GHZ_success=self.superoperator.GHZ_success)
+        # ------------------------------- Star stabilizers --------------------------------
 
-        # The apply error and measure star stabilizers in two rounds (same as above)
-        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
-                                                            self.superoperator.sup_op_elements_s_before_meas)
+        # (same as above, but now for star stabilizers)
+        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z], first_round_s_sup)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
                           measurement_errors=measurement_errors_s1,
                           GHZ_success=self.superoperator.GHZ_success)
 
-        meas_errors_s2_1, _ = self.superoperator_error(second_round_s_stab_1, second_round_s_sup)
-        _, _ = self.superoperator_error(second_round_s_stab_2, idle_superoperator)
+        for stabs in s_second_and_third_round_stabs:
+            meas_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_s_before_meas,
+                                                      architecture="weight_two_four")
+            self.measure_stab(stabs=stabs,
+                              z=z,
+                              measurement_errors=meas_errors,
+                              GHZ_success=self.superoperator.GHZ_success)
 
-        self.measure_stab(stabs=second_round_s_stab_1,
-                          z=z,
-                          measurement_errors=meas_errors_s2_1,
-                          GHZ_success=self.superoperator.GHZ_success)
+    def stabilizer_cycle_weight_three_architecture(self, z=0):
+        self.set_qubit_states_to_state_previous_layer(z)
 
-        _, _ = self.superoperator_error(second_round_s_stab_1, idle_superoperator)
-        meas_errors_s2_2, _ = self.superoperator_error(second_round_s_stab_2, second_round_s_sup)
-        self.measure_stab(stabs=second_round_s_stab_2,
-                          z=z,
-                          measurement_errors=meas_errors_s2_2,
-                          GHZ_success=self.superoperator.GHZ_success)
+        first_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p1[z])
+                               if (divmod(i, self.size / 2)[0] % 2) == 0]
+        second_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p1[z])
+                                if (divmod(i, self.size / 2)[0] % 2) == 1]
+        third_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
+                               if (divmod(i, self.size / 2)[0] % 2) == 0]
+        fourth_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
+                                if (divmod(i, self.size / 2)[0] % 2) == 1]
+        p_stabilizers = [first_round_p_stabs, second_round_p_stabs, third_round_p_stabs, fourth_round_p_stabs]
 
+        first_round_s_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_s1[z])
+                               if (divmod(i, self.size / 2)[0] % 2) == 0]
+        second_round_s_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_s1[z])
+                                if (divmod(i, self.size / 2)[0] % 2) == 1]
+        third_round_s_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
+                               if (divmod(i, self.size / 2)[0] % 2) == 0]
+        fourth_round_s_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_s2[z])
+                                if (divmod(i, self.size / 2)[0] % 2) == 1]
+        s_stabilizers = [first_round_s_stabs, second_round_s_stabs, third_round_s_stabs, fourth_round_s_stabs]
+
+        # ------------------------------- Plaquette stabilizers --------------------------------
+
+        for stabs in p_stabilizers:
+            measurement_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_p_before_meas,
+                                                             architecture="weight_three")
+            self.measure_stab(stabs=stabs,
+                              z=z,
+                              measurement_errors=measurement_errors,
+                              GHZ_success=self.superoperator.GHZ_success)
+        # ------------------------------- Plaquette stabilizers --------------------------------
+
+        for stabs in s_stabilizers:
+            measurement_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_p_before_meas,
+                                                             architecture="weight_three")
+            self.measure_stab(stabs=stabs,
+                              z=z,
+                              measurement_errors=measurement_errors,
+                              GHZ_success=self.superoperator.GHZ_success)
 
     def stabilizer_cycle_with_superoperator_naomi_order(self, z=0):
         """
@@ -427,7 +462,8 @@ class toric(object):
 
         self.superoperator_error(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2)
 
-    def superoperator_error(self, stabs, superoperator_elements=None, qubit_errors=None, apply_error=True):
+    def superoperator_error(self, stabs, superoperator_elements=None, qubit_errors=None, apply_error=True,
+                            architecture=None):
         """
             Based on the probability of the superoperator elements, this method applies error to the qubits of the
             specified stabilizers and saves the according measurement error value (True or False) to a list. The
@@ -447,6 +483,10 @@ class toric(object):
                 Used to only obtain the measurement error list and the qubit error list without actually applying the
                 error on the qubits. This can be used when the measurements are done prior to the application of the
                 error to the qubits.
+            architecture : str
+                If superoperator for a different architecture (now the weight 4-2 and weight 3 architectures are
+                known) is assessed, then there are idle qubits. These will obtain error differently. This can be
+                specified with this parameter
 
             Returns
             -------
@@ -470,36 +510,68 @@ class toric(object):
             if not apply_error:
                 continue
             random_error_array = copy(qubit_errors[stab_index])
+            random_error_array_idle = copy(random_super_op_element.error_array_idle)
 
             # Skip error apply loop if error-array equals the noiseless case
-            if random_error_array == ["I", "I", "I", "I"]:
+            if (random_error_array == ["I", "I", "I", "I"] and
+               (random_error_array_idle is None or random_error_array_idle == ["I", "I", "I", "I"])):
                 continue
 
             # Apply 'Twirling' by shuffling the error array for the 4 qubits
             np.random.shuffle(random_error_array)
 
             for i, dir in enumerate(self.dirs):
+                self._apply_error_stabilizer(dir, i, random_error_array, stab)
+                self._apply_error_idle(dir, i, random_error_array_idle, stab, architecture)
 
-                if random_error_array[i] == "I":
-                    continue
-
-                if dir in stab.neighbors:
-                    _, edge = stab.neighbors[dir]
-
-                    if random_error_array[i] == "X":
-                        # XOR (^) with current state of the qubit
-                        edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
-
-                    elif random_error_array[i] == "Y":
-                        edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
-                        edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
-
-                    elif random_error_array[i] == "Z":
-                        edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
-
-        # if self.gl_plot: self.gl_plot.plot_errors()
+        if self.gl_plot: self.gl_plot.plot_errors()
 
         return measurement_errors, qubit_errors
+
+    def _apply_error_stabilizer(self, dir, i, random_error_array, stab):
+        if random_error_array[i] == "I":
+            return
+
+        if dir in stab.neighbors:
+            _, edge = stab.neighbors[dir]
+
+            if random_error_array[i] == "X":
+                # XOR (^) with current state of the qubit
+                edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
+
+            elif random_error_array[i] == "Y":
+                edge.qubit.E[0].state = 1 ^ edge.qubit.E[0].state
+                edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
+
+            elif random_error_array[i] == "Z":
+                edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
+
+    def _apply_error_idle(self, dir, i, random_error_array_idle, stab, architecture=None):
+        if random_error_array_idle is None:
+            return
+
+        if architecture == "weight_two_four":
+            translate = {"n": "e", "e": "n", "s": "w", "w": "s"}
+
+        elif architecture == "weight_three":
+            # No idle qubits at North of stabilizer
+            if dir == 'n':
+                return
+
+            # Idle node (containing two qubits) at South-West of stabilizer, wil get last to errors of error array
+            elif dir == 'w':
+                stab = stab.neighbors[dir][0].neighbors['s']
+                self._apply_error_stabilizer("n", i, random_error_array_idle, stab)
+                self._apply_error_stabilizer("w", i+1, random_error_array_idle, stab)
+                return
+            # Idle qubits at East and South of the stab. At East stab the North qubit, at South stab the West qubit.
+            else:
+                translate = {"e": "n", "s": "w"}
+
+        if dir in stab.neighbors:
+            neighbor_stab, _ = stab.neighbors[dir]
+            new_dir = dir.translate(str.maketrans(translate))
+            self._apply_error_stabilizer(new_dir, i, random_error_array_idle, neighbor_stab)
 
     '''
     ########################################################################################
@@ -630,7 +702,7 @@ class planar(toric):
         [Xvertical, Zhorizontal], where each item represents a homological Loop
         """
 
-        # if self.gl_plot: self.gl_plot.plot_final()
+        if self.gl_plot: self.gl_plot.plot_final()
 
         logical_error = [0, 0]
 
