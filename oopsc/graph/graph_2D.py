@@ -514,7 +514,7 @@ class toric(object):
 
             # Skip error apply loop if error-array equals the noiseless case
             if (random_error_array == ["I", "I", "I", "I"] and
-                (random_error_array_idle is None or random_error_array_idle == ["I", "I", "I", "I"])):
+               (random_error_array_idle is None or random_error_array_idle == ["I", "I", "I", "I"])):
                 continue
 
             # Apply 'Twirling' by shuffling the error array for the 4 qubits
