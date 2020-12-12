@@ -118,7 +118,7 @@ class Superoperator:
         sup_op_elements_s = []
         with open(path_to_file) as file:
             data_frame = pd.read_csv(file, sep=';', float_precision='round_trip')
-            index = ['error_stab', 'lie'] if 'error_idle' not in data_frame else ['error_stab', 'error_idle', 'lie']
+            index = ['error_config', 'lie'] if 'error_idle' not in data_frame else ['error_stab', 'error_idle', 'lie']
             data_frame = data_frame.set_index(index)
 
             # If GHZ_success is 1.1 it has obtained the default value and can be overwritten

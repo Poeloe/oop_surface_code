@@ -15,6 +15,18 @@ from copy import copy
 import random
 
 
+def _open_existing_superoperator_file(filename):
+    if not os.path.exists(filename):
+        return
+
+    existing_file = pd.read_csv(filename, sep=';')
+    index = ['error_config', 'lie'] if 'error_idle' not in existing_file else ['error_stab', 'error_idle', 'lie']
+
+    existing_file = existing_file.set_index(index)
+
+    return existing_file
+
+
 def _combine_idle_and_stabilizer_superoperator(dataframes):
     def combine_dataframes(stab, stab_idle, type):
         for stab_item in stab.iteritems():
@@ -178,12 +190,8 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
-    normal = (pd.read_csv(fn + ".csv", sep=';', index_col=[0, 1])
-                                   if fn and os.path.exists(fn + ".csv") else None)
-    cut_off = (pd.read_csv(fn + "_failed.csv", sep=';', index_col=[0, 1]) if
-                                  fn and os.path.exists(fn + "_failed.csv") else None)
-    idle = (pd.read_csv(fn + "_idle.csv", sep=';', index_col=[0, 1]) if
-                                fn and os.path.exists(fn + "_idle.csv") else None)
+    normal = _open_existing_superoperator_file(fn + ".csv")
+    cut_off = _open_existing_superoperator_file(fn + "_failed.csv")
 
     # Combine the superoperator results obtained for each worker
     for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
@@ -208,7 +216,7 @@ def main_series(fn, cp_path, **kwargs):
     if fn and not args['print_run_order']:
         for result, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
             fn_new = fn + fn_add
-            existing_file = pd.read_csv(fn_new, sep=';', index_col=[0, 1]) if os.path.exists(fn_new) else None
+            existing_file = _open_existing_superoperator_file(fn_new)
             result = _combine_superoperator_dataframes(result, existing_file)
             if result is not None:
                 result.to_csv(fn_new, sep=';')
