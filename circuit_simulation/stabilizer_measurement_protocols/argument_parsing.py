@@ -200,12 +200,12 @@ def compose_parser():
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=1)
+                        default=10000)
     parser.add_argument('-T2ei',
                         '--T2_idle_electron',
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=1000)
+                        default=1)
 
     return parser
