@@ -189,7 +189,7 @@ def create_superoperator_decomposition(self, qubits, qubits_matrix):
     superoperator_decomposition = {}
     for element in decomposition:
         kraus_operator = "".join([list(el.keys())[0] for el in element])
-        matrix = math.prod([list(el.values())[0] for el in element])
+        matrix = np.prod([list(el.values())[0] for el in element])
         superoperator_decomposition[kraus_operator] = matrix
 
     # Save the decomposition to the QC object, such that it only has to be constructed once for multiple iterations
