@@ -6,6 +6,25 @@ from circuit_simulation.gate_teleportation.argument_parsing import compose_parse
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import _additional_parsing_of_arguments, \
     _additional_qc_arguments
 from itertools import product
+import pandas as pd
+from copy import copy
+
+
+def create_data_frame(data_frame, **kwargs):
+
+    pop_list = ['iterations', 'save_latex_pdf', 'cp_path', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
+                'single_qubit_gate_lookup', 'thread_safe_printing']
+    index_columns = copy(kwargs)
+    [index_columns.pop(item) for item in pop_list]
+
+    if data_frame is not None:
+        return data_frame, index_columns
+
+    index = pd.MultiIndex.from_product([[item] for item in index_columns.values()], names=list(index_columns.keys()))
+    data_frame = pd.DataFrame(index=index)
+    data_frame['avg_fidelity'] = None
+
+    return data_frame, index_columns
 
 
 def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, cp_path, **kwargs):
@@ -24,6 +43,7 @@ def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_l
 
     print(*total_print_lines)
     print("Average fideility is: {}".format(sum(fidelities)/iterations))
+    return fidelities
 
 
 def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwargs):
@@ -48,12 +68,13 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
     pb = kwargs.pop('no_progress_bar')
+    data_frame = None
 
     # Loop over command line arguments
     for gate, pg, pn, pm, pm_1, lde in product(gates, gate_error_probabilities, network_error_probabilities,
                                                meas_errors, meas_1_errors, fixed_lde_attempts):
         pm = pg if pm is None or pm_equals_pg else pm
-        kwargs.update({
+        loop_arguments = {
             'gate': gate,
             'pg': pg,
             'pm': pm,
@@ -61,12 +82,16 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'pm_1': pm_1,
             'fixed_lde_attempts': lde,
             'pb': pb
-        })
+        }
+        kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
+        data_frame, index_columns = create_data_frame(data_frame, **kwargs)
         if threaded:
             pass
         else:
-            run_series(**kwargs)
+            fidelities = run_series(**kwargs)
+            data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = sum(fidelities)/kwargs['iterations']
+    data_frame.to_csv(csv_filename + '.csv')
 
 
 if __name__ == '__main__':
@@ -74,5 +99,6 @@ if __name__ == '__main__':
 
     args = vars(parser.parse_args())
     args = _additional_parsing_of_arguments(args)
+    args.pop('gate_duration_file')
 
     run_for_arguments(**args)
