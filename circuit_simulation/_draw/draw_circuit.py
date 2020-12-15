@@ -138,7 +138,7 @@ def _level_qubit_paths(init, qubit_indices=None):
 
 
 def color_qubit_lines(self, init):
-    colors = sorted(list(COLORS.keys()))
+    colors = (list(COLORS.keys()))
     colors.remove('white'), colors.remove('grey')
     node_color_dict = {}
     for i, key in enumerate(self.nodes.keys()):

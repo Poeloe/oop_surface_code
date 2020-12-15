@@ -176,29 +176,29 @@ class TestGateApplication(unittest.TestCase):
                                                                                         [0, 0, 0, 0], [0, 0, 0, 0]]))
 
     def test_apply_SWAP_full_swap(self):
-        qc = QC(3, 0, noise=True, pn=0.1)
+        qc = QC(3, 0, noise=True, pg=0.1)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
         qc.CNOT(0, 1)
 
-        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pg=0.1)
         qc2.SWAP(0, 1, efficient=False)
 
         np.testing.assert_array_almost_equal(qc.total_density_matrix()[0].toarray(),
                                              qc2.total_density_matrix()[0].toarray())
 
     def test_apply_SWAP_efficient_swap(self):
-        qc = QC(3, 0, noise=True, pn=0.1)
+        qc = QC(3, 0, noise=True, pg=0.1, pn=0.1)
         qc.create_bell_pair(1, 2)
         qc._uninitialised_qubits.append(0)
-        # Full SWAP is equal to three CNOT operations, last CNOT noiseless is should be equal to efficient SWAP result
+        # SWAP is equal to three CNOT operations
+        qc.CNOT(1, 0)
         qc.CNOT(0, 1)
         qc.CNOT(1, 0)
-        qc.CNOT(0, 1, noise=False)
         # Qubit 1 is now uninitialised due to swapping. Measure it such that it disappears from the density matrix
         qc.measure(1)
 
-        qc2 = QC(3, 0, noise=True, pn=0.1)
+        qc2 = QC(3, 0, noise=True, pg=0.1, pn=0.1)
         qc2.create_bell_pair(1, 2)
         qc2._uninitialised_qubits.append(0)
         qc2.SWAP(1, 0, efficient=True)
@@ -230,13 +230,11 @@ class TestErrorImplementation(unittest.TestCase):
     def test_amplitude_damping_channel(self):
         qc = QC(1, 0)
         density_matrix = sp.csr_matrix([[0, 0], [0, 1]])
-        compare_matrix = sp.csr_matrix([[1, 0], [0, 0]])
+        compare_matrix = sp.csr_matrix([[0.5, 0], [0, 0.5]])
 
-        density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 10, 2.3)
-        fid = fidelity_elementwise(density_matrix, density_matrix_noise)
+        density_matrix_noise = qc._N_amplitude_damping_channel(0, density_matrix, 1, 20, 2.3)
 
         np.testing.assert_array_almost_equal(compare_matrix.toarray(), density_matrix_noise.toarray(), 2)
-        self.assertLess(fid, 0.1)
 
     def test_phase_damping_channel(self):
         qc = QC(1, 0)

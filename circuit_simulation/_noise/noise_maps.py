@@ -7,18 +7,23 @@ from circuit_simulation.basic_operations.basic_operations import CT
 from circuit_simulation.gates.gate import SingleQubitGate
 
 
-def N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
-    p = 1 - math.exp(-waiting_time / T)
-    kraus_opp_1 = SingleQubitGate("A1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'A1')
-    kraus_opp_2 = SingleQubitGate("A2", np.array([[0, math.sqrt(p)], [0, 0]]), 'A2')
+def N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T, p=1/2):
+    gamma = 1 - math.exp(-waiting_time / T)
+    kraus_opp_1 = SingleQubitGate("A1", math.sqrt(p) * np.array([[1, 0], [0, math.sqrt(1 - gamma)]]), 'A1')
+    kraus_opp_2 = SingleQubitGate("A2", math.sqrt(p) * np.array([[0, math.sqrt(gamma)], [0, 0]]), 'A2')
+    kraus_opp_3 = SingleQubitGate("A3", math.sqrt(1-p) * np.array([[math.sqrt(1 - gamma), 0], [0, 1]]), 'A3')
+    kraus_opp_4 = SingleQubitGate("A4", math.sqrt(1-p) * np.array([[0, 0], [math.sqrt(gamma), 0]]), 'A4')
 
-    return N_kraus_operators(self, tqubit, [kraus_opp_1, kraus_opp_2], density_matrix, num_qubits)
+    return N_kraus_operators(self, tqubit,
+                             [kraus_opp_1, kraus_opp_2, kraus_opp_3, kraus_opp_4],
+                             density_matrix,
+                             num_qubits)
 
 
 def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
-    p = 1 - math.exp(-waiting_time / T)
-    kraus_opp_1 = SingleQubitGate("K1", np.array([[1, 0], [0, math.sqrt(1 - p)]]), 'K1')
-    kraus_opp_2 = SingleQubitGate("K2", np.array([[0, 0], [0, math.sqrt(p)]]), 'K2')
+    gamma = 1 - math.exp(-waiting_time / T)
+    kraus_opp_1 = SingleQubitGate("P1", np.array([[1, 0], [0, math.sqrt(1 - gamma)]]), 'P1')
+    kraus_opp_2 = SingleQubitGate("P2", np.array([[0, 0], [0, math.sqrt(gamma)]]), 'P2')
 
     return N_kraus_operators(self, tqubit, [kraus_opp_1, kraus_opp_2], density_matrix, num_qubits)
 

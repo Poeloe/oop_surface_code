@@ -1,3 +1,7 @@
+from circuit_simulation.basic_operations.basic_operations import CT
+from circuit_simulation.states.states import ket_0, ket_1
+import numpy as np
+
 # noinspection PyProtectedMember
 class Qubit:
 
@@ -81,7 +85,7 @@ class Qubit:
             self._waiting_time_lde += amount
 
         # When waiting time is increased, qubit is initialised and the nuclear qubit is being decoupled (pulse sequence)
-        if self.qubit_type == 'n':
+        if self.qubit_type == 'n' and not self.equal_to_0_or_1_state():
             self.increase_sequence_time(amount)
 
     def reset_waiting_time(self):
@@ -90,3 +94,18 @@ class Qubit:
 
     def reset_sequence_time(self):
         self._sequence_time = 0
+
+    def equal_to_0_or_1_state(self):
+        """
+        If the state of te qubits is equal to |0> or |1>, then also no sequence is applied. This is checked here
+        """
+        dens = self.density_matrix
+        zero_state = CT(ket_0).toarray()
+        one_state = CT(ket_1).toarray()
+        # Quick dimension check, such that no unnecessary big matrix comparison is performed
+        if dens.shape != zero_state.shape:
+            return False
+
+        dens = dens.toarray()
+        # State on qubit may be noisy, therefore comparison is with tolerance
+        return np.allclose(dens, zero_state, 1e-3, 1e-3) or np.allclose(dens, one_state, 1e-3, 1e-3)
