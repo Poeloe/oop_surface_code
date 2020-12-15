@@ -442,7 +442,7 @@ def _update_totals_and_averages(self, data, totals, averages):
 
 
 def _create_new_superoperator_dataframe(self, protocol_name, qubit_order):
-    error_index = ["".join(i) for i in product("IXYZ", repeat=4)]
+    error_index = ["".join(i) for i in product("IXYZ", repeat=len(self.ghz_qubits))]
     lie_index = [True, False]
     index = pd.MultiIndex.from_product([error_index, lie_index], names=['error_config', 'lie'])
     columns = ['p', 's']
