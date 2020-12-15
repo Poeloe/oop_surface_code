@@ -67,7 +67,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubit=4)
         qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubit=1)
 
-    elif protocol in ['dyn_prot_6_sym_1', 'dyn_prot_6_sym_1_swap']:
+    elif protocol in ['dyn_prot_4_6_sym_1', 'dyn_prot_4_6_sym_1_swap']:
         qc = QuantumCircuit(18, 2, **kwargs)
 
         qc.define_node("A", qubits=[16, 9, 8], electron_qubits=8, data_qubits=16, ghz_qubit=9)
@@ -84,7 +84,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
-    elif protocol == 'dyn_prot_14_1':
+    elif protocol == 'dyn_prot_4_14_1':
         qc = QuantumCircuit(22, 2, **kwargs)
 
         qc.define_node("A", qubits=[20, 13, 12, 11, 10], electron_qubits=10, data_qubits=20, ghz_qubit=13)
@@ -101,7 +101,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
-    elif protocol == 'dyn_prot_22_1':
+    elif protocol == 'dyn_prot_4_22_1':
         qc = QuantumCircuit(24, 2, **kwargs)
 
         qc.define_node("A", qubits=[22, 15, 14, 13, 12], electron_qubits=12, data_qubits=22, ghz_qubit=15)
@@ -118,7 +118,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
-    elif protocol == 'dyn_prot_42_1':
+    elif protocol == 'dyn_prot_4_42_1':
         qc = QuantumCircuit(28, 2, **kwargs)
 
         qc.define_node("A", qubits=[26, 19, 18, 17, 16, 15], electron_qubits=15, data_qubits=26, ghz_qubit=19)
@@ -135,7 +135,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
-    elif protocol == 'dyn_prot':
+    elif protocol == 'dyn_prot_4':
         qc = QuantumCircuit(40, 2, **kwargs)
 
         qc.define_node("A", qubits=[38, 31, 30, 29, 28, 27, 26, 25, 24], electron_qubits=24, data_qubits=38, ghz_qubit=31)
@@ -155,13 +155,38 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
     elif protocol in ['bipartite_4', 'bipartite_4_v2', 'bipartite_4_v3', 'bipartite_5', 'bipartite_6', 'bipartite_7',
-                      'bipartite_8', 'bipartite_9', 'bipartite_10', 'bipartite_11', 'bipartite_12']:
+                      'bipartite_8', 'bipartite_9', 'bipartite_10', 'bipartite_11', 'bipartite_12', 'dejmps_2_4_1_swap',
+                      'dejmps_4_6_1_swap', 'dejmps_4_8_1_swap']:
+        qc = QuantumCircuit(28, 6, **kwargs)
+
+        if protocol in ['dejmps_2_4_1_swap', 'dejmps_4_8_1_swap']:
+            qc.define_node("A", qubits=[26, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12], electron_qubits=12,
+                           data_qubits=26, ghz_qubit=13)
+            qc.define_node("B", qubits=[24, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=24,
+                           ghz_qubit=1)
+        elif protocol in ['dejmps_2_6_1_swap']:
+            qc.define_node("A", qubits=[26, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12], electron_qubits=12,
+                           data_qubits=26, ghz_qubit=14)
+            qc.define_node("B", qubits=[24, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=24,
+                           ghz_qubit=2)
+        else:
+            qc.define_node("A", qubits=[26, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12], electron_qubits=12,
+                           data_qubits=26, ghz_qubit=12)
+            qc.define_node("B", qubits=[24, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=24,
+                           ghz_qubit=0)
+
+        qc.define_sub_circuit("AB")
+
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B", concurrent_sub_circuits=["A"])
+
+    elif protocol in ['DEJMPS_2_4_1_swap', 'DEJMPS_4_6_1_swap', 'DEJMPS_4_8_1_swap']:
         qc = QuantumCircuit(28, 6, **kwargs)
 
         qc.define_node("A", qubits=[26, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12], electron_qubits=12,
-                       data_qubits=26, ghz_qubit=12)
+                       data_qubits=26, ghz_qubit=13)
         qc.define_node("B", qubits=[24, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=24,
-                       ghz_qubit=0)
+                       ghz_qubit=1)
 
         qc.define_sub_circuit("AB")
 
@@ -303,6 +328,48 @@ def expedient(qc: QuantumCircuit, *, operation):
     PBAR.update(10) if PBAR is not None else None
 
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
+
+
+def dejmps_2_4_1_swap(qc: QuantumCircuit, *, operation):
+
+    level_1 = False
+    while not level_1:
+        PBAR.reset() if PBAR is not None else None
+        qc.start_sub_circuit("AB", forced_level=True)
+        qc.create_bell_pair(0, 12)
+        qc.SWAP(0, 1, efficient=True)
+        qc.SWAP(12, 13, efficient=True)
+        success_level_1 = qc.single_selection(CZ_gate, 0, 12, retry=False)
+        if not success_level_1:
+            continue
+
+        PBAR.update(35) if PBAR is not None else None
+
+        level_2 = False
+        while not level_2:
+            qc.create_bell_pair(0, 12)
+            qc.SWAP(0, 2, efficient=True)
+            qc.SWAP(12, 14, efficient=True)
+            level_2 = qc.single_selection_var(CZ_gate, 0, 2, 12, 14, retry=False)
+
+        PBAR.update(35) if PBAR is not None else None
+
+        qc.SWAP(0, 2, efficient=False)  # What about the 'efficient' label if the swap is still one-sided but the
+                                        # memory qubit state is the one that matters and the electron qubit state we
+                                        # don't have to keep?
+        qc.SWAP(12, 14, efficient=False)
+        level_1 = qc.single_selection_var(CNOT_gate, 0, 1, 12, 13, create_bell_pair=False, retry=False)
+
+        PBAR.update(20) if PBAR is not None else None
+
+    qc.get_state_fidelity()
+
+    qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
+
+    qc.stabilizer_measurement(operation, nodes=["B", "A"], swap=False)
+
+    PBAR.update(10) if PBAR is not None else None
+
 
 
 def bipartite_4(qc: QuantumCircuit, *, operation):
@@ -543,7 +610,7 @@ def bipartite_8(qc: QuantumCircuit, *, operation):
     qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
 
 
-def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
+def dyn_prot_4_6_sym_1(qc: QuantumCircuit, *, operation):
 
     ghz_success = False
     while not ghz_success:
@@ -614,7 +681,7 @@ def dyn_prot_6_sym_1(qc: QuantumCircuit, *, operation):
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
 
 
-def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
+def dyn_prot_4_6_sym_1_swap(qc: QuantumCircuit, *, operation):
 
     ghz_success = False
     while not ghz_success:
@@ -695,7 +762,7 @@ def dyn_prot_6_sym_1_swap(qc: QuantumCircuit, *, operation):
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
 
 
-def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
+def dyn_prot_4_14_1(qc: QuantumCircuit, *, operation):
 
     # T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
     # Tstar = T.transpose()
@@ -784,7 +851,7 @@ def dyn_prot_14_1(qc: QuantumCircuit, *, operation):
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
 
 
-def dyn_prot_22_1(qc: QuantumCircuit, *, operation):
+def dyn_prot_4_22_1(qc: QuantumCircuit, *, operation):
     ghz_success = False
     while not ghz_success:
         PBAR.reset() if PBAR is not None else None
