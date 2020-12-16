@@ -49,7 +49,7 @@ def plot_thresholds(
     f1=None,                   # axis object of rescaled fit plot
     par=None,
     lattices=None,
-    ms=5,
+    ms=10,
     ymax=1,
     ymin=0.5,
     styles=[".-", "-"],             # linestyles for data and fit

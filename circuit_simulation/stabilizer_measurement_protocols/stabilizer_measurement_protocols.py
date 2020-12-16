@@ -103,8 +103,6 @@ def plain(qc: QuantumCircuit, *, operation):
         qc.start_sub_circuit("B")
         qc.X(5)
 
-    qc.get_state_fidelity()
-
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
 
     PBAR.update(90) if PBAR is not None else None
@@ -126,8 +124,6 @@ def plain_swap(qc: QuantumCircuit, *, operation):
         qc.X(7)
         qc.start_sub_circuit("B")
         qc.X(5)
-
-    qc.get_state_fidelity()
 
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
 
@@ -184,8 +180,6 @@ def expedient(qc: QuantumCircuit, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
-
-    qc.get_state_fidelity()
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
@@ -263,7 +257,6 @@ def stringent(qc: QuantumCircuit, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
-    qc.get_state_fidelity()
 
     # Step 15 from Table D.2 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
@@ -321,7 +314,6 @@ def expedient_swap(qc: QuantumCircuit, *, operation):
             continue
 
     PBAR.update(20) if PBAR is not None else None
-    qc.get_state_fidelity()
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
@@ -385,7 +377,6 @@ def stringent_swap(qc: QuantumCircuit, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
-    qc.get_state_fidelity()
 
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
@@ -398,7 +389,6 @@ def duo_structure(qc: QuantumCircuit, *, operation):
     qc.create_bell_pair(2, 5)
     qc.double_selection(CZ_gate, 1, 4)
     qc.double_selection(CNOT_gate, 1, 4)
-    qc.get_state_fidelity()
 
     qc.stabilizer_measurement(operation, nodes=["A", "B"])
 
@@ -456,7 +446,6 @@ def duo_structure_2(qc: QuantumCircuit, *, operation):
             continue
 
         PBAR.update(20) if PBAR is not None else None
-    qc.get_state_fidelity()
 
     # Step 9 from Table D.1 (Thesis Naomi Nickerson)
     # ORDER IS ON PURPOSE: EVERYTIME THE TOP QUBIT IS MEASURED, WHICH DECREASES RUNTIME SIGNIFICANTLY

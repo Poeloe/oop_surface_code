@@ -656,7 +656,6 @@ class QuantumCircuit:
         elif type(electron_qubits) == int:
             electron_qubits = [electron_qubits]
 
-
         node = Node(name, qubits, self, electron_qubits, data_qubits)
         self.nodes.update({name: node})
         for qubit in qubits:
@@ -1963,6 +1962,7 @@ class QuantumCircuit:
             self.measure(cqubit, probabilistic=False)
 
         # Main code of the method
+        self.get_state_fidelity() if len(self.nodes) > 1 else None
         if nodes is None:
             nodes = [self.get_node_name_from_qubit(cqubit)]
         if tqubit is None:
