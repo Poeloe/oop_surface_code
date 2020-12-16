@@ -22,14 +22,14 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         kwargs.pop('basis_transformation_noise')
         kwargs.pop('no_single_qubit_error')
         qc = QuantumCircuit(9, 2, basis_transformation_noise=True, no_single_qubit_error=False, **kwargs)
-        qc.define_node("A", qubits=[1, 3, 5, 7, 0], data_qubits=[1, 3, 5, 7], ghz_qubit=0)
+        qc.define_node("A", qubits=[1, 3, 5, 7, 0], amount_data_qubits=4)
         qc.define_sub_circuit("A")
 
     elif protocol == 'duo_structure':
         qc = QuantumCircuit(14, 2, **kwargs)
 
-        qc.define_node("A", qubits=[0, 1, 2, 6, 8], data_qubits=[6, 8], ghz_qubit=2)
-        qc.define_node("B", qubits=[3, 4, 5, 10, 12], data_qubits=[10, 12], ghz_qubit=5)
+        qc.define_node("A", qubits=[8, 6, 2, 1, 0], amount_data_qubits=2)
+        qc.define_node("B", qubits=[12, 10, 5, 4, 3], amount_data_qubits=2)
 
         qc.define_sub_circuit("AB")
         qc.define_sub_circuit("A")
@@ -38,34 +38,26 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
     elif protocol == 'plain':
         qc = QuantumCircuit(16, 2, **kwargs)
 
-        qc.define_node("A", qubits=[14, 7, 6], data_qubits=14, ghz_qubit=7)
-        qc.define_node("B", qubits=[12, 5, 4], data_qubits=12, ghz_qubit=5)
-        qc.define_node("C", qubits=[10, 3, 2], data_qubits=10, ghz_qubit=3)
-        qc.define_node("D", qubits=[8, 0, 1], data_qubits=8, ghz_qubit=1)
+        qc.define_node("A", qubits=[14, 7, 6])
+        qc.define_node("B", qubits=[12, 5, 4])
+        qc.define_node("C", qubits=[10, 3, 2])
+        qc.define_node("D", qubits=[8, 0, 1])
 
     elif protocol == 'plain_swap':
         qc = QuantumCircuit(16, 2, **kwargs)
 
-        qc.define_node("A", qubits=[14, 7, 6], data_qubits=14, electron_qubits=6, ghz_qubit=7)
-        qc.define_node("B", qubits=[12, 5, 4], data_qubits=12, electron_qubits=4, ghz_qubit=5)
-        qc.define_node("C", qubits=[10, 3, 2], data_qubits=10, electron_qubits=2, ghz_qubit=3)
-        qc.define_node("D", qubits=[8, 0, 1], data_qubits=8, electron_qubits=0, ghz_qubit=1)
+        qc.define_node("A", qubits=[14, 7, 6])
+        qc.define_node("B", qubits=[12, 5, 4])
+        qc.define_node("C", qubits=[10, 3, 2])
+        qc.define_node("D", qubits=[8, 1, 0])
 
     elif protocol == 'duo_structure_2':
         qc = QuantumCircuit(32, 5, **kwargs)
 
-        qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], data_qubits=[30, 28], ghz_qubit=15)
-        qc.define_node("B", qubits=[26, 24, 11, 10, 9, 8], data_qubits=[26, 24], ghz_qubit=11)
-        qc.define_node("C", qubits=[22, 20, 7, 6, 5, 4], data_qubits=[22, 10], ghz_qubit=7)
-        qc.define_node("D", qubits=[18, 16, 3, 2, 1, 0], data_qubits=[18, 16], ghz_qubit=3)
-
-    elif protocol in ['expedient_swap', 'stringent_swap']:
-        qc = QuantumCircuit(20, 2, **kwargs)
-
-        qc.define_node("A", qubits=[18, 11, 10, 9], electron_qubits=9, data_qubits=18, ghz_qubit=10)
-        qc.define_node("B", qubits=[16, 8, 7, 6], electron_qubits=6, data_qubits=16, ghz_qubit=7)
-        qc.define_node("C", qubits=[14, 5, 4, 3], electron_qubits=3, data_qubits=14, ghz_qubit=4)
-        qc.define_node("D", qubits=[12, 2, 1, 0], electron_qubits=0, data_qubits=12, ghz_qubit=1)
+        qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], amount_data_qubits=2)
+        qc.define_node("B", qubits=[26, 24, 11, 10, 9, 8], amount_data_qubits=2)
+        qc.define_node("C", qubits=[22, 20, 7, 6, 5, 4], amount_data_qubits=2)
+        qc.define_node("D", qubits=[18, 16, 3, 2, 1, 0], amount_data_qubits=2)
 
     elif protocol in ['dyn_prot_4_6_sym_1', 'dyn_prot_4_6_sym_1_swap']:
         qc = QuantumCircuit(18, 2, **kwargs)
@@ -196,10 +188,10 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
     else:
         qc = QuantumCircuit(20, 2, **kwargs)
 
-        qc.define_node("A", qubits=[18, 11, 10, 9], data_qubits=18, ghz_qubit=11)
-        qc.define_node("B", qubits=[16, 8, 7, 6], data_qubits=16, ghz_qubit=8)
-        qc.define_node("C", qubits=[14, 5, 4, 3], data_qubits=14, ghz_qubit=5)
-        qc.define_node("D", qubits=[12, 2, 1, 0], data_qubits=12, ghz_qubit=2)
+        qc.define_node("A", qubits=[18, 11, 10, 9])
+        qc.define_node("B", qubits=[16, 8, 7, 6])
+        qc.define_node("C", qubits=[14, 5, 4, 3])
+        qc.define_node("D", qubits=[12, 2, 1, 0])
 
     # Common sub circuit defining handled here
     if protocol in ['plain', 'plain_swap', 'duo_structure_2', 'expedient', 'expedient', 'expedient_swap', 'stringent',
