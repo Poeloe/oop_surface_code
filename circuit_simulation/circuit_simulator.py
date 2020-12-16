@@ -1586,6 +1586,7 @@ class QuantumCircuit:
 
         self.apply_gate(CZ_gate, tqubit, cqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
+    @determine_qubit_index(parameter_positions=[1, 2])
     @skip_if_cut_off_reached
     @handle_none_parameters
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
@@ -1674,6 +1675,7 @@ class QuantumCircuit:
                                             Protocol gate sequences
         ---------------------------------------------------------------------------------------------------------  
     """
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def single_selection(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                          pg=None, retry=True, user_operation=True):
@@ -1697,6 +1699,7 @@ class QuantumCircuit:
             else:
                 success = True
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def single_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, next_qubit=1, measure=True, noise=None,
                               pn=None, pm=None, pg=None, user_operation=True):
@@ -1720,6 +1723,7 @@ class QuantumCircuit:
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 success = True
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def double_selection(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                          retry=True, user_operation=True):
@@ -1740,6 +1744,7 @@ class QuantumCircuit:
             if not retry:
                 return success
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def double_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                               user_operation=True):
@@ -1764,6 +1769,7 @@ class QuantumCircuit:
                 parity.append(measurement_outcomes[0] == measurement_outcomes[1])
             return all(parity)
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def single_dot(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                    pg=None, draw_X_gate=False, parity_check=True, retry=True, user_operation=True):
@@ -1808,6 +1814,7 @@ class QuantumCircuit:
             else:
                 return
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def single_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
                         pg=None, draw_X_gate=False, retry=False, parity_check=True, user_operation=True):
@@ -1861,6 +1868,7 @@ class QuantumCircuit:
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
                 success = True
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def double_dot(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                    draw_X_gate=False, parity_check=True, retry=True, user_operation=True):
@@ -1892,6 +1900,7 @@ class QuantumCircuit:
                     self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
                 return success, single_selection_success
 
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     def double_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
                         draw_X_gate=False, retry=False, parity_check=True, user_operation=True):
