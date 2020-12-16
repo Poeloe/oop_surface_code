@@ -18,7 +18,8 @@ from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
-from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached, SKIP
+from circuit_simulation.utilities.decorators import (handle_none_parameters, skip_if_cut_off_reached, SKIP,
+                                                     determine_qubit_index)
 from copy import copy
 import pickle
 
@@ -146,7 +147,6 @@ class QuantumCircuit:
         self.d = 2 ** num_qubits
         self.qubits = None
         self.nodes = None
-        self.ghz_qubits = None
         self.ghz_fidelity = None
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
@@ -627,7 +627,7 @@ class QuantumCircuit:
         if total:
             self._circuit_operations_ended = True
 
-    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, ghz_qubit=None):
+    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, amount_data_qubits=1):
         """
             Defines a node for the QuantumCircuit object. This is especially useful when working with a networked
             architecture. For now it is assumed that one uses an NV-center as a node.
@@ -645,34 +645,30 @@ class QuantumCircuit:
             self.nodes = {}
         if self.qubits is None:
             self.qubits = {}
-        if self.ghz_qubits is None:
-            self.ghz_qubits = {}
-
-        if electron_qubits is None:
-            electron_qubits = []
-        elif type(electron_qubits) == int:
-            electron_qubits = [electron_qubits]
 
         if data_qubits is None:
-            data_qubits = []
+            data_qubits = [qubit for qubit in qubits[:amount_data_qubits]]
         elif type(data_qubits) == int:
             data_qubits = [data_qubits]
 
-        node = Node(name, qubits, self, electron_qubits, data_qubits, ghz_qubit)
+        if electron_qubits is None:
+            electron_qubits = [qubits[-1]]
+        elif type(electron_qubits) == int:
+            electron_qubits = [electron_qubits]
+
+
+        node = Node(name, qubits, self, electron_qubits, data_qubits)
         self.nodes.update({name: node})
         for qubit in qubits:
             qubit_type = 'e' if qubit in electron_qubits else 'n'
             is_data_qubit = qubit in data_qubits
-            is_ghz_qubit = qubit == ghz_qubit
             T1_idle = self.T1_idle if qubit_type == 'n' else self.T1_idle_electron
             T2_idle = self.T2_idle if qubit_type == 'n' else self.T2_idle_electron
             T1_lde = self.T1_lde if qubit_type == 'n' else None
             T2_lde = self.T2_lde if qubit_type == 'n' else None
             q = Qubit(self, qubit, qubit_type, node=name, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde,
-                      T2_lde=T2_lde, is_data_qubit=is_data_qubit, is_ghz_qubit=is_ghz_qubit)
+                      T2_lde=T2_lde, is_data_qubit=is_data_qubit)
             self.qubits[qubit] = q
-            if is_ghz_qubit:
-                self.ghz_qubits[qubit] = q
 
     def get_node_qubits(self, qubits):
         """
@@ -694,9 +690,6 @@ class QuantumCircuit:
             if any(node.qubit_in_node(qubit) for qubit in qubits):
                 node_qubits.extend(node.qubits)
         return node_qubits
-
-    def get_ghz_qubits(self):
-        return list(self.ghz_qubits.keys())
 
     @property
     def data_qubits(self):
@@ -974,6 +967,7 @@ class QuantumCircuit:
 
             self._qubit_array[tqubit] = state
             self._qubit_density_matrix_lookup[tqubit] = (CT(state), [tqubit])
+            self._update_uninitialised_qubit_register([tqubit], "remove")
 
     def get_begin_states(self):
         """ Returns the initial state vector of the qubits """
@@ -1101,6 +1095,7 @@ class QuantumCircuit:
                 self._N_decoherence([i, i + 1], times=times_total)
                 self._increase_duration(bell_creation_duration)
 
+    @determine_qubit_index(parameter_positions=[1, 2])
     @skip_if_cut_off_reached
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
@@ -1253,6 +1248,7 @@ class QuantumCircuit:
                                                 General Gate Application
         ---------------------------------------------------------------------------------------------------------     
     """
+    @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
     @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
@@ -1936,7 +1932,9 @@ class QuantumCircuit:
         # Function is here, such that user parameters are not overwritten in the loop
         def node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit):
             if cqubit is None:
-                cqubit = self.nodes[node].ghz_qubit
+                # control qubit is the qubit in the node that is initialised apart from the data qubits
+                cqubit = int(set(self.qubits.keys()).intersection(self.nodes[node].qubits)
+                             .difference(self._uninitialised_qubits).difference(self.data_qubits).pop())
             ghz_qubit = cqubit
             if tqubit is None:
                 data_qubits = self.nodes[node].data_qubits
@@ -2175,6 +2173,7 @@ class QuantumCircuit:
         return self._operations.measurement_operations.measurement_first_qubit(density_matrix, measure, noise, pm,
                                                                                no_normalisation=no_normalisation)
 
+    @determine_qubit_index(parameter_positions=[1])
     @skip_if_cut_off_reached
     @handle_none_parameters
     def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, pm_1=None,

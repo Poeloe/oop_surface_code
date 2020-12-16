@@ -30,6 +30,56 @@ def handle_none_parameters(func=None, *, excluded_parameters=None):
     return set_nones_to_object_value
 
 
+def determine_qubit_index(func=None, parameter_positions=None):
+    """
+        Decorator used to determine qubit indices based on a the passed string
+
+        Parameters
+        ----------
+        parameter_positions : list
+            Positions of the parameters in the method signature that should be checked for qubit_strings. Counting
+            starts at 0.
+    """
+    if not func:
+        return functools.partial(determine_qubit_index, parameter_positions=parameter_positions)
+
+    @functools.wraps(func)
+    def get_qubit_index(*args, **kwargs):
+        nonlocal parameter_positions
+        qc = args[0]
+
+        # First handle the kwargs
+        parameters_list = ['tqubit', 'cqubit', 'qubit1', 'qubit2', 'measure_qubits']
+        qubit_strings = [kwargs[i] for i in parameters_list if i in kwargs and type(kwargs[i]) in [str, list]]
+        if 'measure_qubits' in kwargs:
+            [qubit_strings.append(qubit) for qubit in kwargs['measure_qubits'] if type(qubit) == str]
+        for qubit_string, parameter in zip(qubit_strings, parameters_list):
+            if type(qubit_string) == list:
+                qubit_index = [qc._operations.gate_operations.determine_node_qubit_from_string(args[0], qubit)
+                               for qubit in qubit_string if type(qubit) == str]
+            else:
+                qubit_index = qc._operations.gate_operations.determine_node_qubit_from_string(args[0], qubit_string)
+            kwargs[parameter] = qubit_index if qubit_index else kwargs[parameter]
+
+        # Handle the args
+        list_args = list(args)
+        for i, arg in enumerate(list_args):
+            if i in parameter_positions:
+                if type(arg) == str:
+                    list_args[i] = qc._operations.gate_operations.determine_node_qubit_from_string(args[0], arg)
+                # If arg is a list, all members should be translated to qubit indices
+                if type(arg) == list:
+                    qubit_indices = []
+                    for qubit in arg:
+                        if type(qubit) == str:
+                            qubit_indices.append(qc._operations.gate_operations.determine_node_qubit_from_string(
+                                args[0], qubit))
+                    list_args[i] = qubit_indices if qubit_indices else list_args[i]
+
+        return func(*tuple(list_args), **kwargs)
+    return get_qubit_index
+
+
 def skip_if_cut_off_reached(func=None, *, run_once=False):
     """
         Decorator which is used to decorate QuantumCircuit methods that should be skipped when circuit cut-off time is

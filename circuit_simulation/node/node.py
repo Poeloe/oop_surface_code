@@ -2,15 +2,13 @@
 
 class Node(object):
 
-    def __init__(self, name: str, qubits: list, qc, electron_qubits=None, data_qubits=None,
-                 ghz_qubit=None):
+    def __init__(self, name: str, qubits: list, qc, electron_qubits=None, data_qubits=None):
 
         self._name = name
         self._qubits = qubits
         self._qc = qc
         self._electron_qubits = electron_qubits
         self._data_qubits = data_qubits
-        self._ghz_qubit = ghz_qubit
         self._sub_circuit_time = 0
         self._total_time = 0
 
@@ -33,10 +31,6 @@ class Node(object):
     @property
     def data_qubits(self):
         return self._data_qubits
-
-    @property
-    def ghz_qubit(self):
-        return self._ghz_qubit
 
     @property
     def total_time(self):
