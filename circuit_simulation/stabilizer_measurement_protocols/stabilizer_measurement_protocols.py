@@ -354,10 +354,8 @@ def dejmps_2_4_1_swap(qc: QuantumCircuit, *, operation):
 
         PBAR.update(35) if PBAR is not None else None
 
-        qc.SWAP(0, 2, efficient=False)  # What about the 'efficient' label if the swap is still one-sided but the
-                                        # memory qubit state is the one that matters and the electron qubit state we
-                                        # don't have to keep?
-        qc.SWAP(12, 14, efficient=False)
+        qc.SWAP(0, 2, efficient=True)
+        qc.SWAP(12, 14, efficient=True)
         level_1 = qc.single_selection_var(CNOT_gate, 0, 1, 12, 13, create_bell_pair=False, retry=False)
 
         PBAR.update(20) if PBAR is not None else None
@@ -366,7 +364,7 @@ def dejmps_2_4_1_swap(qc: QuantumCircuit, *, operation):
 
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
 
-    qc.stabilizer_measurement(operation, nodes=["B", "A"], swap=False)
+    qc.stabilizer_measurement(operation, nodes=["A", "B"])
 
     PBAR.update(10) if PBAR is not None else None
 
