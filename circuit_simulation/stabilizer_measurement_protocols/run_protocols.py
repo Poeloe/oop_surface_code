@@ -15,7 +15,7 @@ from copy import copy
 import random
 
 
-def _open_existing_superoperator_file(filename, addition):
+def _open_existing_superoperator_file(filename, addition=""):
     if filename is None:
         return
     if not os.path.exists(filename + addition):
