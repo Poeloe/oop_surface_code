@@ -178,28 +178,8 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_sub_circuit("C")
         qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
 
-    # elif protocol == 'dyn_prot_4':
-    #     qc = QuantumCircuit(40, 2, **kwargs)
-    #
-    #     qc.define_node("A", qubits=[38, 31, 30, 29, 28, 27, 26, 25, 24], electron_qubits=24, data_qubits=38)
-    #     qc.define_node("B", qubits=[36, 23, 22, 21, 20, 19, 18, 17, 16], electron_qubits=16, data_qubits=36)
-    #     qc.define_node("C", qubits=[34, 15, 14, 13, 12, 11, 10, 9, 8], electron_qubits=8, data_qubits=34)
-    #     qc.define_node("D", qubits=[32, 7, 6, 5, 4, 3, 2, 1, 0], electron_qubits=0, data_qubits=32)
-    #
-    #     qc.define_sub_circuit("AB")
-    #     qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
-    #     qc.define_sub_circuit("AC")
-    #     qc.define_sub_circuit("BD", concurrent_sub_circuits="AC")
-    #     qc.define_sub_circuit("AD")
-    #     qc.define_sub_circuit("BC", concurrent_sub_circuits="AD")
-    #     qc.define_sub_circuit("A")
-    #     qc.define_sub_circuit("B")
-    #     qc.define_sub_circuit("C")
-    #     qc.define_sub_circuit("D", concurrent_sub_circuits=["A", "B", "C"])
-
-    elif protocol in ['bipartite_4', 'bipartite_4_v2', 'bipartite_4_v3', 'bipartite_5', 'bipartite_6', 'bipartite_7',
-                      'bipartite_8', 'bipartite_9', 'bipartite_10', 'bipartite_11', 'bipartite_12', 'dejmps_2_4_1_swap',
-                      'dejmps_2_6_1_swap', 'dejmps_2_8_1_swap', 'bipartite_4_swap', 'bipartite_6_swap']:
+    elif protocol in ['dejmps_2_4_1_swap', 'dejmps_2_6_1_swap', 'dejmps_2_8_1_swap', 'bipartite_4_swap',
+                      'bipartite_6_swap']:
         qc = QuantumCircuit(28, 6, **kwargs)
 
         # If you don't specify which qubits are the data-qubits and electron-qubits, it is assumed that the first
@@ -511,81 +491,6 @@ def dejmps_2_8_1_swap(qc: QuantumCircuit, *, operation):
     PBAR.update(10) if PBAR is not None else None
 
 
-def bipartite_4(qc: QuantumCircuit, *, operation):
-    # ['CNOT32', 'CNOT30', 'CNOT21', 'H2', 'CNOT02', 'H2', 'H1']
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=2)    # 15, 3, 14, 2
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=14)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 15, 3, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1, reverse=True)    # 13, 1, 15, 3, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=13)
-    qc.apply_gate(H_gate, 2)
-    qc.apply_gate(H_gate, 14)
-    qc.apply_gate(CNOT_gate, cqubit=0, tqubit=2)
-    qc.apply_gate(CNOT_gate, cqubit=12, tqubit=14)
-    qc.apply_gate(H_gate, 2)
-    qc.apply_gate(H_gate, 14)
-    qc.apply_gate(H_gate, 1)
-    qc.apply_gate(H_gate, 13)
-
-    qc.measure([13, 1, 15, 3, 14, 2], probabilistic=False)
-
-    qc.get_state_fidelity()
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
-
-
-def bipartite_4_v2(qc: QuantumCircuit, *, operation):
-    # ['CNOT10', 'CNOT12', 'CZ02', 'CZ23']
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=1, tqubit=0)    # 13, 1, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=1, tqubit=2, reverse=True)    # 14, 2, 13, 1, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=13, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=0, tqubit=2)
-    qc.apply_gate(CZ_gate, cqubit=12, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=3, reverse=True)    # 15, 3, 14, 2, 13, 1, 12, 0
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=15)
-
-    qc.measure([15, 3, 14, 2, 13, 1], probabilistic=False)
-
-    qc.get_state_fidelity()
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
-
-
-def bipartite_4_v3(qc: QuantumCircuit, *, operation):
-    # ['CNOT30', 'CNOT31', 'CZ10', 'CZ21']
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=1, reverse=True)    # 13, 1, 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=13)
-    qc.apply_gate(CZ_gate, cqubit=1, tqubit=0)
-    qc.apply_gate(CZ_gate, cqubit=13, tqubit=12)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)      # 14, 2, 13, 1, 15, 3, 12, 0
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=13)
-
-    qc.measure([14, 2, 13, 1, 15, 3], probabilistic=False)
-
-    qc.get_state_fidelity()
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
-
-
 def bipartite_4_swap(qc: QuantumCircuit, *, operation):
     level_1 = False
     while not level_1:
@@ -618,84 +523,6 @@ def bipartite_4_swap(qc: QuantumCircuit, *, operation):
     qc.stabilizer_measurement(operation, nodes=["A", "B"])
 
     PBAR.update(10) if PBAR is not None else None
-
-
-def bipartite_5(qc: QuantumCircuit, *, operation):
-    # ['CNOT30', 'CNOT32', 'CNOT40', 'CZ20', 'CZ21', 'CZ41', 'CZ42', 'CZ43']
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(4, 16)
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=2, reverse=True)    # 14, 2, 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=14)
-    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=0)    # 16, 4, 14, 2, 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=12)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=0)
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=12)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=1, reverse=True)    # 13, 1, 16, 4, 14, 2, 15, 3, 12, 0
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=13)
-    qc.apply_gate(CZ_gate, cqubit=4, tqubit=1)
-    qc.apply_gate(CZ_gate, cqubit=16, tqubit=13)
-    qc.apply_gate(CZ_gate, cqubit=4, tqubit=2)
-    qc.apply_gate(CZ_gate, cqubit=16, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=4, tqubit=3)
-    qc.apply_gate(CZ_gate, cqubit=16, tqubit=15)
-
-    qc.measure([13, 1, 16, 4, 14, 2, 15, 3], probabilistic=False)
-
-    qc.get_state_fidelity()
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
-
-
-def bipartite_6(qc: QuantumCircuit, *, operation):
-
-    # T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
-    # ['CNOT20', 'CNOT21', 'CNOT40', 'CNOT32', 'CZ45', 'CZ21', 'CZ02', 'CZ41']
-
-    qc.start_sub_circuit("AB")
-    # qc.create_bell_pair(11, 23)
-    # qc.create_bell_pair(10, 22)
-    # qc.create_bell_pair(9, 21)
-    # qc.create_bell_pair(8, 20)
-    # qc.create_bell_pair(7, 19)
-    # qc.create_bell_pair(6, 18)
-    qc.create_bell_pair(5, 17)
-    qc.create_bell_pair(4, 16)
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=0)    # 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1, reverse=True)    # 13, 1, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=13)
-    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=0)    # 16, 4, 13, 1, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=2)    # 15, 3, 16, 4, 13, 1, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=4, tqubit=5, reverse=True)    # 17, 5, 15, 3, 16, 4, 13, 1, 14, 2, 12, 0
-    qc.apply_gate(CZ_gate, cqubit=16, tqubit=17)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=1)
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=13)
-    qc.apply_gate(CZ_gate, cqubit=0, tqubit=2)
-    qc.apply_gate(CZ_gate, cqubit=12, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=4, tqubit=1)
-    qc.apply_gate(CZ_gate, cqubit=16, tqubit=13)
-
-    measurement_outcomes = qc.measure([17, 5, 15, 3, 16, 4, 13, 1, 14, 2], probabilistic=False)
-    # qc.draw_circuit()
-    # qc.append_print_lines(T*(qc.get_combined_density_matrix([0, 8])[0])*T.transpose())
-    # qc.append_print_lines("\n ")
-    # qc.append_print_lines("Measurement outcomes are {}".format(measurement_outcomes))
-
-    qc.get_state_fidelity()
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
 
 
 def bipartite_6_swap(qc: QuantumCircuit, *, operation):
@@ -755,91 +582,6 @@ def bipartite_6_swap(qc: QuantumCircuit, *, operation):
     qc.stabilizer_measurement(operation, nodes=["A", "B"])
 
     PBAR.update(25) if PBAR is not None else None
-
-
-def bipartite_7(qc: QuantumCircuit, *, operation):
-    # ['CNOT43', 'CNOT20', 'CNOT42', 'CNOT10', 'CZ56', 'CZ51', 'CZ20', 'CZ31', 'CZ62', 'CZ32', 'CZ54']
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(6, 18)
-    qc.create_bell_pair(5, 17)
-    qc.create_bell_pair(4, 16)
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=3)    # 16, 4, 15, 3
-    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=15)
-    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=0)    # 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=4, tqubit=2)    # 16, 4, 15, 3, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=16, tqubit=14)
-    qc.apply_gate(CNOT_gate, cqubit=1, tqubit=0)    # 13, 1, 16, 4, 15, 3, 14, 2, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12)
-    qc.apply_gate(CZ_gate, cqubit=5, tqubit=6)      # 17, 5, 18, 6
-    qc.apply_gate(CZ_gate, cqubit=17, tqubit=18)
-    qc.apply_gate(CZ_gate, cqubit=5, tqubit=1)      # 17, 5, 18, 6, 13, 1, 16, 4, 15, 3, 14, 2, 12, 0
-    qc.apply_gate(CZ_gate, cqubit=17, tqubit=13)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=0)
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=12)
-    qc.apply_gate(CZ_gate, cqubit=3, tqubit=1)
-    qc.apply_gate(CZ_gate, cqubit=15, tqubit=13)
-    qc.apply_gate(CZ_gate, cqubit=6, tqubit=2)
-    qc.apply_gate(CZ_gate, cqubit=18, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=3, tqubit=2)
-    qc.apply_gate(CZ_gate, cqubit=15, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=5, tqubit=4)
-    qc.apply_gate(CZ_gate, cqubit=17, tqubit=16)
-
-    qc.measure([17, 5, 18, 6, 13, 1, 16, 4, 15, 3, 14, 2], probabilistic=False)
-
-    qc.get_state_fidelity()     # [0.9452874234023928, 0.015611321855850608, 0.015611321855850608, 0.023489932885906045]
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
-
-
-def bipartite_8(qc: QuantumCircuit, *, operation):
-    # ['CNOT72', 'CNOT21', 'CNOT73', 'CNOT30', 'CNOT65', 'CNOT76', 'CNOT53', 'CZ45', 'CZ24', 'CZ62', 'CZ63', 'CZ60', 'CZ13']
-    qc.start_sub_circuit("AB")
-    qc.create_bell_pair(7, 19)
-    qc.create_bell_pair(6, 18)
-    qc.create_bell_pair(5, 17)
-    qc.create_bell_pair(4, 16)
-    qc.create_bell_pair(3, 15)
-    qc.create_bell_pair(2, 14)
-    qc.create_bell_pair(1, 13)
-    qc.create_bell_pair(0, 12)
-    qc.apply_gate(CNOT_gate, cqubit=7, tqubit=2)    # 19, 7, 14, 2
-    qc.apply_gate(CNOT_gate, cqubit=19, tqubit=14)
-    qc.apply_gate(CNOT_gate, cqubit=2, tqubit=1)    # 19, 7, 14, 2, 13, 1
-    qc.apply_gate(CNOT_gate, cqubit=14, tqubit=13)
-    qc.apply_gate(CNOT_gate, cqubit=7, tqubit=3)    # 19, 7, 14, 2, 13, 1, 15, 3
-    qc.apply_gate(CNOT_gate, cqubit=19, tqubit=15)
-    qc.apply_gate(CNOT_gate, cqubit=3, tqubit=0)    # 19, 7, 14, 2, 13, 1, 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=15, tqubit=12)
-    qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5)    # 18, 6, 17, 5
-    qc.apply_gate(CNOT_gate, cqubit=18, tqubit=17)
-    qc.apply_gate(CNOT_gate, cqubit=7, tqubit=6, reverse=True)    # 18, 6, 17, 5, 19, 7, 14, 2, 13, 1, 15, 3, 12, 0
-    qc.apply_gate(CNOT_gate, cqubit=19, tqubit=18)
-    qc.apply_gate(CNOT_gate, cqubit=5, tqubit=3)
-    qc.apply_gate(CNOT_gate, cqubit=17, tqubit=15)
-    qc.apply_gate(CZ_gate, cqubit=4, tqubit=5)      # 16, 4, 18, 6, 17, 5, 19, 7, 14, 2, 13, 1, 15, 3, 12, 0
-    qc.apply_gate(CZ_gate, cqubit=16, tqubit=17)
-    qc.apply_gate(CZ_gate, cqubit=2, tqubit=4)
-    qc.apply_gate(CZ_gate, cqubit=14, tqubit=16)
-    qc.apply_gate(CZ_gate, cqubit=6, tqubit=2)
-    qc.apply_gate(CZ_gate, cqubit=18, tqubit=14)
-    qc.apply_gate(CZ_gate, cqubit=6, tqubit=3)
-    qc.apply_gate(CZ_gate, cqubit=18, tqubit=15)
-    qc.apply_gate(CZ_gate, cqubit=6, tqubit=0)
-    qc.apply_gate(CZ_gate, cqubit=18, tqubit=12)
-    qc.apply_gate(CZ_gate, cqubit=1, tqubit=3)
-    qc.apply_gate(CZ_gate, cqubit=13, tqubit=15)
-
-    qc.measure([16, 4, 18, 6, 17, 5, 19, 7, 14, 2, 13, 1, 15, 3], probabilistic=False)
-
-    qc.get_state_fidelity()     # [0.9564483457123565, 0.012997974341661047, 0.012997974341661049, 0.017555705604321417]
-
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
 
 
 def dyn_prot_3_4_1_swap(qc: QuantumCircuit, *, operation):
