@@ -1701,20 +1701,20 @@ class QuantumCircuit:
             else:
                 success = True
 
-    @determine_qubit_index(parameter_positions=[2, 3])
+    @determine_qubit_index(parameter_positions=[2, 3, 4, 5])
     @skip_if_cut_off_reached
     def single_selection_var(self, operation, bell_qubit_A_1, bell_qubit_A_2, bell_qubit_B_1,
                              bell_qubit_B_2, create_bell_pair=True, measure=True, noise=None, pn=None, pm=None,
-                             pg=None, retry=False, user_operation=True):
+                             pg=None, retry=False, user_operation=True, reverse_den_mat_add=False):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         success = False
         while not success:
             if create_bell_pair:
                 self.create_bell_pair(bell_qubit_A_1, bell_qubit_B_1, noise=noise, pn=pn, user_operation=user_operation)
             self.apply_gate(operation, cqubit=bell_qubit_A_1, tqubit=bell_qubit_A_2, noise=noise, pg=pg,
-                            user_operation=user_operation)
+                            user_operation=user_operation, reverse=reverse_den_mat_add)
             self.apply_gate(operation, cqubit=bell_qubit_B_1, tqubit=bell_qubit_B_2, noise=noise, pg=pg,
-                            user_operation=user_operation)
+                            user_operation=user_operation, reverse=reverse_den_mat_add)
             if measure:
                 measurement_outcomes = self.measure([bell_qubit_B_1, bell_qubit_A_1], noise=noise, pm=pm,
                                                     user_operation=user_operation)
