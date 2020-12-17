@@ -234,6 +234,8 @@ class QuantumCircuit:
             self._init_density_matrix_ket_p_and_CNOTS()
         elif init_type == 5:
             self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
+        elif init_type == 6:
+            self._init_density_matrix_maximally_entangled_state(amount_qubits=4)
 
     def _init_density_matrix_first_qubit_ket_p(self):
         """ Realises init_type option 1. See class description for more info. """
@@ -1247,9 +1249,9 @@ class QuantumCircuit:
                                                 General Gate Application
         ---------------------------------------------------------------------------------------------------------     
     """
+    @handle_none_parameters(excluded_parameters=['cqubit'])
     @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
-    @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
                    reverse=False, electron_is_target=False, user_operation=True):
         """
@@ -1698,7 +1700,31 @@ class QuantumCircuit:
             else:
                 success = True
 
-    @determine_qubit_index(parameter_positions=[2, 3])
+    @determine_qubit_index(parameter_positions=[2, 3, 4, 5])
+    @skip_if_cut_off_reached
+    def single_selection_var(self, operation, bell_qubit_A_1, bell_qubit_A_2, bell_qubit_B_1,
+                             bell_qubit_B_2, create_bell_pair=True, measure=True, noise=None, pn=None, pm=None,
+                             pg=None, retry=False, user_operation=True, reverse_den_mat_add=False):
+        """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
+        success = False
+        while not success:
+            if create_bell_pair:
+                self.create_bell_pair(bell_qubit_A_1, bell_qubit_B_1, noise=noise, pn=pn, user_operation=user_operation)
+            self.apply_gate(operation, cqubit=bell_qubit_A_1, tqubit=bell_qubit_A_2, noise=noise, pg=pg,
+                            user_operation=user_operation, reverse=reverse_den_mat_add)
+            self.apply_gate(operation, cqubit=bell_qubit_B_1, tqubit=bell_qubit_B_2, noise=noise, pg=pg,
+                            user_operation=user_operation, reverse=reverse_den_mat_add)
+            if measure:
+                measurement_outcomes = self.measure([bell_qubit_B_1, bell_qubit_A_1], noise=noise, pm=pm,
+                                                    user_operation=user_operation)
+                if measurement_outcomes is None:
+                    return
+                success = measurement_outcomes[0] == measurement_outcomes[1]
+                if not retry:
+                    return success
+            else:
+                success = True
+
     @skip_if_cut_off_reached
     def single_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, next_qubit=1, measure=True, noise=None,
                               pn=None, pm=None, pg=None, user_operation=True):

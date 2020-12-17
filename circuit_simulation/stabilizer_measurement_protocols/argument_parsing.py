@@ -21,7 +21,10 @@ def compose_parser():
                         '--protocols',
                         help='Specifies which protocol should be used. - options: {monolithic/expedient/stringent}',
                         nargs="*",
-                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'duo_structure_2', 'plain'],
+                        choices=['monolithic', 'expedient', 'stringent', 'duo_structure', 'dyn_prot_4_14_1',
+                                 'dyn_prot_4_22_1', 'bipartite_4',  'bipartite_6', 'plain', 'dyn_prot_4_6_sym_1',
+                                 'dejmps_2_4_1', 'dejmps_2_6_1', 'dejmps_2_8_1', 'dyn_prot_4_4_1', 'dyn_prot_3_4_1',
+                                 'dyn_prot_3_8_1'],
                         type=str.lower,
                         default='monolithic')
     parser.add_argument('-s',

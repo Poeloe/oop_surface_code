@@ -29,6 +29,13 @@ CZ_gate = TwoQubitGate("CPhase",
                                  [0, 0, 0, -1]]),
                        "Z",
                        duration=25e-3)
+CiY_gate = TwoQubitGate("CiY",
+                       np.array([[1, 0, 0, 0],
+                                 [0, 1, 0, 0],
+                                 [0, 0, 0, 1],
+                                 [0, 0, -1, 0]]),
+                       "iY",
+                       duration=25e-3)
 NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                  np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
                                            [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],
