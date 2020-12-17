@@ -1249,9 +1249,9 @@ class QuantumCircuit:
                                                 General Gate Application
         ---------------------------------------------------------------------------------------------------------     
     """
+    @handle_none_parameters(excluded_parameters=['cqubit'])
     @determine_qubit_index(parameter_positions=[2, 3])
     @skip_if_cut_off_reached
-    @handle_none_parameters(excluded_parameters=['cqubit'])
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
                    reverse=False, electron_is_target=False, user_operation=True):
         """

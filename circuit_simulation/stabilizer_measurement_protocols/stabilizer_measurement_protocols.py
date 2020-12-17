@@ -59,6 +59,40 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[22, 20, 7, 6, 5, 4], amount_data_qubits=2)
         qc.define_node("D", qubits=[18, 16, 3, 2, 1, 0], amount_data_qubits=2)
 
+    elif protocol in ['dyn_prot_3_4_1_swap']:
+        qc = QuantumCircuit(16, 2, **kwargs)
+
+        qc.define_node("A", qubits=[12, 14, 7, 6], amount_data_qubits=2)
+        qc.define_node("B", qubits=[10, 4, 5, 3])
+        qc.define_node("C", qubits=[8, 1, 2, 0])
+
+        qc.define_sub_circuit("ABC")
+
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C", concurrent_sub_circuits=["A", "B"])
+
+        qc.define_sub_circuit("AB", concurrent_sub_circuits="C")
+        qc.define_sub_circuit("BC", concurrent_sub_circuits="A")
+        qc.define_sub_circuit("AC", concurrent_sub_circuits="B")
+
+    elif protocol in ['dyn_prot_3_8_1_swap']:
+        qc = QuantumCircuit(19, 2, **kwargs)
+
+        qc.define_node("A", qubits=[15, 17, 9, 10, 8], amount_data_qubits=2)
+        qc.define_node("B", qubits=[13, 5, 6, 7, 4])
+        qc.define_node("C", qubits=[11, 1, 2, 3, 0])
+
+        qc.define_sub_circuit("ABC")
+
+        qc.define_sub_circuit("A")
+        qc.define_sub_circuit("B")
+        qc.define_sub_circuit("C", concurrent_sub_circuits=["A", "B"])
+
+        qc.define_sub_circuit("AB", concurrent_sub_circuits="C")
+        qc.define_sub_circuit("BC", concurrent_sub_circuits="A")
+        qc.define_sub_circuit("AC", concurrent_sub_circuits="B")
+
     elif protocol in ['dyn_prot_4_4_1_swap']:
         qc = QuantumCircuit(16, 2, **kwargs)
 
@@ -808,6 +842,173 @@ def bipartite_8(qc: QuantumCircuit, *, operation):
     qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=False)
 
 
+def dyn_prot_3_4_1_swap(qc: QuantumCircuit, *, operation):
+
+    ghz_success = False
+    while not ghz_success:
+        PBAR.reset() if PBAR is not None else None
+        qc.start_sub_circuit("AB")
+        qc.create_bell_pair("A-e", "B-e")       # 3, 6
+        qc.SWAP("A-e", "A-2", efficient=True)
+        qc.SWAP("B-e", "B-1", efficient=True)   # 4, 7
+
+        PBAR.update(30) if PBAR is not None else None
+
+        qc.start_sub_circuit("AC")
+        qc.create_bell_pair("C-e", "A-e")       # 6, 0
+        qc.SWAP("C-e", "C-1", efficient=True)   # 6, 1
+        qc.apply_gate(CNOT_gate, cqubit="A-2", tqubit="A-e", electron_is_target=True, reverse=True)   # 6, 1, 4, 7
+        measurement_outcome = qc.measure(["A-e"], basis="Z")    # 1, 4, 7
+        # BEGIN FUSION CORRECTION:
+        time_in_A = qc.nodes["A"].sub_circuit_time
+        time_in_C = qc.nodes["C"].sub_circuit_time
+        if time_in_C < time_in_A:
+            qc._increase_duration(time_in_A - time_in_C, [], involved_nodes=["C"])
+        if measurement_outcome[0] == 1:
+            qc.X("C-1")
+        # END FUSION CORRECTION
+
+        PBAR.update(30) if PBAR is not None else None
+
+        level_2 = False
+        while not level_2:
+            qc.start_sub_circuit("BC")
+            qc.create_bell_pair("B-e", "C-e")  # 0, 3
+            qc.SWAP("B-e", "B-2", efficient=True)
+            qc.SWAP("C-e", "C-2", efficient=True)  # 2, 5
+            level_2 = qc.single_selection_var(CiY_gate, "B-e", "B-2", "C-e", "C-2")
+        qc.SWAP("B-2", "B-e", efficient=True)
+        qc.SWAP("C-2", "C-e", efficient=True)
+        ghz_success = qc.single_selection_var(CZ_gate, "B-e", "B-1", "C-e", "C-1", create_bell_pair=False)
+
+        PBAR.update(30) if PBAR is not None else None
+
+    qc.stabilizer_measurement(operation, nodes=["C", "B", "A"])
+
+    PBAR.update(10) if PBAR is not None else None
+
+
+def dyn_prot_3_8_1_swap(qc: QuantumCircuit, *, operation):
+
+    ghz_success = False
+    while not ghz_success:
+        PBAR.reset() if PBAR is not None else None
+        qc.start_sub_circuit("AB")
+        qc.create_bell_pair("A-e", "B-e")       # 4, 8
+        qc.SWAP("A-e", "A-2", efficient=True)
+        qc.SWAP("B-e", "B-1", efficient=True)   # 5, 9
+        int_level_1 = qc.single_selection_var(CNOT_gate, "A-e", "A-2", "B-e", "B-1")
+        if not int_level_1:
+            continue
+
+        PBAR.update(30) if PBAR is not None else None
+
+        qc.start_sub_circuit("AC")
+        level_2 = False
+        while not level_2:
+            qc.create_bell_pair("C-e", "A-e")       # 8, 0
+            qc.SWAP("A-e", "A-3", efficient=True)
+            qc.SWAP("C-e", "C-1", efficient=True)   # 10, 1
+            level_2 = qc.single_selection_var(CiY_gate, "A-e", "A-3", "C-e", "C-1")
+        qc.SWAP("A-3", "A-e", efficient=True)       # 8, 1
+        qc.apply_gate(CNOT_gate, cqubit="A-2", tqubit="A-e", electron_is_target=True, reverse=True)   # 8, 1, 5, 9
+        measurement_outcome = qc.measure(["A-e"], basis="Z")    # 1, 5, 9
+        # BEGIN FUSION CORRECTION:
+        time_in_A = qc.nodes["A"].sub_circuit_time
+        time_in_C = qc.nodes["C"].sub_circuit_time
+        if time_in_C < time_in_A:
+            qc._increase_duration(time_in_A - time_in_C, [], involved_nodes=["C"])
+        if measurement_outcome[0] == 1:
+            qc.X("C-1")
+        # END FUSION CORRECTION
+
+        PBAR.update(30) if PBAR is not None else None
+
+        qc.start_sub_circuit("BC")
+        level_3 = False
+        while not level_3:
+            qc.create_bell_pair("B-e", "C-e")  # 0, 4
+            qc.SWAP("B-e", "B-2", efficient=True)
+            qc.SWAP("C-e", "C-2", efficient=True)  # 2, 6
+            int_level_3 = qc.single_selection_var(CNOT_gate, "B-e", "B-2", "C-e", "C-2")
+            if not int_level_3:
+                continue
+            level_4 = False
+            while not level_4:
+                qc.create_bell_pair("B-e", "C-e")  # 0, 4
+                qc.SWAP("B-e", "B-3", efficient=True)
+                qc.SWAP("C-e", "C-3", efficient=True)  # 3, 7
+                level_4 = qc.single_selection_var(CNOT_gate, "B-e", "B-3", "C-e", "C-3")
+            qc.SWAP("B-3", "B-e", efficient=True)
+            qc.SWAP("C-3", "C-e", efficient=True)
+            level_3 = qc.single_selection_var(CiY_gate, "B-e", "B-2", "C-e", "C-2", create_bell_pair=False)
+
+        qc.SWAP("B-2", "B-e", efficient=True)
+        qc.SWAP("C-2", "C-e", efficient=True)
+        ghz_success = qc.single_selection_var(CZ_gate, "B-e", "B-1", "C-e", "C-1", create_bell_pair=False)
+
+        PBAR.update(30) if PBAR is not None else None
+
+    qc.stabilizer_measurement(operation, nodes=["C", "B", "A"])
+
+    PBAR.update(10) if PBAR is not None else None
+
+
+def dyn_prot_4_4_1_swap(qc: QuantumCircuit, *, operation):
+
+    ghz_success = False
+    while not ghz_success:
+        PBAR.reset() if PBAR is not None else None
+        qc.start_sub_circuit("AC")
+        qc.create_bell_pair("A-e", "C-e")       # 2, 6;     2 is "C-e" and 6 is "A-e"
+        qc.SWAP("A-e", "A-1", efficient=True)
+        qc.SWAP("C-e", "C-1", efficient=True)   # 3, 7
+
+        qc.start_sub_circuit("BD")
+        qc.create_bell_pair("D-e", "B-e")       # 4, 0
+        qc.SWAP("B-e", "B-1", efficient=True)
+        qc.SWAP("D-e", "D-1", efficient=True)   # 5, 1
+
+        PBAR.update(40) if PBAR is not None else None
+
+
+
+        qc.start_sub_circuit("AB", forced_level=True)
+        qc.create_bell_pair("B-e", "A-e")       # 6, 4
+        # qc.append_print_lines(qc.get_combined_density_matrix([3]))
+        qc.apply_gate(CNOT_gate, cqubit="A-e", tqubit="A-1")   # 6, 4, 3, 7;        6 is "A-e" and 7 is "A-1"
+        qc.apply_gate(CNOT_gate, cqubit="B-e", tqubit="B-1")   # 6, 4, 3, 7, 5, 1;  4 is "B-e" and 5 is "B-1"
+        qc.SWAP("A-e", "A-1", efficient=False)
+        qc.SWAP("B-e", "B-1", efficient=False)
+        measurement_outcomes = qc.measure(["A-e", "B-e"], basis="Z")    # 3, 7, 5, 1
+        # BEGIN FUSION CORRECTION:
+        # The correction in nodes C and D can only be applied after both measurements in A and B
+        time_after_meas = max(qc.nodes["A"].sub_circuit_time, qc.nodes["B"].sub_circuit_time)
+        # END FUSION CORRECTION
+
+        qc.start_sub_circuit("CD")
+        qc.create_bell_pair("C-e", "D-e")
+        # BEGIN FUSION CORRECTION
+        time_in_C = qc.nodes["C"].sub_circuit_time
+        time_in_D = qc.nodes["D"].sub_circuit_time
+        if time_in_C < time_after_meas:
+            qc._increase_duration(time_after_meas - time_in_C, [], involved_nodes=["C"])
+        if time_in_D < time_after_meas:
+            qc._increase_duration(time_after_meas - time_in_D, [], involved_nodes=["D"])
+        if measurement_outcomes[0] == 1:
+            qc.X("C-1")
+        if measurement_outcomes[1] == 1:
+            qc.X("D-1")
+        # END FUSION CORRECTION
+        ghz_success = qc.single_selection_var(CZ_gate, "C-e", "C-1", "D-e", "D-1", create_bell_pair=False)
+
+        PBAR.update(40) if PBAR is not None else None
+
+    qc.stabilizer_measurement(operation, nodes=["C", "A", "B", "D"])
+
+    PBAR.update(20) if PBAR is not None else None
+
+
 def dyn_prot_4_6_sym_1(qc: QuantumCircuit, *, operation):
 
     ghz_success = False
@@ -877,62 +1078,6 @@ def dyn_prot_4_6_sym_1(qc: QuantumCircuit, *, operation):
     PBAR.update(10) if PBAR is not None else None
 
     qc.append_print_lines("\nGHZ fidelity: {}\n".format(qc.ghz_fidelity))
-
-
-def dyn_prot_4_4_1_swap(qc: QuantumCircuit, *, operation):
-
-    ghz_success = False
-    while not ghz_success:
-        PBAR.reset() if PBAR is not None else None
-        qc.start_sub_circuit("AC")
-        qc.create_bell_pair("A-e", "C-e")       # 2, 6
-        qc.SWAP("A-e", "A-1", efficient=True)
-        qc.SWAP("C-e", "C-1", efficient=True)   # 3, 7
-
-        qc.start_sub_circuit("BD")
-        qc.create_bell_pair("D-e", "B-e")       # 4, 0
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("D-e", "D-1", efficient=True)   # 5, 1
-
-        PBAR.update(40) if PBAR is not None else None
-
-
-
-        qc.start_sub_circuit("AB", forced_level=True)
-        qc.create_bell_pair("B-e", "A-e")       # 6, 4
-        qc.SWAP("A-e", "A-1", efficient=False)  # 6, 4, 3, 7
-        qc.SWAP("B-e", "B-1", efficient=False)  # 6, 4, 3, 7, 5, 1
-        # qc.append_print_lines(qc.get_combined_density_matrix([3]))
-        qc.apply_gate(CNOT_gate, cqubit=7, tqubit=6, electron_is_target=True)
-        qc.apply_gate(CNOT_gate, cqubit=5, tqubit=4, electron_is_target=True)
-        measurement_outcomes = qc.measure(["A-e", "B-e"], basis="Z")    # 3, 7, 5, 1
-        # BEGIN FUSION CORRECTION:
-        # The correction in nodes C and D can only be applied after both measurements in A and B
-        time_after_meas = max(qc.nodes["A"].sub_circuit_time, qc.nodes["B"].sub_circuit_time)
-        # END FUSION CORRECTION
-
-        qc.start_sub_circuit("CD")
-        qc.create_bell_pair("C-e", "D-e")
-        # BEGIN FUSION CORRECTION
-        time_in_C = qc.nodes["C"].sub_circuit_time
-        time_in_D = qc.nodes["D"].sub_circuit_time
-        if time_in_C < time_after_meas:
-            qc._increase_duration(time_after_meas - time_in_C, [], involved_nodes=["C"])
-        if time_in_D < time_after_meas:
-            qc._increase_duration(time_after_meas - time_in_D, [], involved_nodes=["D"])
-        if measurement_outcomes[0] == 1:
-            qc.X("C-1")
-        if measurement_outcomes[1] == 1:
-            qc.X("D-1")
-        # END FUSION CORRECTION
-        ghz_success = qc.single_selection_var(CZ_gate, "C-e", "C-1", "D-e", "D-1", create_bell_pair=False)
-
-        PBAR.update(40) if PBAR is not None else None
-
-    qc.stabilizer_measurement(operation, nodes=["C", "A", "B", "D"])
-
-    PBAR.update(20) if PBAR is not None else None
-
 
 
 def dyn_prot_4_6_sym_1_swap(qc: QuantumCircuit, *, operation):
