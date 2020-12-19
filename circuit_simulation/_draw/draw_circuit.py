@@ -14,9 +14,11 @@ def draw_init(self, no_color):
     init_state_repr = []
     for qubit, state in enumerate(self._qubit_array):
         node_name = self.get_node_name_from_qubit(qubit)
-        init_state_repr.append("\n\n{}{} ---".format(node_name + ":" if node_name is not None else "",
-                                                     ansi_escape.sub("", state.representation) if no_color else
-                                                     state.representation))
+        qubit_type = self.qubits[qubit].qubit_type if self.qubits is not None and qubit in self.qubits else ""
+        init_state_repr.append("\n\n{}{}{} ---".format(node_name + ":" if node_name is not None else "",
+                                                       qubit_type,
+                                                       ansi_escape.sub("", state.representation) if no_color else
+                                                       state.representation))
 
     for a, b in it.combinations(enumerate(init_state_repr), 2):
         # Since colored ansi code is shown as color and not text it should be stripped for length comparison

@@ -11,7 +11,7 @@ import pandas as pd
 import math
 
 
-def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=True,
+def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=False,
                                   file_name=None, qubits=None, idle_data_qubit=None):
     """
         Private method to calculate the noiseless variant of the density matrix.

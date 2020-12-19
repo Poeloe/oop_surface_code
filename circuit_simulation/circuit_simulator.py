@@ -228,14 +228,8 @@ class QuantumCircuit:
             self._init_density_matrix_first_qubit_ket_p()
         elif init_type == 2:
             self._init_density_matrix_maximally_entangled_state()
-        elif init_type == 3:
-            self._init_density_matrix_maximally_entangled_state(bell_type=2)
-        elif init_type == 4:
-            self._init_density_matrix_ket_p_and_CNOTS()
-        elif init_type == 5:
-            self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
-        elif init_type == 6:
-            self._init_density_matrix_maximally_entangled_state(amount_qubits=4)
+        elif init_type > 3:
+            self._init_density_matrix_maximally_entangled_state(amount_qubits=init_type)
 
     def _init_density_matrix_first_qubit_ket_p(self):
         """ Realises init_type option 1. See class description for more info. """
@@ -414,6 +408,17 @@ class QuantumCircuit:
         _, qubits, _, _ = self._get_qubit_relative_objects(qubit)
         for qubit in qubits:
             self._qubit_density_matrix_lookup[qubit] = (new_density_matrix, qubits)
+
+    def _lookup_sanity_check(self):
+        for qubit in range(self.num_qubits):
+            dm, qubits, _, _ = self._get_qubit_relative_objects(qubit)
+            sanity_dm = all([dm is self._qubit_density_matrix_lookup[qubit_2][0] for qubit_2 in qubits])
+            sanity_qubits = all([qubits is self._qubit_density_matrix_lookup[qubit_2][1] for qubit_2 in qubits])
+
+            if not sanity_dm or not sanity_qubits:
+                raise ValueError("Density matrix is not sane. Memory addresses differ")
+
+        return True
 
     def _reset_density_matrices(self, qubits, state=None):
         """

@@ -52,7 +52,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[8, 1, 0])
 
     elif protocol == 'duo_structure_2':
-        qc = QuantumCircuit(32, 5, **kwargs)
+        qc = QuantumCircuit(32, 16, **kwargs)
 
         qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], amount_data_qubits=2)
         qc.define_node("B", qubits=[26, 24, 11, 10, 9, 8], amount_data_qubits=2)
@@ -180,7 +180,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
 
     elif protocol in ['dejmps_2_4_1_swap', 'dejmps_2_6_1_swap', 'dejmps_2_8_1_swap', 'bipartite_4_swap',
                       'bipartite_6_swap']:
-        qc = QuantumCircuit(28, 6, **kwargs)
+        qc = QuantumCircuit(28, 4, **kwargs)
 
         # If you don't specify which qubits are the data-qubits and electron-qubits, it is assumed that the first
         # qubit(s) in the list is (are) the data-qubit(s) and the last one is the electron_qubit.

@@ -9,6 +9,7 @@ from itertools import product
 import pandas as pd
 from copy import copy
 from tqdm import tqdm
+import math
 
 
 def create_data_frame(data_frame, **kwargs):
@@ -30,7 +31,7 @@ def create_data_frame(data_frame, **kwargs):
 
 def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, cp_path, **kwargs):
     pbar = tqdm(total=iterations, position=1) if pb else None
-    qc = QuantumCircuit(4, 0, **kwargs)
+    qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
     total_print_lines = []
     fidelities = []
@@ -48,7 +49,11 @@ def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_l
 def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwargs):
     teleportation_circuit = getattr(tel_circuits, gate)
     qubits = teleportation_circuit(qc)
-    fid = qc.get_state_fidelity(qubits, CT(ket_1 * ket_1), set_ghz_fidelity=False)
+    bell_pair = (1/math.sqrt(2))*(ket_0 * ket_0 + (ket_1 * ket_1))
+    bell_pair_cnot = (1 / math.sqrt(2)) * (ket_0 * ket_1 + (ket_1 * ket_0))
+    maximally_entangled = (1 / math.sqrt(2)) * ((ket_0 * ket_0) * bell_pair + ((ket_1 * ket_1) * bell_pair_cnot))
+    compare_matrix = CT(maximally_entangled)
+    fid = qc.get_state_fidelity(qubits=qubits, compare_matrix=compare_matrix)
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
