@@ -151,6 +151,11 @@ def compose_parser():
                         help="A version of the protocol will be run that uses SWAP gates to ensure NV-center realism.",
                         required=False,
                         action="store_true")
+    parser.add_argument("-no_swap",
+                        "--noiseless_swap",
+                        help="A version of the protocol will be run that uses SWAP gates to ensure NV-center realism.",
+                        required=False,
+                        action="store_true")
     parser.add_argument("--argument_file",
                         help="loads values from a file instead of the command line",
                         type=open,
