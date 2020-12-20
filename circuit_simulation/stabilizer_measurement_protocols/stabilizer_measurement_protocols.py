@@ -632,8 +632,6 @@ def dyn_prot_4_4_1_swap(qc: QuantumCircuit, *, operation):
 
         PBAR.update(40) if PBAR is not None else None
 
-
-
         qc.start_sub_circuit("AB", forced_level=True)
         qc.create_bell_pair("B-e", "A-e")       # 6, 4
         # qc.append_print_lines(qc.get_combined_density_matrix([3]))

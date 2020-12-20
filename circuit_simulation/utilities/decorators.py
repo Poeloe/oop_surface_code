@@ -59,7 +59,7 @@ def determine_qubit_index(func=None, parameter_positions=None):
                                for qubit in qubit_string if type(qubit) == str]
             else:
                 qubit_index = qc._operations.gate_operations.determine_node_qubit_from_string(args[0], qubit_string)
-            kwargs[parameter] = qubit_index if qubit_index else kwargs[parameter]
+            kwargs[parameter] = qubit_index if qubit_index is not None else kwargs[parameter]
 
         # Handle the args
         list_args = list(args)
