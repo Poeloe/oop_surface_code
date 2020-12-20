@@ -205,10 +205,10 @@ class toric(object):
                 logical_error[0] = 1 - logical_error[0]
             if self.Q[z][(1, i, 0)].E[0].state:
                 logical_error[1] = 1 - logical_error[1]
-            if self.Q[z][(1, 0, i)].E[1].state:
-                logical_error[2] = 1 - logical_error[2]
-            if self.Q[z][(0, i, 0)].E[1].state:
-                logical_error[3] = 1 - logical_error[3]
+            # if self.Q[z][(1, 0, i)].E[1].state:
+            #     logical_error[2] = 1 - logical_error[2]
+            # if self.Q[z][(0, i, 0)].E[1].state:
+            #     logical_error[3] = 1 - logical_error[3]
 
         errorless = True if logical_error == [0, 0, 0, 0] else False
         return logical_error, errorless
