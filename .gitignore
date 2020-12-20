@@ -36,6 +36,7 @@ cartesiusdata
 !stringent*.csv
 !monolithic*.csv
 !duo_structure*.csv
+!dyn*.csv
 !idle.csv
 test_scripts/
 old_files/
