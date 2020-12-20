@@ -29,6 +29,13 @@ CZ_gate = TwoQubitGate("CPhase",
                                  [0, 0, 0, -1]]),
                        "Z",
                        duration=25e-3)
+CiY_gate = TwoQubitGate("CiY",
+                       np.array([[1, 0, 0, 0],
+                                 [0, 1, 0, 0],
+                                 [0, 0, 0, 1],
+                                 [0, 0, -1, 0]]),
+                       "iY",
+                       duration=25e-3)
 NV_two_qubit_gate = TwoQubitGate("NV two-qubit gate",
                                  np.array([[np.cos(np.pi/4), 1 * np.sin(np.pi/4), 0, 0],
                                            [-1 * np.sin(np.pi/4), np.cos(np.pi/4), 0, 0],
@@ -49,9 +56,11 @@ locals_gates = locals()
 
 
 def set_duration_of_known_gates(gates_dict):
-    for gate, duration in gates_dict.items():
+    for gate, (duration_nuclear, duration_electron) in gates_dict.items():
         if gate in locals_gates and type(locals_gates[gate]) in [SingleQubitGate, TwoQubitGate]:
-            locals_gates[gate].duration = duration
+            locals_gates[gate].duration = duration_nuclear
+            if duration_electron is not None:
+                locals_gates[gate].duration_electron = duration_electron
 
 
 def set_gate_durations_from_file(filename):
@@ -63,9 +72,11 @@ def set_gate_durations_from_file(filename):
         for line in lines:
             line.replace(" ", "")
             if line:
-                splitted_line = line.split("=")
-                gate_name = splitted_line[0]
-                gate_duration = float(splitted_line[1])
+                gate_name, gate_duration = line.split("=")
+                if "(" in gate_duration:
+                    gate_duration = eval(gate_duration)
+                else:
+                    gate_duration = (float(gate_duration), None)
                 gates_dict[gate_name] = gate_duration
 
     set_duration_of_known_gates(gates_dict)

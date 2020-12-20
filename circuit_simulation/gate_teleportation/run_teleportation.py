@@ -6,13 +6,32 @@ from circuit_simulation.gate_teleportation.argument_parsing import compose_parse
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import _additional_parsing_of_arguments, \
     _additional_qc_arguments
 from itertools import product
+import pandas as pd
+from copy import copy
+from tqdm import tqdm
+import math
+
+
+def create_data_frame(data_frame, **kwargs):
+
+    pop_list = ['iterations', 'save_latex_pdf', 'cp_path', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
+                'single_qubit_gate_lookup', 'thread_safe_printing']
+    index_columns = copy(kwargs)
+    [index_columns.pop(item) for item in pop_list]
+
+    if data_frame is not None:
+        return data_frame, index_columns
+
+    index = pd.MultiIndex.from_product([[item] for item in index_columns.values()], names=list(index_columns.keys()))
+    data_frame = pd.DataFrame(index=index)
+    data_frame['avg_fidelity'] = None
+
+    return data_frame, index_columns
 
 
 def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, cp_path, **kwargs):
-    if pb:
-        from tqdm import tqdm
-    pbar = tqdm(total=iterations) if pb else None
-    qc = QuantumCircuit(4, 0, **kwargs)
+    pbar = tqdm(total=iterations, position=1) if pb else None
+    qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
     total_print_lines = []
     fidelities = []
@@ -24,12 +43,17 @@ def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_l
 
     print(*total_print_lines)
     print("Average fideility is: {}".format(sum(fidelities)/iterations))
+    return fidelities
 
 
 def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwargs):
     teleportation_circuit = getattr(tel_circuits, gate)
     qubits = teleportation_circuit(qc)
-    fid = qc.get_state_fidelity(qubits, CT(ket_1 * ket_1), set_ghz_fidelity=False)
+    bell_pair = (1/math.sqrt(2))*(ket_0 * ket_0 + (ket_1 * ket_1))
+    bell_pair_cnot = (1 / math.sqrt(2)) * (ket_0 * ket_1 + (ket_1 * ket_0))
+    maximally_entangled = (1 / math.sqrt(2)) * ((ket_0 * ket_0) * bell_pair + ((ket_1 * ket_1) * bell_pair_cnot))
+    compare_matrix = CT(maximally_entangled)
+    fid = qc.get_state_fidelity(qubits=qubits, compare_matrix=compare_matrix)
 
     if draw_circuit:
         qc.draw_circuit(no_color=not color, color_nodes=True)
@@ -48,12 +72,16 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
     pb = kwargs.pop('no_progress_bar')
+    data_frame = None
+    pbar1 = tqdm(total=len(list(product(gates, gate_error_probabilities, network_error_probabilities,
+                                               meas_errors, meas_1_errors, fixed_lde_attempts))), position=0)
 
     # Loop over command line arguments
     for gate, pg, pn, pm, pm_1, lde in product(gates, gate_error_probabilities, network_error_probabilities,
                                                meas_errors, meas_1_errors, fixed_lde_attempts):
+        pbar1.update(1)
         pm = pg if pm is None or pm_equals_pg else pm
-        kwargs.update({
+        loop_arguments = {
             'gate': gate,
             'pg': pg,
             'pm': pm,
@@ -61,12 +89,16 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'pm_1': pm_1,
             'fixed_lde_attempts': lde,
             'pb': pb
-        })
+        }
+        kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
+        data_frame, index_columns = create_data_frame(data_frame, **kwargs)
         if threaded:
             pass
         else:
-            run_series(**kwargs)
+            fidelities = run_series(**kwargs)
+            data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = sum(fidelities)/kwargs['iterations']
+    data_frame.to_csv(csv_filename + '.csv')
 
 
 if __name__ == '__main__':
@@ -74,5 +106,6 @@ if __name__ == '__main__':
 
     args = vars(parser.parse_args())
     args = _additional_parsing_of_arguments(args)
+    args.pop('gate_duration_file')
 
     run_for_arguments(**args)

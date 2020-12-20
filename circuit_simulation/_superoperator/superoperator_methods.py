@@ -11,7 +11,7 @@ import pandas as pd
 import math
 
 
-def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=True,
+def get_noiseless_density_matrix(self, stabilizer_protocol=False, proj_type=None, measure_error=False, save=False,
                                   file_name=None, qubits=None, idle_data_qubit=None):
     """
         Private method to calculate the noiseless variant of the density matrix.
@@ -119,7 +119,7 @@ def _noiseless_stabilizer_protocol_density_matrix(self, proj_type, qubits, measu
 
 def get_state_fidelity(self, qubits=None, compare_matrix=None, set_ghz_fidelity=True):
     if qubits is None:
-        qubits = self.get_ghz_qubits()
+        qubits = list(set(self.qubits.keys()).difference(self._uninitialised_qubits).difference(self.data_qubits))
 
     if compare_matrix is None and set_ghz_fidelity:
         # Create ghz state with the weight equal to the amount of ghz qubits
@@ -189,7 +189,7 @@ def create_superoperator_decomposition(self, qubits, qubits_matrix):
     superoperator_decomposition = {}
     for element in decomposition:
         kraus_operator = "".join([list(el.keys())[0] for el in element])
-        matrix = math.prod([list(el.values())[0] for el in element])
+        matrix = np.prod([list(el.values())[0] for el in element])
         superoperator_decomposition[kraus_operator] = matrix
 
     # Save the decomposition to the QC object, such that it only has to be constructed once for multiple iterations
@@ -342,7 +342,7 @@ def print_superoperator(self, superoperator, no_color):
     self.append_print_lines("\n\nSum of the probabilities is: {}\n".format(total))
     self.append_print_lines("\nTotal lde attempts: {}\n".format(self._total_lde_attempts))
     self.append_print_lines("\nAverage lde attempts per successful lde: {}\n".format(
-        self._total_lde_attempts/self._total_succeeded_lde))
+        self._total_lde_attempts/self._total_succeeded_lde)) if self._total_succeeded_lde !=0 else None
 
     self.append_print_lines("\n---- End of Superoperator ----\n")
 
@@ -442,7 +442,8 @@ def _update_totals_and_averages(self, data, totals, averages):
 
 
 def _create_new_superoperator_dataframe(self, protocol_name, qubit_order):
-    error_index = ["".join(i) for i in product("IXYZ", repeat=4)]
+    num_qubits = len(qubit_order)
+    error_index = ["".join(i) for i in product("IXYZ", repeat=num_qubits)]
     lie_index = [True, False]
     index = pd.MultiIndex.from_product([error_index, lie_index], names=['error_config', 'lie'])
     columns = ['p', 's']

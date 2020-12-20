@@ -15,8 +15,10 @@ from copy import copy
 import random
 
 
-def _open_existing_superoperator_file(filename):
-    if not os.path.exists(filename):
+def _open_existing_superoperator_file(filename, addition=""):
+    if filename is None:
+        return
+    if not os.path.exists(filename + addition):
         return
 
     existing_file = pd.read_csv(filename, sep=';')
@@ -130,14 +132,6 @@ def _additional_qc_arguments(**kwargs):
 
 
 def _print_circuit_parameters(**kwargs):
-    protocol = kwargs.get('protocol')
-    pg = kwargs.get('gate_error_probability')
-    pm = kwargs.get('measurement_error_probability')
-    pn = kwargs.get('network_error_probability')
-    it = kwargs.get('iterations')
-    pm_1 = kwargs.get('measurement_error_probability_one_state')
-    stab_type = kwargs.get('stab_type')
-
     print("All circuit parameters:\n-----------------------\n")
     pprint(kwargs)
     print('\n-----------------------\n')
@@ -159,7 +153,7 @@ def _additional_parsing_of_arguments(args):
         with open(os.path.join(look_up_table_dir, args['two_qubit_gate_lookup']), "rb") as obj2:
             args['two_qubit_gate_lookup'] = pickle.load(obj2)
 
-    gate_duration_file = args.pop('gate_duration_file')
+    gate_duration_file = args.get('gate_duration_file')
     if gate_duration_file is not None and os.path.exists(gate_duration_file):
         set_gate_durations_from_file(gate_duration_file)
     elif gate_duration_file is not None:
@@ -190,8 +184,8 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
-    normal = _open_existing_superoperator_file(fn + ".csv")
-    cut_off = _open_existing_superoperator_file(fn + "_failed.csv")
+    normal = _open_existing_superoperator_file(fn, ".csv")
+    cut_off = _open_existing_superoperator_file(fn, "_failed.csv")
 
     # Combine the superoperator results obtained for each worker
     for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):

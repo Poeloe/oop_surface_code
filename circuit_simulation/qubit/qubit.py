@@ -7,7 +7,7 @@ class Qubit:
 
     def __init__(self, qc, index, qubit_type, node=None, waiting_time_idle=0, waiting_time_lde=0, T1_idle=None, \
                                                                                                       T2_idle=None,
-                 T1_lde=None, T2_lde=None, is_data_qubit=False, is_ghz_qubit=False):
+                 T1_lde=None, T2_lde=None, is_data_qubit=False):
         self._index = index
         self._qubit_type = qubit_type
         self._node = node
@@ -20,7 +20,6 @@ class Qubit:
         self._T2_lde = T2_lde
         self._qc = qc
         self._is_data_qubit = is_data_qubit
-        self._is_ghz_qubit = is_ghz_qubit
 
     @property
     def index(self):

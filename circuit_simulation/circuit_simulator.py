@@ -18,7 +18,8 @@ from circuit_simulation._draw.qasm_to_pdf import create_pdf_from_qasm
 from fractions import Fraction as Fr
 import math
 import random
-from circuit_simulation.utilities.decorators import handle_none_parameters, skip_if_cut_off_reached, SKIP
+from circuit_simulation.utilities.decorators import (handle_none_parameters, skip_if_cut_off_reached, SKIP,
+                                                     determine_qubit_index)
 from copy import copy
 import pickle
 
@@ -139,14 +140,13 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, lde_success=1, time_step=1, measurement_duration=1,
                  lde_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf):
+                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf, noiseless_swap=False):
 
         # Basic attributes
         self.num_qubits = num_qubits
         self.d = 2 ** num_qubits
         self.qubits = None
         self.nodes = None
-        self.ghz_qubits = None
         self.ghz_fidelity = None
         self._init_type = init_type
         self._qubit_array = num_qubits * [ket_0]
@@ -170,6 +170,7 @@ class QuantumCircuit:
         self.pn = pn
         self.network_noise_type = network_noise_type
         self.no_single_qubit_error = no_single_qubit_error
+        self.noiseless_swap = noiseless_swap
         self.basis_transformation_noise = noise if basis_transformation_noise is None else basis_transformation_noise
 
         # Decoherence and duration attributes
@@ -228,12 +229,8 @@ class QuantumCircuit:
             self._init_density_matrix_first_qubit_ket_p()
         elif init_type == 2:
             self._init_density_matrix_maximally_entangled_state()
-        elif init_type == 3:
-            self._init_density_matrix_maximally_entangled_state(bell_type=2)
-        elif init_type == 4:
-            self._init_density_matrix_ket_p_and_CNOTS()
-        elif init_type == 5:
-            self._init_density_matrix_maximally_entangled_state(amount_qubits=16)
+        elif init_type > 3:
+            self._init_density_matrix_maximally_entangled_state(amount_qubits=init_type)
 
     def _init_density_matrix_first_qubit_ket_p(self):
         """ Realises init_type option 1. See class description for more info. """
@@ -412,6 +409,17 @@ class QuantumCircuit:
         _, qubits, _, _ = self._get_qubit_relative_objects(qubit)
         for qubit in qubits:
             self._qubit_density_matrix_lookup[qubit] = (new_density_matrix, qubits)
+
+    def _lookup_sanity_check(self):
+        for qubit in range(self.num_qubits):
+            dm, qubits, _, _ = self._get_qubit_relative_objects(qubit)
+            sanity_dm = all([dm is self._qubit_density_matrix_lookup[qubit_2][0] for qubit_2 in qubits])
+            sanity_qubits = all([qubits is self._qubit_density_matrix_lookup[qubit_2][1] for qubit_2 in qubits])
+
+            if not sanity_dm or not sanity_qubits:
+                raise ValueError("Density matrix is not sane. Memory addresses differ")
+
+        return True
 
     def _reset_density_matrices(self, qubits, state=None):
         """
@@ -627,7 +635,7 @@ class QuantumCircuit:
         if total:
             self._circuit_operations_ended = True
 
-    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, ghz_qubit=None):
+    def define_node(self, name, qubits, electron_qubits=None, data_qubits=None, amount_data_qubits=1):
         """
             Defines a node for the QuantumCircuit object. This is especially useful when working with a networked
             architecture. For now it is assumed that one uses an NV-center as a node.
@@ -645,34 +653,29 @@ class QuantumCircuit:
             self.nodes = {}
         if self.qubits is None:
             self.qubits = {}
-        if self.ghz_qubits is None:
-            self.ghz_qubits = {}
-
-        if electron_qubits is None:
-            electron_qubits = []
-        elif type(electron_qubits) == int:
-            electron_qubits = [electron_qubits]
 
         if data_qubits is None:
-            data_qubits = []
+            data_qubits = [qubit for qubit in qubits[:amount_data_qubits]]
         elif type(data_qubits) == int:
             data_qubits = [data_qubits]
 
-        node = Node(name, qubits, self, electron_qubits, data_qubits, ghz_qubit)
+        if electron_qubits is None:
+            electron_qubits = [qubits[-1]]
+        elif type(electron_qubits) == int:
+            electron_qubits = [electron_qubits]
+
+        node = Node(name, qubits, self, electron_qubits, data_qubits)
         self.nodes.update({name: node})
         for qubit in qubits:
             qubit_type = 'e' if qubit in electron_qubits else 'n'
             is_data_qubit = qubit in data_qubits
-            is_ghz_qubit = qubit == ghz_qubit
             T1_idle = self.T1_idle if qubit_type == 'n' else self.T1_idle_electron
             T2_idle = self.T2_idle if qubit_type == 'n' else self.T2_idle_electron
             T1_lde = self.T1_lde if qubit_type == 'n' else None
             T2_lde = self.T2_lde if qubit_type == 'n' else None
             q = Qubit(self, qubit, qubit_type, node=name, T1_idle=T1_idle, T2_idle=T2_idle, T1_lde=T1_lde,
-                      T2_lde=T2_lde, is_data_qubit=is_data_qubit, is_ghz_qubit=is_ghz_qubit)
+                      T2_lde=T2_lde, is_data_qubit=is_data_qubit)
             self.qubits[qubit] = q
-            if is_ghz_qubit:
-                self.ghz_qubits[qubit] = q
 
     def get_node_qubits(self, qubits):
         """
@@ -694,9 +697,6 @@ class QuantumCircuit:
             if any(node.qubit_in_node(qubit) for qubit in qubits):
                 node_qubits.extend(node.qubits)
         return node_qubits
-
-    def get_ghz_qubits(self):
-        return list(self.ghz_qubits.keys())
 
     @property
     def data_qubits(self):
@@ -974,6 +974,7 @@ class QuantumCircuit:
 
             self._qubit_array[tqubit] = state
             self._qubit_density_matrix_lookup[tqubit] = (CT(state), [tqubit])
+            self._update_uninitialised_qubit_register([tqubit], "remove")
 
     def get_begin_states(self):
         """ Returns the initial state vector of the qubits """
@@ -1101,6 +1102,7 @@ class QuantumCircuit:
                 self._N_decoherence([i, i + 1], times=times_total)
                 self._increase_duration(bell_creation_duration)
 
+    @determine_qubit_index(parameter_positions=[1, 2])
     @skip_if_cut_off_reached
     @handle_none_parameters
     def create_bell_pair(self, qubit1, qubit2, noise=None, pn=None, network_noise_type=None, bell_state_type=1,
@@ -1115,10 +1117,10 @@ class QuantumCircuit:
 
             Parameters
             ----------
-            qubit1 : int
+            qubit1 : int, str
                 Qubit index of one of the qubits involved in the Bell pair. Qubit will be the second qubit in the
                 density matrix
-            qubit2 : int
+            qubit2 : int, str
                 Qubit index of one of the qubits involved in the Bell pair. Qubit will be the first qubit in the
                 density matrix
             noise : bool
@@ -1253,8 +1255,9 @@ class QuantumCircuit:
                                                 General Gate Application
         ---------------------------------------------------------------------------------------------------------     
     """
-    @skip_if_cut_off_reached
     @handle_none_parameters(excluded_parameters=['cqubit'])
+    @determine_qubit_index(parameter_positions=[2, 3])
+    @skip_if_cut_off_reached
     def apply_gate(self, gate, tqubit, cqubit=None, *, noise=None, conj=False, pg=None, draw=True, decoherence=None,
                    reverse=False, electron_is_target=False, user_operation=True):
         """
@@ -1590,6 +1593,7 @@ class QuantumCircuit:
 
         self.apply_gate(CZ_gate, tqubit, cqubit, noise=noise, pg=pg, draw=draw, user_operation=user_operation)
 
+    @determine_qubit_index(parameter_positions=[1, 2])
     @skip_if_cut_off_reached
     @handle_none_parameters
     def SWAP(self, cqubit, tqubit, noise=None, pg=None, draw=True, efficient=True, user_operation=True):
@@ -1598,6 +1602,10 @@ class QuantumCircuit:
             to be applied, but the qubits can be swapped by swapping the qubit indices in the qubit density matrix
             lookup table.
         """
+        if cqubit == tqubit:
+            return
+        if self.noiseless_swap:
+            noise = False
         if efficient:
             if user_operation:
                 self._user_operation_order.append({"SWAP": [cqubit, tqubit, noise, pg, draw]})
@@ -1678,257 +1686,178 @@ class QuantumCircuit:
                                             Protocol gate sequences
         ---------------------------------------------------------------------------------------------------------  
     """
+    @determine_qubit_index(parameter_positions=[2, 3, 4, 5])
     @skip_if_cut_off_reached
-    def single_selection(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
-                         pg=None, retry=True, user_operation=True):
+    def single_selection(self, operation, bell_qubit_1, bell_qubit_2, target_qubit_1=None, target_qubit_2=None,
+                         measure=True, noise=None, pn=None, pm=None, pg=None, swap=False, create_bell_pair=True,
+                         reverse_den_mat_add=False, user_operation=True):
         """ Single selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
-        success = False
-        while not success:
-            self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            if measure:
-                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
-                                                    user_operation=user_operation)
-                # If loop necessary for proper cut-off handling
-                if type(measurement_outcomes) == SKIP:
-                    return measurement_outcomes
-                success = measurement_outcomes[0] == measurement_outcomes[1]
-                if not retry:
-                    return success
-            else:
-                success = True
+        if target_qubit_1 is None:
+            target_qubit_1 = bell_qubit_1 + 1
+        if target_qubit_2 is None:
+            target_qubit_2 = bell_qubit_2 + 1
 
-    @skip_if_cut_off_reached
-    def single_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, next_qubit=1, measure=True, noise=None,
-                              pn=None, pm=None, pg=None, user_operation=True):
-        """ Single selection with swaps """
-        success = False
-        while not success:
+        if create_bell_pair:
             self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + next_qubit, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + next_qubit, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            if measure:
-                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
-                                                    user_operation=user_operation)
-                # If loop necessary for proper cut-off handling
-                if type(measurement_outcomes) == SKIP:
-                    return measurement_outcomes
-                return measurement_outcomes[0] == measurement_outcomes[1]
-            else:
-                self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
-                self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-                success = True
+        self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=target_qubit_1, noise=noise, pg=pg,
+                        user_operation=user_operation, reverse=reverse_den_mat_add)
+        self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=target_qubit_2, noise=noise, pg=pg,
+                        user_operation=user_operation, reverse=reverse_den_mat_add)
+        if measure:
+            measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
+                                                user_operation=user_operation)
+            # If loop necessary for proper cut-off handling
+            if type(measurement_outcomes) == SKIP:
+                return measurement_outcomes
+            return measurement_outcomes[0] == measurement_outcomes[1]
+        elif swap:
+            self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
+            self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
+            return True
 
+    @determine_qubit_index(parameter_positions=[2, 3, 4, 5, 6, 7, 8, 9])
     @skip_if_cut_off_reached
-    def double_selection(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
-                         retry=True, user_operation=True):
+    def double_selection(self, operation, bell_qubit_1, bell_qubit_2=None, bell_qubit_3=None, bell_qubit_4=None,
+                         target_qubit_1=None, target_qubit_2=None, target_qubit_3=None, target_qubit_4=None,
+                         noise=None, pn=None, pm=None, pg=None, swap=False, user_operation=True):
         """ Double selection as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
-        success = False
-        while not success:
-            self.single_selection(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
-                                  user_operation=user_operation)
-            self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, measure=False, noise=noise, pn=pn,
-                                  pm=pm, pg=pg, user_operation=user_operation)
-            measurement_outcomes = self.measure([bell_qubit_2 - 1, bell_qubit_1 - 1, bell_qubit_2, bell_qubit_1],
-                                                noise=noise, pm=pm, user_operation=user_operation)
+        if bell_qubit_3 is None:
+            bell_qubit_3 = bell_qubit_1 - 1 if not swap else bell_qubit_1
+        if bell_qubit_4 is None:
+            bell_qubit_4 = bell_qubit_2 - 1 if not swap else bell_qubit_2
+        if target_qubit_3 is None and swap:
+            target_qubit_3 = bell_qubit_3 + 2
+        if target_qubit_4 is None and swap:
+            target_qubit_4 = bell_qubit_4 + 2
+
+        self.single_selection(operation, bell_qubit_1, bell_qubit_2, target_qubit_1, target_qubit_2, measure=False,
+                              noise=noise, pn=pn, pm=pm, pg=pg, swap=swap, user_operation=user_operation)
+        # Not the swap version this time, since the swapping is done in this method itself
+        self.single_selection(CZ_gate, bell_qubit_3, bell_qubit_4, target_qubit_3, target_qubit_4, measure=False,
+                              noise=noise, pn=pn, pm=pm, pg=pg, user_operation=user_operation)
+
+        if not swap:
+            measurement_zip = zip([bell_qubit_4, bell_qubit_2], [bell_qubit_3, bell_qubit_1])
+        else:
+            measurement_zip = zip([bell_qubit_2, bell_qubit_2], [bell_qubit_1, bell_qubit_1])
+
+        parity = []
+        for i, (qubit_1, qubit_2) in enumerate(measurement_zip):
+            if i == 1 and swap:
+                self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
+                self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
+            measurement_outcomes = self.measure([qubit_1, qubit_2], noise=noise, pm=pm,
+                                                user_operation=user_operation)
             # If loop necessary for proper cut-off handling
             if type(measurement_outcomes) == SKIP:
                 return measurement_outcomes
-            success = (measurement_outcomes[0] == measurement_outcomes[1] and
-                       measurement_outcomes[2] == measurement_outcomes[3])
-            if not retry:
-                return success
+            parity.append(measurement_outcomes[0] == measurement_outcomes[1])
+        return all(parity)
 
+    @determine_qubit_index(parameter_positions=[2, 3, 4, 5, 6, 7, 8, 9])
     @skip_if_cut_off_reached
-    def double_selection_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
-                              user_operation=True):
-        """ Double selection with swaps """
-        success = False
-        while not success:
-            self.single_selection_swap(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm,
-                                       pg=pg, user_operation=user_operation)
-            # Not the swap version this time, since the swapping is done in this method itself
-            self.single_selection(operation, bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, pm=pm, pg=pg,
-                                  measure=False, user_operation=user_operation)
-            parity = []
-            for i, (qubit_1, qubit_2) in enumerate(zip([bell_qubit_2, bell_qubit_2], [bell_qubit_1, bell_qubit_1])):
-                if i == 1:
-                    self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
-                    self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-                measurement_outcomes = self.measure([qubit_1, qubit_2], noise=noise, pm=pm,
-                                                    user_operation=user_operation)
-                # If loop necessary for proper cut-off handling
-                if type(measurement_outcomes) == SKIP:
-                    return measurement_outcomes
-                parity.append(measurement_outcomes[0] == measurement_outcomes[1])
-            return all(parity)
-
-    @skip_if_cut_off_reached
-    def single_dot(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
-                   pg=None, draw_X_gate=False, parity_check=True, retry=True, user_operation=True):
+    def single_dot(self, operation, bell_qubit_1, bell_qubit_2, bell_qubit_3=None, bell_qubit_4=None,
+                   target_qubit_1=None, target_qubit_2=None, target_qubit_3=None, target_qubit_4=None, measure=True,
+                   noise=None, pn=None, pm=None, pg=None, draw_X_gate=False, parity_check=True, swap=False,
+                   user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
-        success = False
-        drawn = False
-        single_selection_success = False
-        while not success:
-            while not single_selection_success:
-                self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
-                single_selection_success = self.single_selection(CNOT_gate, bell_qubit_1 - 1, bell_qubit_2 - 1,
-                                                                 noise=noise, pn=pn, pm=pm, pg=pg,
-                                                                 retry=False, user_operation=user_operation)
-                if not single_selection_success:
-                    continue
-                single_selection_success = self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1,
-                                                                 noise=noise, pn=pn, pm=pm, pg=pg, retry=False,
-                                                                 user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            if measure:
-                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
-                                                    user_operation=user_operation)
-                # If loop necessary for proper cut-off handling
-                if type(measurement_outcomes) == SKIP:
-                    return measurement_outcomes
-                success = measurement_outcomes[0] == measurement_outcomes[1]
+        if bell_qubit_3 is None:
+            bell_qubit_3 = bell_qubit_1 - 1 if not swap else bell_qubit_1
+        if bell_qubit_4 is None:
+            bell_qubit_4 = bell_qubit_2 - 1 if not swap else bell_qubit_2
+        if target_qubit_1 is None:
+            target_qubit_1 = bell_qubit_1 + 1
+        if target_qubit_2 is None:
+            target_qubit_2 = bell_qubit_2 + 1
 
-                if draw_X_gate and self._sub_circuits and not drawn:
-                    self._add_draw_operation(X_gate, bell_qubit_2 + 1,
-                                             noise=self.noise and not self.no_single_qubit_error)
-                    drawn = True
-                if not retry:
-                    return success
-                if not parity_check:
-                    if not success:
-                        self.X(bell_qubit_2 + 1, noise=noise)
-                        self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                    return success
-            else:
-                return
-
-    @skip_if_cut_off_reached
-    def single_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, measure=True, noise=None, pn=None, pm=None,
-                        pg=None, draw_X_gate=False, retry=False, parity_check=True, user_operation=True):
-        """ single dot with swaps """
         success = False
         single_selection_success = False
-        drawn = False
-        while not success:
-            while not single_selection_success:
-                self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
+        while not single_selection_success:
+            self.create_bell_pair(bell_qubit_1, bell_qubit_2, noise=noise, pn=pn, user_operation=user_operation)
+            if swap:
                 self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
                 self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-                single_selection_success = self.single_selection_swap(CNOT_gate, bell_qubit_1, bell_qubit_2,
-                                                                      next_qubit=2, noise=noise, pn=pn, pm=pm, pg=pg,
-                                                                      user_operation=user_operation)
-                if not single_selection_success:
-                    continue
-                single_selection_success = self.single_selection_swap(CZ_gate, bell_qubit_1, bell_qubit_2,
-                                                                      next_qubit=2, noise=noise, pn=pn, pm=pm, pg=pg,
-                                                                      user_operation=user_operation)
+                target_qubit_3 = bell_qubit_3 + 2 if target_qubit_3 is None else target_qubit_3
+                target_qubit_4 = bell_qubit_4 + 2 if target_qubit_4 is None else target_qubit_4
+            single_selection_success = self.single_selection(CNOT_gate, bell_qubit_3, bell_qubit_4, target_qubit_3,
+                                                             target_qubit_4, noise=noise, pn=pn, pm=pm, pg=pg,
+                                                             swap=swap, user_operation=user_operation)
+            if not single_selection_success:
+                continue
+            single_selection_success = self.single_selection(CZ_gate, bell_qubit_3, bell_qubit_4,  target_qubit_3,
+                                                             target_qubit_4, noise=noise, pn=pn, pm=pm, pg=pg,
+                                                             swap=swap, user_operation=user_operation)
 
+        if swap:
             self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-            self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=bell_qubit_1 + 1, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=bell_qubit_2 + 1, noise=noise, pg=pg,
-                            user_operation=user_operation)
-            if measure:
-                measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
-                                                    user_operation=user_operation)
-                # If loop necessary for proper cut-off handling
-                if type(measurement_outcomes) == SKIP:
-                    return measurement_outcomes
-                success = measurement_outcomes[0] == measurement_outcomes[1]
-
-                if draw_X_gate and self._sub_circuits and not drawn:
-                    self._add_draw_operation(X_gate, bell_qubit_2 + 1,
-                                             noise=self.noise and not self.no_single_qubit_error)
-                    drawn = True
-
-                if not parity_check:
-                    if not success:
-                        self.X(bell_qubit_2 + 1, noise=noise)
-                        self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                    return success
-
-                if not retry:
-                    return success
-            else:
-                self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
-                self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-                success = True
-
-    @skip_if_cut_off_reached
-    def double_dot(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
-                   draw_X_gate=False, parity_check=True, retry=True, user_operation=True):
-        """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
-        success = False
-        drawn = False
-        while not success:
-            self.single_dot(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
-                            user_operation=user_operation)
-            single_selection_success = self.single_selection(CZ_gate, bell_qubit_1 - 1, bell_qubit_2 - 1, noise=noise,
-                                                             pn=pn, pm=pm, pg=pg, retry=False,
-                                                             user_operation=user_operation)
+        self.apply_gate(operation, cqubit=bell_qubit_1, tqubit=target_qubit_1, noise=noise, pg=pg,
+                        user_operation=user_operation)
+        self.apply_gate(operation, cqubit=bell_qubit_2, tqubit=target_qubit_2, noise=noise, pg=pg,
+                        user_operation=user_operation)
+        if measure:
             measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
                                                 user_operation=user_operation)
             # If loop necessary for proper cut-off handling
             if type(measurement_outcomes) == SKIP:
                 return measurement_outcomes
-            success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
+            success = measurement_outcomes[0] == measurement_outcomes[1]
 
-            if draw_X_gate and self._sub_circuits and not drawn:
-                self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
-                drawn = True
-            if not retry:
-                return success
-
-            if not parity_check:
-                if not success and single_selection_success:
-                    self.X(bell_qubit_2 + 1, noise=noise)
-                    self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                return success, single_selection_success
-
-    @skip_if_cut_off_reached
-    def double_dot_swap(self, operation, bell_qubit_1, bell_qubit_2, noise=None, pn=None, pm=None, pg=None,
-                        draw_X_gate=False, retry=False, parity_check=True, user_operation=True):
-        """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
-        success = False
-        drawn = False
-        while not success:
-            self.single_dot_swap(operation, bell_qubit_1, bell_qubit_2, measure=False, noise=noise, pn=pn, pm=pm, pg=pg,
-                                 user_operation=user_operation)
-            single_selection_success = self.single_selection_swap(CZ_gate, bell_qubit_1, bell_qubit_2, next_qubit=2,
-                                                                  noise=noise, pn=pn, pm=pm, pg=pg,
-                                                                  user_operation=user_operation)
-            self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
-            self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
-            measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
-                                                user_operation=user_operation)
-            # If loop necessary for proper cut-off handling
-            if type(measurement_outcomes) == SKIP:
-                return measurement_outcomes
-            success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
-
-            if draw_X_gate and self._sub_circuits and not drawn:
-                self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
-                drawn = True
-
+            if draw_X_gate and self._sub_circuits:
+                self._add_draw_operation(X_gate, bell_qubit_2 + 1,
+                                         noise=self.noise and not self.no_single_qubit_error)
             if not parity_check:
                 if not success:
                     self.X(bell_qubit_2 + 1, noise=noise)
                     self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                return success, single_selection_success
-
-            if not retry:
                 return success
+        elif swap:
+            self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
+            self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
+
+        return success
+
+    @determine_qubit_index(parameter_positions=[2, 3, 4, 5, 6, 7, 8, 9])
+    @skip_if_cut_off_reached
+    def double_dot(self, operation, bell_qubit_1, bell_qubit_2, bell_qubit_3=None, bell_qubit_4=None,
+                   target_qubit_1=None, target_qubit_2=None, target_qubit_3=None, target_qubit_4=None, noise=None,
+                   pn=None, pm=None, pg=None, draw_X_gate=False, parity_check=True, swap=False, user_operation=True):
+        """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
+        if bell_qubit_3 is None:
+            bell_qubit_3 = bell_qubit_1 - 1 if not swap else bell_qubit_1
+        if bell_qubit_4 is None:
+            bell_qubit_4 = bell_qubit_2 - 1 if not swap else bell_qubit_2
+        if target_qubit_3 is None and swap:
+            target_qubit_3 = bell_qubit_3 + 2
+        if target_qubit_4 is None and swap:
+            target_qubit_4 = bell_qubit_4 + 2
+
+        self.single_dot(operation, bell_qubit_1, bell_qubit_2, target_qubit_1, target_qubit_2, measure=False,
+                        noise=noise, pn=pn, pm=pm, pg=pg, swap=swap, user_operation=user_operation)
+        single_selection_success = self.single_selection(CZ_gate, bell_qubit_3, bell_qubit_4, target_qubit_3,
+                                                         target_qubit_4, noise=noise, pn=pn, pm=pm, pg=pg, swap=swap,
+                                                         user_operation=user_operation)
+        if swap:
+            self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
+            self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
+
+        measurement_outcomes = self.measure([bell_qubit_2, bell_qubit_1], noise=noise, pm=pm,
+                                            user_operation=user_operation)
+        # If loop necessary for proper cut-off handling
+        if type(measurement_outcomes) == SKIP:
+            return measurement_outcomes
+        success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
+
+        if draw_X_gate and self._sub_circuits:
+            self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
+
+        if not parity_check:
+            if not success and single_selection_success:
+                self.X(bell_qubit_2 + 1, noise=noise)
+                self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
+            return success, single_selection_success
+
+        return success
 
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
                                electron_qubit=None, end_circuit=True):
@@ -1936,7 +1865,9 @@ class QuantumCircuit:
         # Function is here, such that user parameters are not overwritten in the loop
         def node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit):
             if cqubit is None:
-                cqubit = self.nodes[node].ghz_qubit
+                # control qubit is the qubit in the node that is initialised apart from the data qubits
+                cqubit = int(set(self.qubits.keys()).intersection(self.nodes[node].qubits)
+                             .difference(self._uninitialised_qubits).difference(self.data_qubits).pop())
             ghz_qubit = cqubit
             if tqubit is None:
                 data_qubits = self.nodes[node].data_qubits
@@ -1956,6 +1887,7 @@ class QuantumCircuit:
             self.measure(cqubit, probabilistic=False)
 
         # Main code of the method
+        self.get_state_fidelity() if len(self.nodes) > 1 else None
         if nodes is None:
             nodes = [self.get_node_name_from_qubit(cqubit)]
         if tqubit is None:
@@ -2175,6 +2107,7 @@ class QuantumCircuit:
         return self._operations.measurement_operations.measurement_first_qubit(density_matrix, measure, noise, pm,
                                                                                no_normalisation=no_normalisation)
 
+    @determine_qubit_index(parameter_positions=[1])
     @skip_if_cut_off_reached
     @handle_none_parameters
     def measure(self, measure_qubits, outcome=0, uneven_parity=False, basis="X", noise=None, pm=None, pm_1=None,
