@@ -134,12 +134,13 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
     if csv_filename:
         file_path = csv_filename.replace('.csv', '') + ".csv"
         if os.path.exists(file_path):
-            ex_dataframe = pd.read_csv(file_path, index_col=list(index_columns.keys()), float_precision='round_trip')
+            ex_dataframe = pd.read_csv(file_path, index_col=list(index_columns.keys()), float_precision='round_trip',
+                                       sep=";")
             prev_fids = ex_dataframe['avg_fidelity'] * ex_dataframe['iterations']
             new_fids = data_frame['avg_fidelity'] * data_frame['iterations']
             data_frame['iterations'] = ex_dataframe['iterations'].add(data_frame['iterations'], fill_value=0)
             data_frame['avg_fidelity'] = (new_fids.add(prev_fids, fill_value=0)) / data_frame['iterations']
-        data_frame.to_csv(file_path)
+        data_frame.to_csv(file_path, sep=';')
     pprint(data_frame)
 
 
