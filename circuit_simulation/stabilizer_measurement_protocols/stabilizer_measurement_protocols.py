@@ -173,7 +173,7 @@ def plain(qc: QuantumCircuit, *, operation):
         qc.start_sub_circuit("A")
         qc.X(7)
         qc.start_sub_circuit("B")
-        qc.X(5)
+        qc.X("B-e")
 
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"])
 
@@ -193,7 +193,7 @@ def plain_swap(qc: QuantumCircuit, *, operation):
         qc.start_sub_circuit("A")
         qc.X("A-1")
         qc.start_sub_circuit("B")
-        qc.X("B-1")
+        qc.X("B-e")
 
     qc.stabilizer_measurement(operation, nodes=["C", "D", "A", "B"], swap=True)
 

@@ -21,7 +21,7 @@ def _open_existing_superoperator_file(filename, addition=""):
     if not os.path.exists(filename + addition):
         return
 
-    existing_file = pd.read_csv(filename, sep=';')
+    existing_file = pd.read_csv(filename + addition, sep=';')
     index = ['error_config', 'lie'] if 'error_idle' not in existing_file else ['error_stab', 'error_idle', 'lie']
 
     existing_file = existing_file.set_index(index)
