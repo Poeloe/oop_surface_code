@@ -1,3 +1,6 @@
+import os
+import sys
+sys.path.insert(1, os.path.abspath(os.getcwd()))
 import circuit_simulation.gate_teleportation.teleportation_circuits as tel_circuits
 from circuit_simulation.circuit_simulator import QuantumCircuit
 from circuit_simulation.basic_operations.basic_operations import *
@@ -33,7 +36,7 @@ def create_data_frame(data_frame, **kwargs):
     return data_frame, index_columns
 
 
-def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, cp_path, **kwargs):
+def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, **kwargs):
     pbar = tqdm(total=iterations, position=1) if pb else None
     qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
@@ -88,7 +91,7 @@ def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwar
 
 
 def run_for_arguments(gates, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
-                      meas_error_probabilities_one_state, csv_filename, pm_equals_pg,
+                      meas_error_probabilities_one_state, csv_filename, pm_equals_pg, cp_path,
                       fixed_lde_attempts, threaded, **kwargs):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state

@@ -28,7 +28,8 @@ def get_results_from_files(superoperator_files, name_csv):
         df = pd.read_csv(superoperator_file, sep=';', index_col=[0, 1])
         index = tuple(df.iloc[0, df.columns.get_loc(index)] for index in indices)
 
-        variables = ['written_to', 'lde_attempts', 'avg_lde', 'total_duration', 'avg_duration', 'ghz_fidelity']
+        variables = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
+                     'ghz_fidelity']
         for variable in variables:
             result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
 
@@ -36,29 +37,18 @@ def get_results_from_files(superoperator_files, name_csv):
         result_df.loc[index, 'IIZZ'] = df['p'].loc[('IIZZ', False)]
 
     result_df.to_csv(name_csv, sep=';')
+    print(result_df)
 
 
 if __name__ == '__main__':
-    name_csv = "./results/circuit_data_dyn.csv"
-    folder = "./results/sim_data"
-    folder_name = os.path.join(folder, "superoperator_prb_dec_swap")
-    folder_name_2 = os.path.join(folder, "superoperator_prb_dec_no_swap")
-    dict = {
-        "plain_no_pulse_swap": "{}/no_pulse_plain_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
-            .format(folder_name),
-        "expedient_no_pulse_swap": "{}/no_pulse_expedient_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
-            .format(folder_name),
-        "expedient_no_pulse_no_swap": "{}/no_pulse_2_expedient_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
-            .format(folder_name_2),
-        "plain_no_pulse_no_swap": "{}/no_pulse_2_plain_pg0.001_pn0.05_pm0.01_pm_10.05_lde500.csv"
-            .format(folder_name_2),
-    }
+    name_csv = "./results/circuit_data_NV.csv"
+    folder = "./results/sim_data_3"
+    folder_name = os.path.join(folder, "superoperator_fid_dur")
 
     files = [
-        "{}/pulse_plain_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
-        "{}/pulse_expedient_swap_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
-        "{}/test_prot_dyn_prot_14_1_pg0.01_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
-        "{}/test_prot_dyn_prot_14_1_pg0.001_pn0.05_pm0.01_pm_10.05_lde6000.csv".format(folder_name),
+        "{}/no_pulse_dyn_prot_4_4_1_swap_pg0.01_pn0.05_pm0.01_pm_10.05_lde5000.csv".format(folder_name),
+        "{}/no_pulse_expedient_swap_pg0.01_pn0.05_pm0.01_pm_10.05_lde5000.csv".format(folder_name),
+        "{}/no_pulse_plain_swap_pg0.01_pn0.05_pm0.01_pm_10.05_lde5000.csv".format(folder_name),
     ]
 
     get_results_from_files(files, name_csv)
