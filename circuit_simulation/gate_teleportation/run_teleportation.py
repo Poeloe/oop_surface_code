@@ -20,7 +20,7 @@ import os
 
 def create_data_frame(data_frame, **kwargs):
 
-    pop_list = ['iterations', 'save_latex_pdf', 'cp_path', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
+    pop_list = ['iterations', 'save_latex_pdf', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
                 'single_qubit_gate_lookup', 'thread_safe_printing']
     index_columns = copy(kwargs)
     [index_columns.pop(item) for item in pop_list]
