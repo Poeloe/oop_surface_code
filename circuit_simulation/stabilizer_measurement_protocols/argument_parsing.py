@@ -4,7 +4,7 @@ import argparse
 class LoadFromFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         with values as v:
-            parser.parse_args([argument for argument in v.read().split('\n') if "#" not in argument], namespace)
+            parser.parse_args([argument for argument in v.read().split() if "#" not in argument], namespace)
 
 
 def compose_parser():
