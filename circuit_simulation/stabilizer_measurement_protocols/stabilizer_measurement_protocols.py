@@ -33,7 +33,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[10, 3, 2])
         qc.define_node("D", qubits=[8, 1, 0])
 
-    elif protocol == 'duo_structure_2':
+    elif protocol == 'weight_2_4':
         qc = QuantumCircuit(32, 16, **kwargs)
 
         qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], amount_data_qubits=2)
@@ -139,7 +139,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[12, 2, 1, 0])
 
     # Common sub circuit defining handled here
-    if protocol in ['plain', 'plain_swap', 'duo_structure_2', 'expedient', 'expedient', 'expedient_swap', 'stringent',
+    if protocol in ['plain', 'plain_swap', 'weight_2_4', 'expedient', 'expedient', 'expedient_swap', 'stringent',
                     'stringent_swap', 'dyn_prot_4_6_sym_1', 'dyn_prot_4_6_sym_1_swap', 'dyn_prot_4_14_1',
                     'dyn_prot_4_4_1_swap', 'dyn_prot_4_14_1_swap', 'dyn_prot_4_22_1', 'dyn_prot_4_42_1']:
         qc.define_sub_circuit("AB")
@@ -1307,7 +1307,7 @@ def duo_structure(qc: QuantumCircuit, *, operation):
 
 
 # noinspection PyUnresolvedReferences
-def duo_structure_2(qc: QuantumCircuit, *, operation):
+def weight_2_4(qc: QuantumCircuit, *, operation):
     ghz_success = False
     while not ghz_success:
         PBAR.reset() if PBAR is not None else None

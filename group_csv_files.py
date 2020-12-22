@@ -52,9 +52,10 @@ def append_dataframes(dataframes):
 
 if __name__ == '__main__':
     name_csv = "./results/dyn_4_14_superoperators_L_cycles.csv"
-    folder = "./results/sim_data_2"
+    folder = "./results/sim_data_3"
     folder_names = ["mwpm_dyn_4_14_L_cycles_run_3",
-                    "mwpm_dyn_4_14_L_cycles_run_5"]
+                    "mwpm_dyn_4_14_L_cycles_run_5",
+                    "mwpm_dyn_4_14_L_cycles_run_7"]
     error_values = [0.00375, 0.004, 0.00425, 0.0045, 0.00475, 0.005]
     files = []
 

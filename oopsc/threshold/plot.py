@@ -164,7 +164,7 @@ def plot_thresholds(
         ylabel = "Average time to failure" if time_to_failure else "Success rate"
         plot_style(ax0, plot_title, "Probability of Pauli X error (%)", ylabel)
         ax0.set_ylim(ymin, ymax)
-        ax0.legend(handles=legend, loc="lower left", ncol=2)
+        ax0.legend(handles=legend, loc="lower left", ncol=2, prop={'size': 20})
 
         # ''' Plot using the rescaled error rate'''
         #

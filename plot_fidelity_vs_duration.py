@@ -28,7 +28,8 @@ if __name__ == '__main__':
                      points[i],
                      color=color,
                      ms=12,
-                     label="{}-{}".format(protocol, str(lde)))
+                     label="{}-{}".format(protocol, str(lde)),
+                     fillstyle='full')
             prev_protocol = protocol
 
     plt.title("Fidelity vs. Duration")
