@@ -91,7 +91,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[12, 4, 3])
         qc.define_node("D", qubits=[10, 2, 1, 0])
 
-    elif protocol == 'dyn_prot_4_14_1':
+    elif 'dyn_prot_4_14_1' in protocol:
         qc = QuantumCircuit(22, 2, **kwargs)
 
         qc.define_node("A", qubits=[20, 13, 12, 11, 10])
@@ -141,7 +141,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
     # Common sub circuit defining handled here
     if protocol in ['plain', 'plain_swap', 'duo_structure_2', 'expedient', 'expedient', 'expedient_swap', 'stringent',
                     'stringent_swap', 'dyn_prot_4_6_sym_1', 'dyn_prot_4_6_sym_1_swap', 'dyn_prot_4_14_1',
-                    'dyn_prot_4_4_1_swap', 'dyn_prot_4_22_1', 'dyn_prot_4_42_1']:
+                    'dyn_prot_4_4_1_swap', 'dyn_prot_4_14_1_swap', 'dyn_prot_4_22_1', 'dyn_prot_4_42_1']:
         qc.define_sub_circuit("AB")
         qc.define_sub_circuit("CD", concurrent_sub_circuits="AB")
         qc.define_sub_circuit("AC")
@@ -810,10 +810,6 @@ def dyn_prot_4_6_sym_1_swap(qc: QuantumCircuit, *, operation):
 
 
 def dyn_prot_4_14_1(qc: QuantumCircuit, *, operation):
-
-    # T = (1 / math.sqrt(2)) * sp.csr_matrix([[1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, 1, -1, 0]])
-    # Tstar = T.transpose()
-
     ghz_success = False
     while not ghz_success:
         PBAR.reset() if PBAR is not None else None
@@ -869,11 +865,7 @@ def dyn_prot_4_14_1(qc: QuantumCircuit, *, operation):
 
         qc.start_sub_circuit("AC", forced_level=True)
         qc.apply_gate(CNOT_gate, cqubit=13, tqubit=12, reverse=True)    # 5, 12, 9, 13
-        # qc.start_sub_circuit("C")
         qc.apply_gate(CNOT_gate, cqubit=6, tqubit=5, reverse=True)      # 5, 12, 9, 13, 2, 6
-        # qc.start_sub_circuit("AC")
-        # qc._thread_safe_printing = False
-        # qc.draw_circuit()
         measurement_outcomes = qc.measure([5, 12], basis="Z")           # 9, 13, 2, 6
         success = measurement_outcomes[0] == measurement_outcomes[1]
         qc.start_sub_circuit("AB")
@@ -882,14 +874,116 @@ def dyn_prot_4_14_1(qc: QuantumCircuit, *, operation):
             qc.X(9)
         qc.start_sub_circuit("BD")
         qc.apply_gate(CZ_gate, cqubit=9, tqubit=8, reverse=True)        # 1, 8, 9, 13, 2, 6
-        # qc.start_sub_circuit("D")
         qc.apply_gate(CZ_gate, cqubit=2, tqubit=1, reverse=True)        # 1, 8, 9, 13, 2, 6
-        # qc.start_sub_circuit("BD")
         measurement_outcomes2 = qc.measure([1, 8])
         ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
         PBAR.update(30) if PBAR is not None else None
 
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=False)
+
+    PBAR.update(10) if PBAR is not None else None
+
+
+def dyn_prot_4_14_1_swap(qc: QuantumCircuit, *, operation):
+    ghz_success = False
+    while not ghz_success:
+        PBAR.reset() if PBAR is not None else None
+
+        qc.start_sub_circuit("AB")
+        success_ab = False
+        while not success_ab:
+            qc.create_bell_pair("A-e", "B-e")
+            qc.SWAP("A-e", "A-e+1", efficient=True)
+            qc.SWAP("B-e", "B-e+1", efficient=True)
+            success_ab = qc.single_selection(CZ_gate, "A-e", "B-e", swap=True)
+            if not success_ab:
+                continue
+            success_ab2 = False
+            while not success_ab2:
+                qc.create_bell_pair("A-e", "B-e")
+                qc.SWAP("A-e", "A-e+2", efficient=True)
+                qc.SWAP("B-e", "B-e+2", efficient=True)
+                success_ab2 = qc.single_selection(CNOT_gate, "A-e", "B-e", "A-e+2", "B-e+2", swap=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            success_ab = qc.single_selection(CiY_gate, "A-e", "B-e", create_bell_pair=False, swap=True)
+
+        PBAR.update(20) if PBAR is not None else None
+
+        qc.start_sub_circuit("CD")
+        success_cd = False
+        while not success_cd:
+            qc.create_bell_pair("C-e", "D-e")
+            qc.SWAP("C-e", "C-e+1", efficient=True)
+            qc.SWAP("D-e", "D-e+1", efficient=True)
+            success_cd = qc.single_selection(CZ_gate, "C-e", "D-e", swap=True)
+            if not success_cd:
+                continue
+            success_cd2 = False
+            while not success_cd2:
+                qc.create_bell_pair("C-e", "D-e")
+                qc.SWAP("C-e", "C-e+2", efficient=True)
+                qc.SWAP("D-e", "D-e+2", efficient=True)
+                success_cd2 = qc.single_selection(CZ_gate, "C-e", "D-e", "C-e+2", "D-e+2", swap=True)
+            qc.SWAP("C-e", "C-e+2", efficient=True)
+            qc.SWAP("D-e", "D-e+2", efficient=True)
+            success_cd = qc.single_selection(CNOT_gate, "C-e", "D-e", create_bell_pair=False, swap=True)
+
+        PBAR.update(30) if PBAR is not None else None
+
+        qc.start_sub_circuit("AC")
+        success_ac = False
+        while not success_ac:
+            qc.create_bell_pair("A-e", "C-e")
+            qc.SWAP("C-e", "C-e+2", efficient=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            success_ac = qc.single_selection(CZ_gate, "A-e", "C-e", "A-e+2", "C-e+2", swap=True)
+            if not success_ac:
+                continue
+            success_ac2 = False
+            while not success_ac2:
+                qc.create_bell_pair("A-e", "C-e")
+                qc.SWAP("C-e", "C-e+3", efficient=True)
+                qc.SWAP("A-e", "A-e+3", efficient=True)
+                success_ac2 = qc.single_selection(CNOT_gate, "A-e", "C-e", "A-e+3", "C-e+3", swap=True)
+            qc.SWAP("A-e", "A-e+3", efficient=True)
+            qc.SWAP("C-e", "C-e+3", efficient=True)
+            success_ac = qc.single_selection(CiY_gate, "A-e", "C-e", "A-e+2", "C-e+2", create_bell_pair=False,
+                                             swap=True)
+
+        qc.start_sub_circuit("BD")
+        success_bd = False
+        while not success_bd:
+            qc.create_bell_pair("B-e", "D-e")
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("D-e", "D-e+2", efficient=True)
+            success_bd = qc.single_selection(CZ_gate, "B-e", "D-e", "B-e+2", "D-e+2", swap=True)
+
+        qc.start_sub_circuit("AC", forced_level=True)
+        qc.SWAP("A-e", "A-e+1", efficient=True)
+        qc.SWAP("C-e", "C-e+1", efficient=True)
+        qc.apply_gate(CNOT_gate, cqubit="A-e", tqubit="A-e+2", reverse=True)    # 5, 12, 9, 13
+        qc.apply_gate(CNOT_gate, cqubit="C-e", tqubit="C-e+2", reverse=True)      # 5, 12, 9, 13, 2, 6
+        qc.SWAP("A-e", "A-e+2", efficient=True)
+        qc.SWAP("C-e", "C-e+2", efficient=True)
+        measurement_outcomes = qc.measure(["C-e", "A-e"], basis="Z")           # 9, 13, 2, 6
+        success = measurement_outcomes[0] == measurement_outcomes[1]
+        if not success:
+            qc.start_sub_circuit("AB")
+            qc.X("A-e+2")
+            qc.X("B-e+1")
+        qc.start_sub_circuit("BD")
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("D-e", "D-e+1", efficient=True)
+        qc.apply_gate(CZ_gate, cqubit="B-e", tqubit="B-e+2", reverse=True)  # 5, 12, 9, 13
+        qc.apply_gate(CZ_gate, cqubit="D-e", tqubit="D-e+2", reverse=True)  # 5, 12, 9, 13, 2, 6
+        qc.SWAP("B-e", "B-e+2", efficient=True)
+        qc.SWAP("D-e", "D-e+2", efficient=True)
+        measurement_outcomes2 = qc.measure(["D-e", "B-e"], basis="X")
+        ghz_success = measurement_outcomes2[0] == measurement_outcomes2[1]
+        PBAR.update(30) if PBAR is not None else None
+
+    qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
 
     PBAR.update(10) if PBAR is not None else None
 
