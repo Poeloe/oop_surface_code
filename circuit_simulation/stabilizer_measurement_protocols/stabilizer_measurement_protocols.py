@@ -284,7 +284,7 @@ def dejmps_2_4_1_swap(qc: QuantumCircuit, *, operation):
 
         qc.SWAP("B-2", "B-e", efficient=True)
         qc.SWAP("A-2", "A-e", efficient=True)
-        level_1 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1")
+        level_1 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)
 
         PBAR.update(20) if PBAR is not None else None
 
