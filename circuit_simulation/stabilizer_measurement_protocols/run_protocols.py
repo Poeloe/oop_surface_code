@@ -13,6 +13,19 @@ import itertools
 import time
 from copy import copy
 import random
+from plot_non_local_cnot import mean_confidence_interval
+from circuit_simulation.termcolor.termcolor import cprint
+
+
+def print_signature():
+    print("\n Quantum Circuit Simulator® wished you\n")
+    cprint('\n'.join([' ' * 10 + '*' + ' ' * 10]), color='yellow')
+    cprint("".join(
+        '{0}{1}{0}\n'.format(' ' * ((21 - c) // 2), ''.join(map(lambda i: '#' if i % 2 else 'o', range(c)))) for c in
+        range(3, 22, 2)), color='green')
+    cprint("".join([' ' * 9 + '/|\\' + ' ' * 9]), color='red')
+    cprint("\n a Merry Christmas and a Happy New Year!\n\n", color="red")
+    print("\n --------------------------------------------------- \n")
 
 
 def _open_existing_superoperator_file(filename, addition=""):
@@ -72,6 +85,12 @@ def _init_random_seed(timestamp=None, worker=0, iteration=0):
     seed = int("{:.0f}".format(timestamp * 10 ** 7) + str(worker) + str(iteration))
     random.seed(float(seed))
     return seed
+
+
+def add_column_values(dataframe, columns, values):
+    for column, value in zip(columns, values):
+        dataframe[column] = None
+        dataframe.iloc[0, dataframe.columns.get_loc(column)] = value
 
 
 def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
@@ -177,17 +196,27 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
     # Collect all the results from the workers and close the threadpool
     superoperator_results = []
     print_lines_results = []
-    characteristics_results = []
+    characteristics_dicts = []
     for res in results:
         superoperator_tuple, print_lines, characteristics = res.get()
         superoperator_results.append(superoperator_tuple)
         print_lines_results.append(print_lines)
-        characteristics_results.extend(characteristics)
+        characteristics_dicts.extend(characteristics)
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
     normal = _open_existing_superoperator_file(fn, ".csv")
     cut_off = _open_existing_superoperator_file(fn, "_failed.csv")
+
+    # Adding confidence intervals to the superoperator
+    stab_fids = []
+    ghz_fids = []
+    dur = []
+    [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']))
+     for d in characteristics_dicts]
+    add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur'], [mean_confidence_interval(stab_fids),
+                                                                   mean_confidence_interval(ghz_fids),
+                                                                   mean_confidence_interval(dur)])
 
     # Combine the superoperator results obtained for each worker
     for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
@@ -207,6 +236,12 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
 def main_series(fn, cp_path, **kwargs):
     (normal, cut_off), print_lines, characteristics = main(**kwargs)
     print(*print_lines)
+
+    # Adding the confidence intervals to the superoperator
+    add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur'],
+                      [mean_confidence_interval(characteristics['stab_fid']),
+                       mean_confidence_interval(characteristics['ghz_fid']),
+                       mean_confidence_interval(characteristics['dur'])])
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
     if fn and not args['print_run_order']:
@@ -280,9 +315,10 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
         supop_dataframe = _combine_idle_and_stabilizer_superoperator(supop_dataframe)
         pbar.update(10) if pbar is not None else None
 
-        characteristics['dur'] += [qc.total_duration]
-        characteristics['ghz_fid'] += [qc.ghz_fidelity]
-        characteristics['stab_fid'] += [supop_dataframe.iloc[0, 0]]
+        if not qc.cut_off_time_reached:
+            characteristics['dur'] += [qc.total_duration]
+            characteristics['ghz_fid'] += [qc.ghz_fidelity]
+            characteristics['stab_fid'] += [supop_dataframe.iloc[0, 0]]
 
         # Fuse the superoperator dataframes obtained in each iteration
         if qc.cut_off_time_reached:
@@ -334,6 +370,8 @@ if __name__ == "__main__":
 
     args = vars(parser.parse_args())
     args = _additional_parsing_of_arguments(args)
+    print_signature()
+    time.sleep(1)
     _print_circuit_parameters(**copy(args))
 
     # Loop over all possible combinations of the user determined parameters

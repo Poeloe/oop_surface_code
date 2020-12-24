@@ -15,7 +15,6 @@ from tqdm import tqdm
 import math
 import multiprocessing
 from pprint import pprint
-import os
 
 
 def get_perfect_matrix():
@@ -28,12 +27,17 @@ def get_perfect_matrix():
 
 
 def get_average_fidelity(matrices):
-    avg_matrix = sum(matrices) / len(matrices)
     perfect_matrix = get_perfect_matrix()
-    entanglement_fidelity = fidelity(perfect_matrix, avg_matrix)
     d = perfect_matrix.shape[0]
 
-    return (d * entanglement_fidelity + 1) / (d + 1)
+    # Error bar data
+    entanglement_fidelities = [fidelity(perfect_matrix, mat) for mat in matrices]
+    average_fidelities = [(d * fid + 1) / (d + 1) for fid in entanglement_fidelities]
+
+    avg_matrix = sum(matrices) / len(matrices)
+    entanglement_fidelity = fidelity(perfect_matrix, avg_matrix)
+
+    return (d * entanglement_fidelity + 1) / (d + 1), average_fidelities
 
 
 def create_data_frame(data_frame, **kwargs):
@@ -50,18 +54,18 @@ def create_data_frame(data_frame, **kwargs):
     data_frame = pd.DataFrame(index=index)
     data_frame['avg_fidelity'] = 0
     data_frame['iterations'] = 0
+    data_frame['fidelities'] = None
 
     return data_frame, index_columns
 
 
 def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, **kwargs):
-    pbar = tqdm(total=iterations, position=1) if pb else None
     qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
     total_print_lines = []
     matrices = []
     for i in range(iterations):
-        pbar.update(1) if pb else None
+        pb.update(1) if pb else None
         noisy_matrix, print_lines = run_gate_teleportation(qc, gate, draw_circuit, color, **kwargs)
         total_print_lines.extend(print_lines)
         matrices.append(noisy_matrix)
@@ -110,9 +114,11 @@ def main(data_frame, kwargs, print_lines_total, threaded):
         noisy_matrices, print_lines = run_series(**kwargs)
 
     print_lines_total.extend(print_lines)
+    avg_fid, fidelities = get_average_fidelity(noisy_matrices)
     data_frame.loc[tuple(index_columns.values()), :] = 0
     data_frame.loc[tuple(index_columns.values()), 'iterations'] += len(noisy_matrices)
-    data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = get_average_fidelity(noisy_matrices)
+    data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = avg_fid
+    data_frame.loc[tuple(index_columns.values()), 'fidelities'] = str(fidelities)
 
     return data_frame, index_columns
 
@@ -132,8 +138,10 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
     print_lines_total = []
 
     # Loop over command line arguments
+    pbar = tqdm(total=kwargs['iterations'], position=1) if pb else None
     for gate, pg, pn, pm, pm_1, lde in product(*iter_list):
         pbar1.update(1)
+        pbar.reset()
         pm = pg if pm is None or pm_equals_pg else pm
         loop_arguments = {
             'gate': gate,
@@ -142,7 +150,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'pn': pn,
             'pm_1': pm_1,
             'fixed_lde_attempts': lde,
-            'pb': pb
+            'pb': pbar
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)

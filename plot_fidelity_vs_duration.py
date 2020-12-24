@@ -40,13 +40,16 @@ def scatter_plot(y_value, title, xlabel, ylabel):
             dataframe_new = dataframe.loc[index, :]
             i = i + 1 if protocol == prev_protocol else 0
             style = 'none' if 'NA' not in protocol else 'full'
-            ax.plot(dataframe_new['avg_duration'],
-                    dataframe_new[y_value],
-                    points[i],
-                    color=color,
-                    ms=18,
-                    label="{}-{}".format(protocol, str(lde)),
-                    fillstyle=style)
+            error = {'ghz_fidelity': 'int_ghz', "IIII": "int_stab"}
+            ax.errorbar(dataframe_new['avg_duration'],
+                        dataframe_new[y_value],
+                        yerr=dataframe_new[error[y_value]] if error[y_value] in dataframe_new else None,
+                        xerr=dataframe_new["int_dur"] if 'int_dur' in dataframe_new else None,
+                        marker=points[i],
+                        color=color,
+                        ms=18,
+                        label="{}-{}".format(protocol, str(lde)),
+                        fillstyle=style)
             prev_protocol = protocol
 
     return fig, ax

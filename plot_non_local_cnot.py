@@ -1,5 +1,21 @@
 import pandas as pd
 from matplotlib import pyplot as plt
+import numpy as np
+import scipy.stats as stats
+
+
+def mean_confidence_interval(data, confidence=0.95):
+    if any([type(el) != list for el in data]):
+        data = [data]
+    errors = []
+    for fids in data:
+        fids_np = np.array(fids)
+        n = len(fids_np)
+        mean = np.mean(fids_np)
+        interval = stats.t.interval(confidence, n-1, loc=mean, scale=stats.sem(fids_np))
+        errors.append(mean - interval[0])
+
+    return errors
 
 
 def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
@@ -24,18 +40,19 @@ def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
 
 
 if __name__ == '__main__':
-    csv_filename = './results/sim_data_3/non_local_gate/no_pulse.csv'
-    csv_filename2 = './results/sim_data_3/non_local_gate/no_pulse_natural_abundance.csv'
+    csv_filename = '/Users/Paul/Desktop/test.csv'
+    # csv_filename2 = './results/sim_data_3/non_local_gate/no_pulse_natural_abundance.csv'
     save_file_path = './results/thesis_files/draft_figures/non_local_gate.pdf'
 
-    dataframe = pd.read_csv(csv_filename)
-    dataframe2 = pd.read_csv(csv_filename2, sep=";")
+    dataframe = pd.read_csv(csv_filename, sep=";")
+    # dataframe2 = pd.read_csv(csv_filename2, sep=";")
 
     fig, ax = plot_style(title="Non-local CNOT gate", xlabel="Gate error probability (-)",
                          ylabel="Fidelity (-)")
 
-    ax.plot(dataframe['pg'], dataframe['avg_fidelity'], '-x', label="Purified sample", ms=12)
-    ax.plot(dataframe2['pg'], dataframe2['avg_fidelity'], '-o', label="Natural abundance sample", ms=12)
+    error_data = mean_confidence_interval([eval(fidelities) for fidelities in dataframe['fidelities']])
+    ax.errorbar(dataframe['pg'], dataframe['avg_fidelity'], yerr=error_data, label="Purified sample", ms=12)
+    # ax.errorbar(dataframe2['pg'], dataframe2['avg_fidelity'], yerr=error_data2, label="Natural abundance sample", ms=12)
     ax.legend(prop={'size': 18})
     ax.set_xlim(0.051, 0)
     plt.show()

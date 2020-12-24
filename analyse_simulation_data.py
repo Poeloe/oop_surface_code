@@ -29,9 +29,10 @@ def get_results_from_files(superoperator_files, name_csv):
         index = tuple(df.iloc[0, df.columns.get_loc(index)] for index in indices)
 
         variables = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
-                     'ghz_fidelity']
+                     'ghz_fidelity', 'int_dur', 'int_ghz', 'int_stab']
         for variable in variables:
-            result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
+            if variable in result_df:
+                result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
 
         result_df.loc[index, 'IIII'] = df['p'].loc[('IIII', False)]
         result_df.loc[index, 'IIZZ'] = df['p'].loc[('IIZZ', False)]
