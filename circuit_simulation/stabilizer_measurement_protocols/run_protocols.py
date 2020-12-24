@@ -18,7 +18,7 @@ from circuit_simulation.termcolor.termcolor import cprint
 
 
 def print_signature():
-    print("\n Quantum Circuit Simulator® wished you\n")
+    cprint("\n Quantum Circuit Simulator® wishes you\n", color='cyan')
     cprint('\n'.join([' ' * 10 + '*' + ' ' * 10]), color='yellow')
     cprint("".join(
         '{0}{1}{0}\n'.format(' ' * ((21 - c) // 2), ''.join(map(lambda i: '#' if i % 2 else 'o', range(c)))) for c in
