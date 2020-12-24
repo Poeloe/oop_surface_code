@@ -124,8 +124,8 @@ def fidelity(rho, sigma):
         sigma = sp.csr_matrix(sigma)
 
     rho_root = sp.csr_matrix(sqrtm(rho.toarray()))
-    resulting_matrix = sqrtm((rho_root * (sigma * rho_root)).toarray())
-    return (trace(resulting_matrix))**2
+    resulting_matrix = sqrtm((rho_root * sigma * rho_root).toarray())
+    return trace(resulting_matrix)
 
 
 def fidelity_elementwise(rho, sigma):

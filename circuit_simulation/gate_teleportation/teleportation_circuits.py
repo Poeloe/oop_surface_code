@@ -44,4 +44,4 @@ def cnot_swap(qc: QuantumCircuit):
 
     qc.end_current_sub_circuit(total=True)
 
-    return [4, 5, 2, 3]
+    return qc.get_combined_density_matrix([4, 5, 2, 3])[0]
