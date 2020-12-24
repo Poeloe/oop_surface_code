@@ -47,7 +47,7 @@ def _combine_idle_and_stabilizer_superoperator(dataframes):
 
     index = pd.MultiIndex.from_product([[item[0] for item in superoperator_stab.index if item[1]],
                                         [item[0] for item in superoperator_idle.index if item[1]],
-                                        [True, False]],
+                                        [False, True]],
                                        names=['error_stab', 'error_idle', 'lie'])
     combined_dataframe = pd.DataFrame(columns=superoperator_stab.columns, index=index)
 
@@ -177,10 +177,12 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
     # Collect all the results from the workers and close the threadpool
     superoperator_results = []
     print_lines_results = []
+    characteristics_results = []
     for res in results:
-        superoperator_tuple, print_lines = res.get()
+        superoperator_tuple, print_lines, characteristics = res.get()
         superoperator_results.append(superoperator_tuple)
         print_lines_results.append(print_lines)
+        characteristics_results.extend(characteristics)
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
@@ -203,7 +205,7 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
 
 
 def main_series(fn, cp_path, **kwargs):
-    (normal, cut_off), print_lines = main(**kwargs)
+    (normal, cut_off), print_lines, characteristics = main(**kwargs)
     print(*print_lines)
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
@@ -221,6 +223,7 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
     total_print_lines = []
+    characteristics = {'dur': [], 'stab_fid': [], 'ghz_fid': []}
 
     # Progress bar initialisation
     progress_bar = kwargs.pop('progress_bar')
@@ -277,6 +280,10 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
         supop_dataframe = _combine_idle_and_stabilizer_superoperator(supop_dataframe)
         pbar.update(10) if pbar is not None else None
 
+        characteristics['dur'] += [qc.total_duration]
+        characteristics['ghz_fid'] += [qc.ghz_fidelity]
+        characteristics['stab_fid'] += [supop_dataframe.iloc[0, 0]]
+
         # Fuse the superoperator dataframes obtained in each iteration
         if qc.cut_off_time_reached:
             supop_dataframe_failed = _combine_superoperator_dataframes(supop_dataframe_failed, supop_dataframe)
@@ -290,7 +297,7 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
             if draw_circuit else None
         qc.reset()
 
-    return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines
+    return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines, characteristics
 
 
 def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,

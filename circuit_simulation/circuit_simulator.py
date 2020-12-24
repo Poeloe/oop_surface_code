@@ -648,7 +648,13 @@ class QuantumCircuit:
                 List of qubit indices that are part of the node
             electron_qubits : list or int
                 Sub list of qubits that should be marked as the electron qubits
+            data_qubits : list
+                List of the data qubits in the node. If not defined, the first 'amount_data_qubits' qubits in the
+                array are marked as the data qubits.
+            amount_data_qubits : int
+                The amount of data qubits present in the node.
         """
+        qubits = sorted(qubits, reverse=True)
         if self.nodes is None:
             self.nodes = {}
         if self.qubits is None:
@@ -1872,7 +1878,7 @@ class QuantumCircuit:
             if tqubit is None:
                 data_qubits = self.nodes[node].data_qubits
             else:
-                data_qubits = [tqubit] if type(tqubit) is not list else tqubit
+                data_qubits = [tqubit] if type(tqubit) != list else tqubit
 
             if swap:
                 electron_qubit = self.nodes[node].electron_qubits[0] if electron_qubit is None else electron_qubit
@@ -1899,7 +1905,9 @@ class QuantumCircuit:
         else:
             raise ValueError("The target qubit must be either None, int or list. It was {}".format(type(tqubit)))
 
-        for node, tqubit in zip(nodes, tqubits):
+        for i, node in enumerate(nodes):
+            tqubit = [qubit for qubit in tqubits if qubit in self.nodes[node].qubits] if self.nodes and all(tqubits) \
+                else tqubits[i]
             node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
 
         if end_circuit:
