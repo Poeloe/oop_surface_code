@@ -4,7 +4,7 @@ import numpy as np
 import scipy.stats as stats
 
 
-def mean_confidence_interval(data, confidence=0.95):
+def mean_confidence_interval(data, confidence=0.95, plus_mean=False):
     if any([type(el) != list for el in data]):
         data = [data]
     errors = []
@@ -12,8 +12,8 @@ def mean_confidence_interval(data, confidence=0.95):
         fids_np = np.array(fids)
         n = len(fids_np)
         mean = np.mean(fids_np)
-        interval = stats.t.interval(confidence, n-1, loc=mean, scale=stats.sem(fids_np))
-        errors.append(mean - interval[0])
+        interval = stats.norm.interval(confidence, loc=mean, scale=stats.sem(fids_np))
+        errors.append(mean - interval[0]) if not plus_mean else errors.append(interval[1])
 
     return errors
 
