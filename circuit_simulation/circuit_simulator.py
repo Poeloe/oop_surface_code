@@ -600,7 +600,7 @@ class QuantumCircuit:
         started_sub_circuit.reset()
         self._current_sub_circuit = started_sub_circuit
 
-    def end_current_sub_circuit(self, total=False):
+    def end_current_sub_circuit(self, total=False, duration=None, sub_circuit=None):
         """
             Method can be used to mark the current sub circuit as 'ran'. This method is only needed when no new sub
             circuit is started. DO NOT USE THIS METHOD IN BETWEEN SUB CIRCUITS THAT ARE MARKED AS CONCURRENT, OTHERWISE
@@ -614,6 +614,11 @@ class QuantumCircuit:
                 applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
+        if duration is None:
+            duration = self._current_sub_circuit.total_duration
+        if sub_circuit is None:
+            sub_circuit = self._current_sub_circuit
+
         # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
             self._update_sub_circuit_duration_with_node_duration()
@@ -621,13 +626,13 @@ class QuantumCircuit:
             self._current_sub_circuit.set_ran()
 
         # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
-        self._apply_waiting_time_to_fastest_sub_circuits()
+            self._apply_waiting_time_to_fastest_sub_circuits()
 
         # First apply left over waiting time of all qubits in the form of decoherence
         if self.noise:
             self._N_decoherence(decoherence=self.decoherence)
 
-        self._draw_order.append(["LEVEL", self._current_sub_circuit.total_duration, self._current_sub_circuit])
+        self._draw_order.append(["LEVEL", duration, sub_circuit])
         self._current_sub_circuit = None
 
         # Used in case cut-off can be reached, this frees the methods that otherwise will be skipped due to cut-off
@@ -796,7 +801,8 @@ class QuantumCircuit:
                         qubit._waiting_time_idle = data_qubit_shortest.waiting_time_idle
                         qubit._waiting_time_lde = data_qubit_shortest.waiting_time_lde
 
-    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle', involved_nodes=None):
+    def _increase_duration(self, amount, excluded_qubits, included_qubits=None, kind='idle', involved_nodes=None,
+                           check=True):
         """
             Increases the total duration of the QuantumCircuit if no current sub circuit is present, else it updates
             the total duration of the current sub circuit. If qubits are specified, their idle times (idle or lde) are
@@ -823,9 +829,6 @@ class QuantumCircuit:
         else:
             if involved_nodes is None:
                 involved_nodes = list(set([self.get_node_name_from_qubit(qubit) for qubit in excluded_qubits]))
-            # if not all([node in self._current_sub_circuit.involved_nodes for node in involved_nodes]):
-            #     raise ValueError("Operation is applied on a qubit in a node not involved in the current sub circuit. "
-            #                      "Increasing duration cannot handle this at this point in time.")
 
             for node in involved_nodes:
                 self.nodes[node].increase_sub_circuit_time(amount)
@@ -833,7 +836,8 @@ class QuantumCircuit:
         if self.qubits is not None:
             self._increase_qubit_duration(amount, excluded_qubits, included_qubits, kind, involved_nodes)
 
-        self._check_if_cut_off_time_is_reached()
+        if check:
+            self._check_if_cut_off_time_is_reached()
 
     def _check_if_cut_off_time_is_reached(self):
         """
@@ -841,15 +845,19 @@ class QuantumCircuit:
             are finished, but a sub circuit already reaches the cut-off time then only for this sub circuit it is
             marked that the cut-off time is reached.
         """
-        sub_circuit_duration = self._current_sub_circuit.total_duration if self._current_sub_circuit is not None else 0
+        if self._current_sub_circuit:
+            longest_duration = min([self.nodes[node].sub_circuit_time
+                                    for node in self._current_sub_circuit.involved_nodes])
+        else:
+            longest_duration = 0
 
-        if self.total_duration + sub_circuit_duration > self.cut_off_time:
+        if self.total_duration + longest_duration >= self.cut_off_time:
             if self._current_sub_circuit is not None:
                 if self._current_sub_circuit.all_ran:
                     self.cut_off_time_reached = True
                 else:
                     self._current_sub_circuit.set_cut_off_time_reached()
-            if self.total_duration > self.cut_off_time:
+            if self.total_duration >= self.cut_off_time:
                 self.cut_off_time_reached = True
 
     def _increase_qubit_duration(self, amount, excluded_qubits=None, included_qubits=None, kind='idle',
@@ -870,7 +878,7 @@ class QuantumCircuit:
             kind : str
                 String indicating the kind of waiting time that is supposed to be added (options are 'idle' or 'LDE')
         """
-        excluded_qubits_copy = copy(excluded_qubits)
+        excluded_qubits_copy = copy(excluded_qubits) if excluded_qubits is not None else []
         if not included_qubits:
             if self._current_sub_circuit is not None:
                 # If excluded qubits are in the same node, it's a local operation. Decoherence only on local qubits
@@ -879,7 +887,7 @@ class QuantumCircuit:
                 else:
                     involved_qubits = self._current_sub_circuit.qubits
             else:
-                involved_qubits = [i for i in range(self.num_qubits)]
+                involved_qubits = [i for i in self.qubits.keys()]
 
             excluded_qubits_copy.extend(self._uninitialised_qubits)
             # apply waiting time to the qubits not taking part in the operation.
@@ -1108,6 +1116,20 @@ class QuantumCircuit:
                 self._N_decoherence([i, i + 1], times=times_total)
                 self._increase_duration(bell_creation_duration)
 
+    def get_cut_off_corrected_lde_time(self, attempts, bell_creation_duration):
+        lde_time = attempts * bell_creation_duration
+        pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
+        longest_duration = max([self.nodes[node].sub_circuit_time for node in self._current_sub_circuit.involved_nodes])
+        lde_plus_longest = lde_time + longest_duration + pulse_time
+
+        if self.total_duration + lde_plus_longest > self.cut_off_time:
+            time_till_cut_off = self.cut_off_time - self.total_duration
+            attempts = time_till_cut_off // (bell_creation_duration + self.pulse_duration / (2*self.fixed_lde_attempts))
+            pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
+            return time_till_cut_off - pulse_time, attempts, pulse_time
+
+        return lde_time, attempts, pulse_time
+
     @determine_qubit_index(parameter_positions=[1, 2])
     @skip_if_cut_off_reached
     @handle_none_parameters
@@ -1185,26 +1207,23 @@ class QuantumCircuit:
 
         self._update_uninitialised_qubit_register([qubit1, qubit2], update_type="remove")
 
-        self._increase_duration(bell_creation_duration * attempts, [qubit1, qubit2], kind='LDE')
+        duration, attempts, pulse_time = self.get_cut_off_corrected_lde_time(attempts, bell_creation_duration)
+        self._increase_duration(duration, [qubit1, qubit2], kind='LDE')
         # Add duration of pi pulses to the initialised qubit if LDE took longer than two times the inter pulse delay
-        self._add_pulse_duration_while_lde([qubit1, qubit2], attempts)
+        self._add_pulse_duration_while_lde(pulse_time, [qubit1, qubit2])
 
         self._total_succeeded_lde += 1
         self._add_draw_operation("#{}".format(attempts), (qubit1, qubit2), noise)
 
-    def _add_pulse_duration_while_lde(self, lde_qubits, attempts):
-        total_pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
-
-        if total_pulse_time == 0:
+    def _add_pulse_duration_while_lde(self, pulse_time, lde_qubits):
+        if pulse_time == 0:
             return
 
         node_qubits = self.get_node_qubits(lde_qubits)
         # If there are any initialised qubits that are being decoupled, than additional pulses were necessary
         if any(not self.qubits[qubit].equal_to_0_or_1_state() and qubit not in self._uninitialised_qubits
                for qubit in node_qubits):
-                    self._increase_duration(total_pulse_time, lde_qubits)
-
-
+            self._increase_duration(pulse_time, lde_qubits)
 
     @staticmethod
     def _get_bell_state_by_type(bell_state_type=1):
@@ -1865,6 +1884,7 @@ class QuantumCircuit:
 
         return success
 
+    @skip_if_cut_off_reached
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
                                electron_qubit=None, end_circuit=True):
 
@@ -1905,13 +1925,13 @@ class QuantumCircuit:
         else:
             raise ValueError("The target qubit must be either None, int or list. It was {}".format(type(tqubit)))
 
+        # Cut-off holds for the GHZ creation, stabilizer measurement should always be fully performed if reached
+        self._circuit_operations_ended = True
+
         for i, node in enumerate(nodes):
             tqubit = [qubit for qubit in tqubits if qubit in self.nodes[node].qubits] if self.nodes and all(tqubits) \
                 else tqubits[i]
             node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
-
-        if end_circuit:
-            self.end_current_sub_circuit(total=True)
 
     """
         ---------------------------------------------------------------------------------------------------------

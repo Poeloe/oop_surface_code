@@ -106,7 +106,10 @@ def _handle_level_entry(draw_item, init):
     total_duration = draw_item[1]
     sub_circuit = draw_item[2]
     if sub_circuit is not None:
-        sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
+        if type(sub_circuit) == SubQuantumCircuit:
+            sub_circuits = "".join([sc.name + "-" for sc in sub_circuit.concurrent_sub_circuits]) + sub_circuit.name
+        else:
+            sub_circuits = sub_circuit
         init[int(len(init) / 2) - 1] += "{}{}: {:1.1e} s.{}".format(5 * " ", sub_circuits, total_duration,
                                                                     5 * " ")
         init = _level_qubit_paths(init)

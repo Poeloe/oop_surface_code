@@ -9,6 +9,7 @@ import pandas as pd
 import circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_protocols as stab_protocols
 from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
 from circuit_simulation.gates.gates import *
+from circuit_simulation.circuit_simulator import QuantumCircuit
 import itertools
 import time
 from copy import copy
@@ -140,6 +141,14 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     return dataframe_1
 
 
+def add_decoherence_if_cut_off(qc: QuantumCircuit):
+    if qc.cut_off_time < np.inf and not qc.cut_off_time_reached:
+        waiting_time = qc.cut_off_time - qc.total_duration
+        if waiting_time > 0:
+            qc._increase_duration(waiting_time, [], involved_nodes=list(qc.nodes.keys()), check=False)
+            qc.end_current_sub_circuit(total=True, duration=waiting_time, sub_circuit="Waiting")
+
+
 def _additional_qc_arguments(**kwargs):
     additional_arguments = {
         'noise': True,
@@ -202,28 +211,31 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
         superoperator_tuple, print_lines, characteristics = res.get()
         superoperator_results.append(superoperator_tuple)
         print_lines_results.append(print_lines)
-        characteristics_dicts.extend(characteristics)
+        characteristics_dicts.append(characteristics)
     thread_pool.close()
 
     # Check if csv already exists to append new data to it, if user requested saving of csv file
     normal = _open_existing_superoperator_file(fn, ".csv")
     cut_off = _open_existing_superoperator_file(fn, "_failed.csv")
 
-    # Adding confidence intervals to the superoperator
-    stab_fids = []
-    ghz_fids = []
-    dur = []
-    [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']))
-     for d in characteristics_dicts]
-    add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur'], [mean_confidence_interval(stab_fids),
-                                                                   mean_confidence_interval(ghz_fids),
-                                                                   mean_confidence_interval(dur)])
-
     # Combine the superoperator results obtained for each worker
     for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
         normal = _combine_superoperator_dataframes(normal, superoperator_succeed)
         cut_off = _combine_superoperator_dataframes(cut_off, superoperator_failed)
         print(*print_line)
+
+    # Adding confidence intervals to the superoperator
+    if normal is not None:
+        stab_fids = []
+        ghz_fids = []
+        dur = []
+        [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']), )
+         for d in characteristics_dicts]
+        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99'],
+                          [mean_confidence_interval(stab_fids),
+                           mean_confidence_interval(ghz_fids),
+                           mean_confidence_interval(dur),
+                           mean_confidence_interval(dur, 0.99, True)])
 
     # Save superoperator dataframe to csv if exists and requested by user
     if fn:
@@ -285,14 +297,13 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
         if pbar_2 is None:
             print(">>> At iteration {} of the {}.".format(iter + 1, iterations), end='\r', flush=True)
 
-        # _init_random_seed(worker=threading.get_ident(), iteration=iter)
-
-        if print_run_order:
-            return (None, None), []
+        _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
         # Run the user requested protocol
         operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
         superoperator_qubits_list = protocol_method(qc, operation=operation)
+        qc.end_current_sub_circuit(total=True)
+        add_decoherence_if_cut_off(qc)
 
         if draw_circuit:
             qc.draw_circuit(no_color=not color, color_nodes=True)

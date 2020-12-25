@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 
 
 class LoadFromFile(argparse.Action):
@@ -209,5 +210,10 @@ def compose_parser():
                         help='T2 relaxation time for an electron qubit.',
                         type=float,
                         default=1)
+    parser.add_argument('-cut',
+                        '--cut_off_time',
+                        help='Specifies the cut-off time for performing a stabilizer measurement.',
+                        type=float,
+                        default=np.inf)
 
     return parser
