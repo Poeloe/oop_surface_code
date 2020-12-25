@@ -19,11 +19,12 @@ from circuit_simulation.termcolor.termcolor import cprint
 
 def print_signature():
     cprint("\n Quantum Circuit Simulator® wishes you\n", color='cyan')
-    cprint('\n'.join([' ' * 10 + '*' + ' ' * 10]), color='yellow')
+    cprint(''.join(['\t\t', ' ' * 10 + '*' + ' ' * 10]), color='yellow')
     cprint("".join(
-        '{0}{1}{0}\n'.format(' ' * ((21 - c) // 2), ''.join(map(lambda i: '#' if i % 2 else 'o', range(c)))) for c in
+        '\t\t{0}{1}{0}\n'.format(' ' * ((21 - c) // 2), ''.join(map(lambda i: '#' if i % 2 else 'o', range(c)))) for
+        c in
         range(3, 22, 2)), color='green')
-    cprint("".join([' ' * 9 + '/|\\' + ' ' * 9]), color='red')
+    cprint("".join(['\t\t', ' ' * 9 + '/|\\' + ' ' * 9]), color='red')
     cprint("\n a Merry Christmas and a Happy New Year!\n\n", color="red")
     print("\n --------------------------------------------------- \n")
 
