@@ -614,11 +614,6 @@ class QuantumCircuit:
                 applied to the main circuit. The boolean '_circuit_operations_ended' is used in order to prevent
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
-        if duration is None:
-            duration = self._current_sub_circuit.total_duration
-        if sub_circuit is None:
-            sub_circuit = self._current_sub_circuit
-
         # Add duration of the current sub circuit to the total duration if sub circuit present
         if self._current_sub_circuit is not None:
             self._update_sub_circuit_duration_with_node_duration()
@@ -631,6 +626,11 @@ class QuantumCircuit:
         # First apply left over waiting time of all qubits in the form of decoherence
         if self.noise:
             self._N_decoherence(decoherence=self.decoherence)
+
+        if duration is None:
+            duration = self._current_sub_circuit.total_duration
+        if sub_circuit is None:
+            sub_circuit = self._current_sub_circuit
 
         self._draw_order.append(["LEVEL", duration, sub_circuit])
         self._current_sub_circuit = None
@@ -1933,6 +1933,8 @@ class QuantumCircuit:
                 else tqubits[i]
             node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
 
+        self.cut_off_time_reached = False
+
     """
         ---------------------------------------------------------------------------------------------------------
                                             Gate Noise Methods
@@ -2383,7 +2385,7 @@ class QuantumCircuit:
                 superoperator.append(SuperoperatorElement(fid_no_me, False, list(kraus_operator), error_density_matrix))
 
         # Possible post-processing options for the superoperator
-        if combine and not idle_data_qubit:
+        if combine and not idle_data_qubit and not self.cut_off_time_reached:
             superoperator = self._fuse_equal_config_up_to_permutation(superoperator)
         if combine and most_likely:
             superoperator = self._remove_not_likely_configurations(superoperator)
