@@ -14,7 +14,7 @@ def mean_confidence_interval(data, confidence=0.95, plus_mean=False):
         fids_np = np.array(fids)
         n = len(fids_np)
         mean = np.mean(fids_np)
-        interval = stats.norm.interval(confidence, loc=mean, scale=stats.sem(fids_np))
+        interval = stats.norm.interval(confidence, loc=mean, scale=np.std(fids_np))
         errors.append(mean - interval[0]) if not plus_mean else errors.append(interval[1])
 
     return errors
