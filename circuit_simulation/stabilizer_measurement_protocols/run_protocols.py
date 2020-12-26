@@ -251,11 +251,12 @@ def main_series(fn, cp_path, **kwargs):
     print(*print_lines)
 
     # Adding the confidence intervals to the superoperator
-    add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99'],
-                      [mean_confidence_interval(characteristics['stab_fid']),
-                       mean_confidence_interval(characteristics['ghz_fid']),
-                       mean_confidence_interval(characteristics['dur']),
-                       mean_confidence_interval(characteristics['dur'], confidence=0.99, plus_mean=True)])
+    if normal is not None:
+        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99'],
+                          [mean_confidence_interval(characteristics['stab_fid']),
+                           mean_confidence_interval(characteristics['ghz_fid']),
+                           mean_confidence_interval(characteristics['dur']),
+                           mean_confidence_interval(characteristics['dur'], confidence=0.99, plus_mean=True)])
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
     if fn and not args['print_run_order']:

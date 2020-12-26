@@ -1317,6 +1317,10 @@ class QuantumCircuit:
             user_operation : bool
                 If True, the system will log this as a by the user applied operation on the circuit.
         """
+        # Skip gate if not within cut-off
+        if not self._check_if_gate_within_cut_off(gate, tqubit):
+            return
+
         if user_operation:
             self._user_operation_order.append({"apply_gate": [gate, tqubit, cqubit, noise, conj, pg, draw]})
 
@@ -1352,6 +1356,23 @@ class QuantumCircuit:
         if electron_is_target:
             self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
                                                                              decoherence=decoherence, draw=draw)
+
+    def _check_if_gate_within_cut_off(self, gate, tqubit):
+        # Never skip when circuit_operation_ended is True or if cut_off_time is infinity
+        if self._circuit_operations_ended or self.cut_off_time == np.inf or self.nodes is None:
+            return True
+        # Get total duration of the node on which the gate is applied
+        node = self.nodes[self.get_node_name_from_qubit(tqubit)]
+        node_time = node.sub_circuit_time
+        total_time = self.total_duration + node_time
+
+        # If the gate duration exceeds the cut-off time, increase the time as decoherence
+        if total_time + gate.duration > self.cut_off_time:
+            time_till_cut_off = self.cut_off_time - total_time
+            self._increase_duration(time_till_cut_off, [], involved_nodes=[node.name])
+            return False
+
+        return True
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -1628,6 +1649,9 @@ class QuantumCircuit:
             lookup table.
         """
         if cqubit == tqubit:
+            return
+        # Skip gate if not within cut-off
+        if not self._check_if_gate_within_cut_off(SWAP_gate, tqubit):
             return
         if self.noiseless_swap:
             noise = False
