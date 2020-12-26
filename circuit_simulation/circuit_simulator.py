@@ -1318,7 +1318,7 @@ class QuantumCircuit:
                 If True, the system will log this as a by the user applied operation on the circuit.
         """
         # Skip gate if not within cut-off
-        if not self._check_if_gate_within_cut_off(gate, tqubit):
+        if not self._check_if_operation_within_cut_off(gate.duration, tqubit):
             return
 
         if user_operation:
@@ -1357,19 +1357,25 @@ class QuantumCircuit:
             self._operations.gate_operations.handle_electron_is_target_qubit(self, tqubit, cqubit, noise=noise,
                                                                              decoherence=decoherence, draw=draw)
 
-    def _check_if_gate_within_cut_off(self, gate, tqubit):
+    def _check_if_operation_within_cut_off(self, duration, tqubit=None, nodes=None):
+        if tqubit is None and nodes is None:
+            raise ValueError("Either the tqubit or nodes needs to be specified!")
+
         # Never skip when circuit_operation_ended is True or if cut_off_time is infinity
         if self._circuit_operations_ended or self.cut_off_time == np.inf or self.nodes is None:
             return True
         # Get total duration of the node on which the gate is applied
-        node = self.nodes[self.get_node_name_from_qubit(tqubit)]
+        node = self.nodes[self.get_node_name_from_qubit(tqubit)] if nodes is None else self.nodes[nodes[0]]
         node_time = node.sub_circuit_time
         total_time = self.total_duration + node_time
 
+        if nodes is None:
+            nodes = [node.name]
+
         # If the gate duration exceeds the cut-off time, increase the time as decoherence
-        if total_time + gate.duration > self.cut_off_time:
+        if total_time + duration > self.cut_off_time:
             time_till_cut_off = self.cut_off_time - total_time
-            self._increase_duration(time_till_cut_off, [], involved_nodes=[node.name])
+            self._increase_duration(time_till_cut_off, [], involved_nodes=nodes)
             return False
 
         return True
@@ -1651,7 +1657,7 @@ class QuantumCircuit:
         if cqubit == tqubit:
             return
         # Skip gate if not within cut-off
-        if not self._check_if_gate_within_cut_off(SWAP_gate, tqubit):
+        if not self._check_if_operation_within_cut_off(SWAP_gate.duration, tqubit):
             return
         if self.noiseless_swap:
             noise = False
@@ -1937,6 +1943,16 @@ class QuantumCircuit:
             self.measure(cqubit, probabilistic=False)
 
         # Main code of the method
+
+        # Check if stabilizer measurement within cut-off time
+        if self.nodes and self.cut_off_time < np.inf:
+            # The max amount of data qubits in a node indicates the amount op gates necessary to perform stabilizer
+            num_op = max([len(node.data_qubits) for node in self.nodes.values() if node.data_qubits is not None])
+            duration = (operation.duration * num_op + self.measurement_duration + SWAP_gate.duration
+                        if swap else operation.duration * num_op + self.measurement_duration)
+            if not self._check_if_operation_within_cut_off(duration, nodes=nodes):
+                return
+
         self.get_state_fidelity() if len(self.nodes) > 1 else None
         if nodes is None:
             nodes = [self.get_node_name_from_qubit(cqubit)]
