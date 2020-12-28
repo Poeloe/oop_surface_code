@@ -8,7 +8,7 @@ import inspect
 
 class Superoperator:
 
-    def __init__(self, file_name, GHZ_success=1.1, additional_superoperators=None):
+    def __init__(self, file_name, GHZ_success=1.1, additional_superoperators=None, failed_ghz_superoperator=None):
         """
             Superoperator(file_name, graph, GHZ_success=1.1)
 
@@ -57,6 +57,11 @@ class Superoperator:
         """
         self.file_name = file_name.replace('.csv', '')
         self._path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", self.file_name + ".csv")
+        self.file_name_failed_superoperator = (failed_ghz_superoperator.replace('.csv', '')
+                                               if failed_ghz_superoperator is not None else None)
+        self._path_to_file_failed = (os.path.join(os.path.dirname(__file__), "csv_files",
+                                                  self.file_name_failed_superoperator + ".csv")
+                                     if failed_ghz_superoperator is not None else None)
         self.GHZ_success = GHZ_success
 
         self.pg = None
@@ -69,17 +74,11 @@ class Superoperator:
         self.p_bell = None
 
         # Convert additional superoperators if present
-        self.additional_superoperators = {}
-        if additional_superoperators is not None:
-            for id, superoperator in enumerate(additional_superoperators):
-                path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", superoperator + ".csv")
-                p, s = self._csv_to_superoperator(path_to_file)
-                p_before_meas, s_before_meas = self._convert_elements_to_before_projection(p, s)
-                self.additional_superoperators[id] = {'p': p, 's': s,
-                                                      'p_before_meas': p_before_meas, 's_before_meas': s_before_meas}
+        self.additional_superoperators = self._handle_additional_superoperators(additional_superoperators)
 
         self.sup_op_elements_p, self.sup_op_elements_s = self._csv_to_superoperator(path_to_file=self._path_to_file,
                                                                                     check_sum=True, set_attributes=True)
+        self.failed_ghz_elements, _ = self._set_failed_superoperator(self._path_to_file_failed)
         self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas = \
             self._convert_elements_to_before_projection()
 
@@ -91,6 +90,30 @@ class Superoperator:
 
     def __str__(self):
         return self.__repr__()
+
+    def _handle_additional_superoperators(self, additional_superoperators):
+        if additional_superoperators is not None:
+            return {}
+
+        superoperators = {}
+        for id, superoperator in enumerate(additional_superoperators):
+            superoperator.replace('.csv', '')
+            path_to_file = os.path.join(os.path.dirname(__file__), "csv_files", superoperator + ".csv")
+            if 'failed' in superoperator.lower():
+                failed = self._set_failed_superoperator(path_to_file)
+                superoperators[id] = {'failed': failed}
+            else:
+                p, s = self._csv_to_superoperator(path_to_file)
+                p_before_meas, s_before_meas = self._convert_elements_to_before_projection(p, s)
+                superoperators[id] = {'p': p, 's': s, 'p_before_meas': p_before_meas, 's_before_meas': s_before_meas}
+        return superoperators
+
+    def _set_failed_superoperator(self, path_to_file=None):
+        # If not given use ideal case
+        if path_to_file is None:
+            return [SuperoperatorElement(1, False, ["I", "I", "I", "I"])]
+
+        return self._csv_to_superoperator(path_to_file, check_sum=True)[0]
 
     def _csv_to_superoperator(self, path_to_file=None, set_attributes=False, check_sum=False):
         if path_to_file is None:

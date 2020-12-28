@@ -247,22 +247,18 @@ class toric(object):
         # Measure all stabilizers and apply the according measurement errors found above.
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
-                          measurement_errors=measurement_errors_p1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p1)
         self.measure_stab(stabs=self.superoperator.stabs_p2[z],
                           z=z,
-                          measurement_errors=measurement_errors_p2,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p2)
 
         # The apply error and measure star stabilizers in two rounds.
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
-                          measurement_errors=measurement_errors_s1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s1)
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           z=z,
-                          measurement_errors=measurement_errors_s2,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s2)
 
     def stabilizer_cycle_with_superoperator(self, z=0):
         """
@@ -283,36 +279,33 @@ class toric(object):
                                                             self.superoperator.sup_op_elements_p_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
-                          measurement_errors=measurement_errors_p1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p1)
 
         measurement_errors_p2, _ = self.superoperator_error(self.superoperator.stabs_p2[z],
                                                             self.superoperator.sup_op_elements_p_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_p2[z],
                           z=z,
-                          measurement_errors=measurement_errors_p2,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p2)
 
         # The apply error and measure star stabilizers in two rounds
         measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z],
                                                             self.superoperator.sup_op_elements_s_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
-                          measurement_errors=measurement_errors_s1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s1)
 
         measurement_errors_s2, _ = self.superoperator_error(self.superoperator.stabs_s2[z],
                                                             self.superoperator.sup_op_elements_s_before_meas)
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           z=z,
-                          measurement_errors=measurement_errors_s2,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s2)
 
-    def stabilizer_cycle_weight_four_two_architecture(self, z=0):
+    def stabilizer_cycle_weight_two_four_architecture(self, z=0):
         self.set_qubit_states_to_state_previous_layer(z)
 
         first_round_p_sup = self.superoperator.additional_superoperators[0]['p_before_meas']
         first_round_s_sup = self.superoperator.additional_superoperators[0]['s_before_meas']
+        failed_first_round_sup = self.superoperator.additional_superoperators[1]['failed']
 
         second_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
                                 if (divmod(i, self.size/2)[0] % 2) == 0]
@@ -329,11 +322,11 @@ class toric(object):
         # ------------------------------- Plaquette stabilizers --------------------------------
 
         # First round is weight two superoperator, can be applied without any special alterations
-        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z], first_round_p_sup)
+        measurement_errors_p1, _ = self.superoperator_error(self.superoperator.stabs_p1[z], first_round_p_sup,
+                                                            failed_superoperator_elements=failed_first_round_sup)
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
-                          measurement_errors=measurement_errors_p1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p1)
 
         # Second and third round are different. Half of qubits are involved in stabilizer measurement,
         # other half is idle. Idle error should be included in the superoperator
@@ -343,25 +336,23 @@ class toric(object):
 
             self.measure_stab(stabs=stabs,
                               z=z,
-                              measurement_errors=meas_errors,
-                              GHZ_success=self.superoperator.GHZ_success)
+                              measurement_errors=meas_errors)
 
         # ------------------------------- Star stabilizers --------------------------------
 
         # (same as above, but now for star stabilizers)
-        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z], first_round_s_sup)
+        measurement_errors_s1, _ = self.superoperator_error(self.superoperator.stabs_s1[z], first_round_s_sup,
+                                                            failed_superoperator_elements=failed_first_round_sup)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
-                          measurement_errors=measurement_errors_s1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s1)
 
         for stabs in s_second_and_third_round_stabs:
             meas_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_s_before_meas,
                                                       architecture="weight_two_four")
             self.measure_stab(stabs=stabs,
                               z=z,
-                              measurement_errors=meas_errors,
-                              GHZ_success=self.superoperator.GHZ_success)
+                              measurement_errors=meas_errors)
 
     def stabilizer_cycle_weight_three_architecture(self, z=0):
         self.set_qubit_states_to_state_previous_layer(z)
@@ -393,8 +384,7 @@ class toric(object):
                                                              architecture="weight_three")
             self.measure_stab(stabs=stabs,
                               z=z,
-                              measurement_errors=measurement_errors,
-                              GHZ_success=self.superoperator.GHZ_success)
+                              measurement_errors=measurement_errors)
         # ------------------------------- Plaquette stabilizers --------------------------------
 
         for stabs in s_stabilizers:
@@ -402,8 +392,7 @@ class toric(object):
                                                              architecture="weight_three")
             self.measure_stab(stabs=stabs,
                               z=z,
-                              measurement_errors=measurement_errors,
-                              GHZ_success=self.superoperator.GHZ_success)
+                              measurement_errors=measurement_errors)
 
     def stabilizer_cycle_with_superoperator_naomi_order(self, z=0):
         """
@@ -432,12 +421,10 @@ class toric(object):
         # Measure all plaquette stabilizers and apply the corresponding measurement errors
         self.measure_stab(stabs=self.superoperator.stabs_p1[z],
                           z=z,
-                          measurement_errors=measurement_errors_p1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p1)
         self.measure_stab(stabs=self.superoperator.stabs_p2[z],
                           z=z,
-                          measurement_errors=measurement_errors_p2,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_p2)
 
         # Now apply error on the second round of plaquette stabilizers qubits
         self.superoperator_error(self.superoperator.stabs_p2[z], qubit_errors=qubit_errors_p2)
@@ -453,17 +440,15 @@ class toric(object):
                                                                           apply_error=False)
         self.measure_stab(stabs=self.superoperator.stabs_s1[z],
                           z=z,
-                          measurement_errors=measurement_errors_s1,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s1)
         self.measure_stab(stabs=self.superoperator.stabs_s2[z],
                           z=z,
-                          measurement_errors=measurement_errors_s2,
-                          GHZ_success=self.superoperator.GHZ_success)
+                          measurement_errors=measurement_errors_s2)
 
         self.superoperator_error(self.superoperator.stabs_s2[z], qubit_errors=qubit_errors_s2)
 
     def superoperator_error(self, stabs, superoperator_elements=None, qubit_errors=None, apply_error=True,
-                            architecture=None):
+                            architecture=None, failed_superoperator_elements=None):
         """
             Based on the probability of the superoperator elements, this method applies error to the qubits of the
             specified stabilizers and saves the according measurement error value (True or False) to a list. The
@@ -487,6 +472,9 @@ class toric(object):
                 If superoperator for a different architecture (now the weight 4-2 and weight 3 architectures are
                 known) is assessed, then there are idle qubits. These will obtain error differently. This can be
                 specified with this parameter
+            failed_superoperator_elements : list
+                List of superoperator elements that represent the error on the qubits when the GHZ state has failed
+                to be formed.
 
             Returns
             -------
@@ -500,12 +488,20 @@ class toric(object):
         measurement_errors = []
         if qubit_errors is None:
             qubit_errors = []
+        if failed_superoperator_elements is None:
+            failed_superoperator_elements = self.superoperator.failed_ghz_elements
 
         for stab_index, stab in enumerate(stabs):
+            # Get the error config on the stabilizer qubits by picking an element from the superoperator
             if superoperator_elements is not None:
-                random_super_op_element = so.Superoperator.get_supop_el_by_prob(superoperator_elements)
+                # If GHZ state failed to be formed, the failed superoperator elements should be used
+                if random.random() > self.superoperator.GHZ_success:
+                    random_super_op_element = so.Superoperator.get_supop_el_by_prob(failed_superoperator_elements)
+                    measurement_errors.append("failed")
+                else:
+                    random_super_op_element = so.Superoperator.get_supop_el_by_prob(superoperator_elements)
+                    measurement_errors.append(random_super_op_element.lie)
                 qubit_errors.append(random_super_op_element.error_array)
-                measurement_errors.append(random_super_op_element.lie)
 
             if not apply_error:
                 continue

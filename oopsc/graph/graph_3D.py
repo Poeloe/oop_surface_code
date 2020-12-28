@@ -163,7 +163,7 @@ class toric(go.toric):
             if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
             elif "weight_two_four" in self.superoperator.file_name:
-                self.stabilizer_cycle_weight_four_two_architecture(z)
+                self.stabilizer_cycle_weight_two_four_architecture(z)
             elif "weight_three" in self.superoperator.file_name:
                 self.stabilizer_cycle_weight_three_architecture(z)
             else:
@@ -264,8 +264,7 @@ class toric(go.toric):
             if pZ != 0 and random.random() < pZ:
                 qubitu.E[1].state = 1 - qubitu.E[1].state
 
-
-    def measure_stab(self, pmX=0, pmZ=0, z=0, GHZ_success=1, stabs=None, measurement_errors=None, **kwargs):
+    def measure_stab(self, pmX=0, pmZ=0, z=0, stabs=None, measurement_errors=None, **kwargs):
         """
             Method measures the stabilizers and registers the outcome to the stabilizer object itself. After, it checks
             if the stabilizer should be saved as an anyon by comparing its parity value to the parity value in the
@@ -293,7 +292,7 @@ class toric(go.toric):
         for i, stab in enumerate(stabs):
 
             # If GHZ state is malformed measurement result will be the result of previous layer and rest will be skipped
-            if random.random() > GHZ_success:
+            if measurement_errors is not None and measurement_errors[i] == 'failed':
                 if stab.sID in self.GHZ_failed:
                     self.GHZ_failed[stab.sID].append(stab)
                 else:

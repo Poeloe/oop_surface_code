@@ -52,6 +52,8 @@ def sim_thresholds(
         perror = [],
         superoperator_filenames=[],
         superoperator_filenames_additional=None,
+        superoperator_filenames_additional_failed=None,
+        superoperator_filenames_failed=None,
         GHZ_successes=[1.1],
         networked_architecture=False,
         iters = 0,
@@ -99,8 +101,11 @@ def sim_thresholds(
             for GHZ_success in GHZ_successes:
                 additional = [superoperator_filenames_additional[i]] if superoperator_filenames_additional is not None \
                     else None
+                additional.append(superoperator_filenames_additional_failed[i]) if \
+                    superoperator_filenames_additional_failed is not None else None
+                failed = superoperator_filenames_failed[i] if superoperator_filenames_failed is not None else None
                 superoperator = so.Superoperator(superoperator_filename, GHZ_success,
-                                                 additional_superoperators=additional)
+                                                 additional_superoperators=additional, failed_ghz_superoperator=failed)
                 superoperators.append(superoperator)
                 perror.append(superoperator.pg)
 

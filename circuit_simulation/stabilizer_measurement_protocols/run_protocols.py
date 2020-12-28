@@ -256,7 +256,7 @@ def main_series(fn, cp_path, **kwargs):
                           [mean_confidence_interval(characteristics['stab_fid']),
                            mean_confidence_interval(characteristics['ghz_fid']),
                            mean_confidence_interval(characteristics['dur']),
-                           mean_confidence_interval(characteristics['dur'], confidence=0.99, plus_mean=True),
+                           mean_confidence_interval(characteristics['dur'], 0.99, True),
                            str(characteristics['ghz_fid']),
                            str(characteristics['dur']),
                            str(characteristics['stab_fid'])])
