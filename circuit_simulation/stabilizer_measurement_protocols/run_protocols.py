@@ -225,12 +225,14 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
         print(*print_line)
 
     # Adding confidence intervals to the superoperator
+    characteristics_dict = None
     if normal is not None:
         stab_fids = []
         ghz_fids = []
         dur = []
         [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']), )
          for d in characteristics_dicts]
+        characteristics_dict = {'stab_fid': stab_fids, 'ghz_fid': ghz_fids, 'dur': dur}
         add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99'],
                           [mean_confidence_interval(stab_fids),
                            mean_confidence_interval(ghz_fids),
@@ -239,11 +241,12 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
 
     # Save superoperator dataframe to csv if exists and requested by user
     if fn:
+        pickle.dump(characteristics_dict, file=open(fn + '.pkl', 'wb')) if characteristics_dict else None
         for superoperator, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
             filename = fn + fn_add
             superoperator.to_csv(filename, sep=';') if superoperator is not None else None
             os.system("rsync -rvu {} {}".format(os.path.dirname(filename), cp_path)) if cp_path and superoperator is \
-                      not None else None
+                                                                                        not None else None
 
 
 def main_series(fn, cp_path, **kwargs):
@@ -256,13 +259,11 @@ def main_series(fn, cp_path, **kwargs):
                           [mean_confidence_interval(characteristics['stab_fid']),
                            mean_confidence_interval(characteristics['ghz_fid']),
                            mean_confidence_interval(characteristics['dur']),
-                           mean_confidence_interval(characteristics['dur'], 0.99, True),
-                           str(characteristics['ghz_fid']),
-                           str(characteristics['dur']),
-                           str(characteristics['stab_fid'])])
+                           mean_confidence_interval(characteristics['dur'], 0.99, True)])
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
     if fn and not args['print_run_order']:
+        pickle.dump(characteristics, file=open(fn + '.pkl', 'wb')) if characteristics else None
         for result, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
             fn_new = fn + fn_add
             existing_file = _open_existing_superoperator_file(fn_new)

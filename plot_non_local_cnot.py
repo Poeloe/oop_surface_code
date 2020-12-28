@@ -4,7 +4,7 @@ import numpy as np
 import scipy.stats as stats
 
 
-def mean_confidence_interval(data, confidence=0.95, plus_mean=False):
+def mean_confidence_interval(data, confidence=0.68, plus_mean=False):
     if len(set(data)) == 1:
         return "Not enough data"
     if any([type(el) != list for el in data]):
