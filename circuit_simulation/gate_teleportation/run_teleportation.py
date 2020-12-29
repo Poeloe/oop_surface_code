@@ -15,6 +15,7 @@ from tqdm import tqdm
 import math
 import multiprocessing
 from pprint import pprint
+import pickle
 
 
 def get_perfect_matrix():
@@ -116,12 +117,15 @@ def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwar
     return noisy_matrix, print_lines, total_duration
 
 
-def main(data_frame, kwargs, print_lines_total, threaded):
+def main(data_frame, kwargs, print_lines_total, threaded, csv_filename):
     data_frame, index_columns = create_data_frame(data_frame, **kwargs)
     if threaded:
         noisy_matrices, print_lines, durations = run_threaded(**kwargs)
     else:
         noisy_matrices, print_lines, durations = run_series(**kwargs)
+
+    pickle.dump({"matrices": noisy_matrices, "durations": durations, "lines": print_lines},
+                open('/home/pmoeller/sim_data/debug_dump.pkl', 'wb'))
 
     print_lines_total.extend(print_lines)
     avg_fid, fidelities = get_average_fidelity(noisy_matrices)
@@ -168,7 +172,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
-        data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded)
+        data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded, csv_filename)
 
     print(*print_lines_total)
     if csv_filename:
