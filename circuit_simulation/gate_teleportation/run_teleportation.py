@@ -58,6 +58,7 @@ def create_data_frame(data_frame, **kwargs):
     data_frame['dur_std'] = 0
     data_frame['fidelities'] = 0
     data_frame['durations'] = 0
+    data_frame['avg_duration'] = 0
 
     return data_frame, index_columns
 
@@ -127,6 +128,7 @@ def main(data_frame, kwargs, print_lines_total, threaded):
     data_frame.loc[tuple(index_columns.values()), :] = 0
     data_frame.loc[tuple(index_columns.values()), 'iterations'] += len(noisy_matrices)
     data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = avg_fid
+    data_frame.loc[tuple(index_columns.values()), 'avg_duration'] = np.mean(durations)
     data_frame.loc[tuple(index_columns.values()), 'fid_std'] = np.std(fidelities)
     data_frame.loc[tuple(index_columns.values()), 'dur_std'] = np.std(durations)
     data_frame.loc[tuple(index_columns.values()), 'fidelities'] = str(fidelities)
