@@ -2048,8 +2048,9 @@ class QuantumCircuit:
         return self._noise.noise_maps.N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits,
                                                                   waiting_time, T, p)
 
-    def _N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
-        return self._noise.noise_maps.N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T)
+    def _N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T, alpha=1):
+        return self._noise.noise_maps.N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time,
+                                                              T, alpha)
 
     def _N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T_a, T_p):
         return self._noise.noise_maps.N_combined_amplitude_phase_damping_channel(self, tqubit, density_matrix,
