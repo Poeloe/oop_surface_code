@@ -20,8 +20,8 @@ def N_amplitude_damping_channel(self, tqubit, density_matrix, num_qubits, waitin
                              num_qubits)
 
 
-def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T):
-    gamma = 1 - math.exp(-waiting_time / T)
+def N_phase_damping_channel(self, tqubit, density_matrix, num_qubits, waiting_time, T, alpha=1):
+    gamma = 1 - math.exp(-(waiting_time / T) ** alpha)
     kraus_opp_1 = SingleQubitGate("P1", np.array([[1, 0], [0, math.sqrt(1 - gamma)]]), 'P1')
     kraus_opp_2 = SingleQubitGate("P2", np.array([[0, 0], [0, math.sqrt(gamma)]]), 'P2')
 

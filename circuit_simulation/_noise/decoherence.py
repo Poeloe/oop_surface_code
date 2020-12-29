@@ -18,8 +18,9 @@ def N_decoherence(self, qubits=None, sub_circuit=None, sub_circuit_concurrent=Fa
         density_matrix, qubits_dens, rel_qubit, rel_num_qubits = self._get_qubit_relative_objects(qubit)
 
         if waiting_time_idle > 0:
+            alpha = 2 if qubit_type == 'e' else 1
             density_matrix = self._N_phase_damping_channel(rel_qubit, density_matrix, rel_num_qubits, waiting_time_idle,
-                                                           T2_idle)
+                                                           T2_idle, alpha)
             self._add_draw_operation("{:1.1e}xD[{}-{}]".format(waiting_time_idle, 'i', qubit_type), qubit, noise=True,
                                      sub_circuit=sub_circuit, sub_circuit_concurrent=sub_circuit_concurrent)
         if waiting_time_lde > 0:
