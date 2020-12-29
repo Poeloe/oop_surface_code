@@ -54,7 +54,10 @@ def create_data_frame(data_frame, **kwargs):
     data_frame = pd.DataFrame(index=index)
     data_frame['avg_fidelity'] = 0
     data_frame['iterations'] = 0
+    data_frame['fid_std'] = 0
+    data_frame['dur_std'] = 0
     data_frame['fidelities'] = None
+    data_frame['durations'] = None
 
     return data_frame, index_columns
 
@@ -62,15 +65,18 @@ def create_data_frame(data_frame, **kwargs):
 def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, **kwargs):
     qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
+
+    durations = []
     total_print_lines = []
     matrices = []
     for i in range(iterations):
         pb.update(1) if pb else None
-        noisy_matrix, print_lines = run_gate_teleportation(qc, gate, draw_circuit, color, **kwargs)
+        noisy_matrix, print_lines, total_duration = run_gate_teleportation(qc, gate, draw_circuit, color, **kwargs)
         total_print_lines.extend(print_lines)
         matrices.append(noisy_matrix)
+        durations.append(total_duration)
 
-    return matrices, total_print_lines
+    return matrices, total_print_lines, durations
 
 
 def run_threaded(iterations, **kwargs):
@@ -84,13 +90,15 @@ def run_threaded(iterations, **kwargs):
 
     noisy_matrices = []
     print_lines = []
+    durations = []
     for result in results:
-        noisy_matrices_run, print_lines_run = result.get()
+        noisy_matrices_run, print_lines_run, durations = result.get()
         noisy_matrices.extend(noisy_matrices_run)
         print_lines.extend(print_lines_run)
+        durations.extend(durations)
     pool.close()
 
-    return noisy_matrices, print_lines
+    return noisy_matrices, print_lines, durations
 
 
 def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwargs):
@@ -101,24 +109,28 @@ def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwar
         qc.draw_circuit(no_color=not color, color_nodes=True)
 
     print_lines = qc.print_lines
+    total_duration = qc.total_duration
     qc.reset()
 
-    return noisy_matrix, print_lines
+    return noisy_matrix, print_lines, total_duration
 
 
 def main(data_frame, kwargs, print_lines_total, threaded):
     data_frame, index_columns = create_data_frame(data_frame, **kwargs)
     if threaded:
-        noisy_matrices, print_lines = run_threaded(**kwargs)
+        noisy_matrices, print_lines, durations = run_threaded(**kwargs)
     else:
-        noisy_matrices, print_lines = run_series(**kwargs)
+        noisy_matrices, print_lines, durations = run_series(**kwargs)
 
     print_lines_total.extend(print_lines)
     avg_fid, fidelities = get_average_fidelity(noisy_matrices)
     data_frame.loc[tuple(index_columns.values()), :] = 0
     data_frame.loc[tuple(index_columns.values()), 'iterations'] += len(noisy_matrices)
     data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = avg_fid
+    data_frame.loc[tuple(index_columns.values()), 'fid_std'] = np.std(fidelities)
+    data_frame.loc[tuple(index_columns.values()), 'dur_std'] = np.std(durations)
     data_frame.loc[tuple(index_columns.values()), 'fidelities'] = str(fidelities)
+    data_frame.loc[tuple(index_columns.values()), 'durations'] = str(durations)
 
     return data_frame, index_columns
 
