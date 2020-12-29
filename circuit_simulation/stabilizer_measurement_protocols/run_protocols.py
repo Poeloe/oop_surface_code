@@ -233,11 +233,14 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
         [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']), )
          for d in characteristics_dicts]
         characteristics_dict = {'stab_fid': stab_fids, 'ghz_fid': ghz_fids, 'dur': dur}
-        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99'],
+        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99', 'stab_std', 'ghz_std', 'dur_std'],
                           [mean_confidence_interval(stab_fids),
                            mean_confidence_interval(ghz_fids),
                            mean_confidence_interval(dur),
-                           mean_confidence_interval(dur, 0.99, True)])
+                           mean_confidence_interval(dur, 0.99, True),
+                           np.std(stab_fids),
+                           np.std(ghz_fids),
+                           np.std(dur)])
 
     # Save superoperator dataframe to csv if exists and requested by user
     if fn:
@@ -255,11 +258,14 @@ def main_series(fn, cp_path, **kwargs):
 
     # Adding the confidence intervals to the superoperator
     if normal is not None:
-        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99', 'ghz', 'dur', 'stab'],
+        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99', 'stab_std', 'ghz_std', 'dur_std'],
                           [mean_confidence_interval(characteristics['stab_fid']),
                            mean_confidence_interval(characteristics['ghz_fid']),
                            mean_confidence_interval(characteristics['dur']),
-                           mean_confidence_interval(characteristics['dur'], 0.99, True)])
+                           mean_confidence_interval(characteristics['dur'], 0.99, True),
+                           np.std(characteristics['stab_fid']),
+                           np.std(characteristics['ghz_fid']),
+                           np.std(characteristics['dur'])])
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
     if fn and not args['print_run_order']:
