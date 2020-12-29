@@ -56,8 +56,8 @@ def create_data_frame(data_frame, **kwargs):
     data_frame['iterations'] = 0
     data_frame['fid_std'] = 0
     data_frame['dur_std'] = 0
-    data_frame['fidelities'] = None
-    data_frame['durations'] = None
+    data_frame['fidelities'] = 0
+    data_frame['durations'] = 0
 
     return data_frame, index_columns
 
