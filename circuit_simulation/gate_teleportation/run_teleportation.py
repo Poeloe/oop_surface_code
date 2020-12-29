@@ -92,10 +92,10 @@ def run_threaded(iterations, **kwargs):
     print_lines = []
     durations = []
     for result in results:
-        noisy_matrices_run, print_lines_run, durations = result.get()
+        noisy_matrices_run, print_lines_run, durations_run = result.get()
         noisy_matrices.extend(noisy_matrices_run)
         print_lines.extend(print_lines_run)
-        durations.extend(durations)
+        durations.extend(durations_run)
     pool.close()
 
     return noisy_matrices, print_lines, durations
@@ -153,7 +153,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
     pbar = tqdm(total=kwargs['iterations'], position=1) if pb else None
     for gate, pg, pn, pm, pm_1, lde in product(*iter_list):
         pbar1.update(1)
-        pbar.reset()
+        pbar.reset() if pbar is not None else None
         pm = pg if pm is None or pm_equals_pg else pm
         loop_arguments = {
             'gate': gate,
