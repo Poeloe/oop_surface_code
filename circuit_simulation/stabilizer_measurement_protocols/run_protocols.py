@@ -362,31 +362,31 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
 
 def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
                       meas_error_probabilities_one_state, csv_filename, no_progress_bar, pm_equals_pg,
-                      use_swap_gates, fixed_lde_attempts, **args):
+                      use_swap_gates, fixed_lde_attempts, pulse_duration, **args):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
 
     # Loop over command line arguments
-    for protocol, pg, pn, pm, pm_1, lde in itertools.product(protocols, gate_error_probabilities,
-                                                             network_error_probabilities, meas_errors, meas_1_errors,
-                                                             fixed_lde_attempts):
+    for protocol, pg, pn, pm, pm_1, lde, pulse in itertools.product(protocols, gate_error_probabilities,
+                                                                    network_error_probabilities, meas_errors,
+                                                                    meas_1_errors, fixed_lde_attempts, pulse_duration):
         pm = pg if pm is None or pm_equals_pg else pm
         protocol = protocol + "_swap" if use_swap_gates else protocol
 
-        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}"\
-            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde) \
+        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}_pulse{}"\
+            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde, pulse) \
             if csv_filename else None
 
-        print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}"
-              .format(args['iterations'], protocol, pg, pn, pm, pm_1, lde))
+        print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}, pulse={}"
+              .format(args['iterations'], protocol, pg, pn, pm, pm_1, lde, pulse))
 
         if args['threaded']:
             main_threaded(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
-                          fixed_lde_attempts=lde, **args)
+                          fixed_lde_attempts=lde, pulse_duration=pulse, **args)
         else:
             main_series(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
-                        fixed_lde_attempts=lde, **args)
+                        fixed_lde_attempts=lde, pulse_duration=pulse, **args)
 
 
 if __name__ == "__main__":

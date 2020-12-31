@@ -16,6 +16,7 @@ import math
 import multiprocessing
 from pprint import pprint
 import pickle
+import time
 
 
 def get_perfect_matrix():
@@ -32,11 +33,11 @@ def get_average_fidelity(matrices):
     d = perfect_matrix.shape[0]
 
     # Error bar data
-    entanglement_fidelities = [fidelity(perfect_matrix, mat) for mat in matrices]
+    entanglement_fidelities = [fidelity_elementwise(perfect_matrix, mat) for mat in matrices]
     average_fidelities = [(d * fid + 1) / (d + 1) for fid in entanglement_fidelities]
 
     avg_matrix = sum(matrices) / len(matrices)
-    entanglement_fidelity = fidelity(perfect_matrix, avg_matrix)
+    entanglement_fidelity = fidelity_elementwise(perfect_matrix, avg_matrix)
 
     return (d * entanglement_fidelity + 1) / (d + 1), average_fidelities
 
@@ -57,8 +58,6 @@ def create_data_frame(data_frame, **kwargs):
     data_frame['iterations'] = 0
     data_frame['fid_std'] = 0
     data_frame['dur_std'] = 0
-    data_frame['fidelities'] = 0
-    data_frame['durations'] = 0
     data_frame['avg_duration'] = 0
 
     return data_frame, index_columns
@@ -117,26 +116,25 @@ def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwar
     return noisy_matrix, print_lines, total_duration
 
 
-def main(data_frame, kwargs, print_lines_total, threaded, csv_filename):
+def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
     data_frame, index_columns = create_data_frame(data_frame, **kwargs)
     if threaded:
         noisy_matrices, print_lines, durations = run_threaded(**kwargs)
     else:
         noisy_matrices, print_lines, durations = run_series(**kwargs)
 
-    pickle.dump({"matrices": noisy_matrices, "durations": durations, "lines": print_lines},
-                open('/home/pmoeller/sim_data/debug_dump.pkl', 'wb'))
-
     print_lines_total.extend(print_lines)
     avg_fid, fidelities = get_average_fidelity(noisy_matrices)
+
+    pickle.dump({"index": list(index_columns.items()), "fidelities": fidelities, "durations": durations},
+                open(csv_filename + str(it) + ".pkl", 'wb'))
+
     data_frame.loc[tuple(index_columns.values()), :] = 0
     data_frame.loc[tuple(index_columns.values()), 'iterations'] += len(noisy_matrices)
     data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = avg_fid
     data_frame.loc[tuple(index_columns.values()), 'avg_duration'] = np.mean(durations)
     data_frame.loc[tuple(index_columns.values()), 'fid_std'] = np.std(fidelities)
     data_frame.loc[tuple(index_columns.values()), 'dur_std'] = np.std(durations)
-    data_frame.loc[tuple(index_columns.values()), 'fidelities'] = str(fidelities)
-    data_frame.loc[tuple(index_columns.values()), 'durations'] = str(durations)
 
     return data_frame, index_columns
 
@@ -157,7 +155,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
 
     # Loop over command line arguments
     pbar = tqdm(total=kwargs['iterations'], position=1) if pb else None
-    for gate, pg, pn, pm, pm_1, lde in product(*iter_list):
+    for it, (gate, pg, pn, pm, pm_1, lde) in enumerate(product(*iter_list)):
         pbar1.update(1)
         pbar.reset() if pbar is not None else None
         pm = pg if pm is None or pm_equals_pg else pm
@@ -172,7 +170,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
-        data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded, csv_filename)
+        data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it)
 
     print(*print_lines_total)
     if csv_filename:
