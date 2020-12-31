@@ -2,6 +2,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import colors as mcolors
 from itertools import product
+import numpy as np
 
 
 def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
@@ -40,14 +41,19 @@ def scatter_plot(y_value, title, xlabel, ylabel):
             dataframe_new = dataframe.loc[index, :]
             i = i + 1 if protocol == prev_protocol else 0
             style = 'none' if 'NA' not in protocol else 'full'
-            error = {'ghz_fidelity': 'int_ghz', "IIII": "int_stab"}
+            error = {'ghz_fidelity': 'ghz_int', "IIII": "stab_int"}
+            y_err = [[abs(eval(dataframe_new[error[y_value]])[0] - dataframe_new[y_value])],
+                     [eval(dataframe_new[error[y_value]])[1] - dataframe_new[y_value]]]
+            x_err = [[abs(eval(dataframe_new["dur_int"])[0] - dataframe_new["avg_duration"])],
+                     [eval(dataframe_new["dur_int"])[1] - dataframe_new["avg_duration"]]]
             ax.errorbar(dataframe_new['avg_duration'],
                         dataframe_new[y_value],
-                        yerr=dataframe_new[error[y_value]] if error[y_value] in dataframe_new else None,
-                        xerr=dataframe_new["int_dur"] if 'int_dur' in dataframe_new else None,
+                        yerr=y_err,
+                        xerr=x_err,
                         marker=points[i],
                         color=color,
                         ms=18,
+                        capsize=12,
                         label="{}-{}".format(protocol, str(lde)),
                         fillstyle=style)
             prev_protocol = protocol
@@ -56,9 +62,9 @@ def scatter_plot(y_value, title, xlabel, ylabel):
 
 
 if __name__ == '__main__':
-    file_name = './results/circuit_data_NV.csv'
-    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration.pdf'
-    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration.pdf'
+    file_name = './results/circuit_data_NV_info.csv'
+    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration_info.pdf'
+    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration_info.pdf'
 
     dataframe = pd.read_csv(file_name, sep=';', index_col=['protocol_name', 'fixed_lde_attempts', 'pulse_duration'])
     protocol_names = sorted(set([name[0] for name in dataframe.index]))

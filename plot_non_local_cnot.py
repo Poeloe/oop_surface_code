@@ -2,9 +2,13 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import numpy as np
 import scipy.stats as stats
+from analyse_simulation_data import get_all_files_from_folder
+from matplotlib import colors as mcolors
+import pickle
+from analyse_simulation_data import confidence_interval
 
 
-def mean_confidence_interval(data, confidence=0.68, plus_mean=False):
+def mean_confidence_interval(data, confidence=0.682, plus_mean=False):
     if len(set(data)) == 1:
         return "Not enough data"
     if any([type(el) != list for el in data]):
@@ -15,7 +19,7 @@ def mean_confidence_interval(data, confidence=0.68, plus_mean=False):
         n = len(fids_np)
         mean = np.mean(fids_np)
         interval = stats.norm.interval(confidence, loc=mean, scale=np.std(fids_np))
-        errors.append(mean - interval[0]) if not plus_mean else errors.append(interval[1])
+        errors.append(interval) if not plus_mean else errors.append(interval[1])
 
     return errors
 
@@ -41,21 +45,54 @@ def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
     return fig, ax
 
 
-if __name__ == '__main__':
-    csv_filename = '/Users/Paul/Desktop/test.csv'
-    # csv_filename2 = './results/sim_data_3/non_local_gate/no_pulse_natural_abundance.csv'
-    save_file_path = './results/thesis_files/draft_figures/non_local_gate.pdf'
+def combine_files(files, pkl_files):
+    index_cols = [index[0] for index in pickle.load(open(pkl_files[0], "rb"))['index']]
+    dataframes = [(file, pd.read_csv(file, sep=";", index_col=index_cols, float_precision='round_trip')) for file in
+                  files]
 
-    dataframe = pd.read_csv(csv_filename, sep=";")
-    # dataframe2 = pd.read_csv(csv_filename2, sep=";")
+    for filename in pkl_files:
+        dataframe = [dataframe for file, dataframe in dataframes if file.replace(".csv", "") in filename][0]
+        file = open(filename, 'rb')
+        data = pickle.load(file)
+        y_err = [[abs(confidence_interval(data['fidelities'])[0] - np.mean(confidence_interval(data['fidelities'])))],
+                 [abs(confidence_interval(data['fidelities'])[1] - np.mean(confidence_interval(data['fidelities'])))]]
+        index = tuple(index[1] for index in data["index"])
+        dataframe.loc[index, 'ghz_int'] = str(y_err)
 
-    fig, ax = plot_style(title="Non-local CNOT gate", xlabel="Gate error probability (-)",
-                         ylabel="Fidelity (-)")
+    return dataframes
 
-    error_data = mean_confidence_interval([eval(fidelities) for fidelities in dataframe['fidelities']])
-    ax.errorbar(dataframe['pg'], dataframe['avg_fidelity'], yerr=error_data, label="Purified sample", ms=12)
-    # ax.errorbar(dataframe2['pg'], dataframe2['avg_fidelity'], yerr=error_data2, label="Natural abundance sample", ms=12)
-    ax.legend(prop={'size': 18})
-    ax.set_xlim(0.051, 0)
+
+def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
+    fig, ax = plot_style(title="Non-local CNOT gate", xlabel="Gate error probability (-)", ylabel="Fidelity (-)")
+    colors = [color for key, color in mcolors.TABLEAU_COLORS.items() if key not in ['tab:orange', 'tab:red']]
+
+    color_count = 0
+    for file, df in dataframes:
+        sample = "Purified" if "na" not in file else "Natural abundance"
+        df = df.reset_index()
+        df = df.set_index('fixed_lde_attempts')
+        for lde in set(df.index):
+            lde_string = ("LDE attempts: " + str(lde) if all(df.loc[lde, 'pulse_duration'] > 0) else 'No decoupling')
+            if lde_values is not None and lde not in lde_values and lde_string != "No decoupling":
+                continue
+            color_count = color_count + 1 if color_count < (len(colors) - 1) else 0
+            color = colors[color_count]
+            y_err = [[], []]
+            [(y_err[0].extend(eval(err)[1]), y_err[1].extend(eval(err)[1])) for err in df.loc[lde, 'ghz_int']]
+            ax.errorbar(df.loc[lde, 'pg'], df.loc[lde, 'avg_fidelity'], yerr=y_err, ms=8, fmt='-', capsize=8,
+                        label="{} - {}".format(sample, lde_string), color=color)
+            ax.set_xlim(0.051, 0)
+
+    handles, labels = ax.get_legend_handles_labels()
+    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
+    ax.legend(handles, labels, prop={'size': 18})
     plt.show()
     fig.savefig(save_file_path, transparent=False, format="pdf", bbox_inches="tight")
+
+
+if __name__ == '__main__':
+    save_file_path = './results/thesis_files/draft_figures/non_local_gate.pdf'
+    files, pkl_files = get_all_files_from_folder('/Users/Paul/Desktop', 'non_local_gate_result', True)
+
+    dataframes = combine_files(files, pkl_files)
+    plot_non_local_cnot_fidelity(dataframes, save_file_path, [])
