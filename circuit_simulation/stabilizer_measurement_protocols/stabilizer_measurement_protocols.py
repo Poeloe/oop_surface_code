@@ -644,9 +644,9 @@ def dyn_prot_4_4_1_swap(qc: QuantumCircuit, *, operation):
             qc._increase_duration(time_after_meas - time_in_C, [], involved_nodes=["C"])
         if time_in_D < time_after_meas:
             qc._increase_duration(time_after_meas - time_in_D, [], involved_nodes=["D"])
-        if measurement_outcomes[0] == 1:
+        if measurement_outcomes != SKIP and measurement_outcomes[0] == 1:
             qc.X("C-1")
-        if measurement_outcomes[1] == 1:
+        if measurement_outcomes != SKIP and measurement_outcomes[1] == 1:
             qc.X("D-1")
         # END FUSION CORRECTION
         ghz_success = qc.single_selection(CZ_gate, "C-e", "D-e", "C-1", "D-1", create_bell_pair=False)
