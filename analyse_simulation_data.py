@@ -4,6 +4,7 @@ import re
 import pickle
 import math
 
+
 def confidence_interval(data, confidence=0.682):
     n = len(data)
     data_sorted = sorted(data)
