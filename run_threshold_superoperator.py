@@ -9,7 +9,6 @@ from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import
 from run_threshold import add_arguments
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import run_for_arguments, \
     additional_parsing_of_arguments, print_circuit_parameters
-import numpy as np
 from oopsc.threshold.sim import sim_thresholds
 
 
@@ -34,6 +33,9 @@ def determine_superoperators(superoperator_filenames, args):
     args['superoperator_filenames_additional_failed'] = (secondary_superoperators_failed if multiple_superoperators
                                                          and 'cutoff_inf' not in filename else None)
 
+    if primary_superoperators_failed:
+        args['GHZ_successes'] = [0.99]
+
     return args
 
 
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     print(' ############ CIRCUIT SIMULATIONS ############')
     print(' #############################################\n')
     circuit_args = {action.dest: args[action.dest] for action in compose_parser()._actions if action.dest != 'help'}
-    additional_parsing_of_arguments(**circuit_args)
+    circuit_args = additional_parsing_of_arguments(**circuit_args)
     print_circuit_parameters(**circuit_args)
     superoperator_filenames = run_for_arguments(**circuit_args)
     print('\n -----------------------------------------------------------')

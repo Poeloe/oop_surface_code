@@ -28,7 +28,11 @@ def print_configuration(config, iters, **kwargs):
     settings = {key:value for key, value in kwargs.items() if value != 0 and value is not None}
     if settings['superoperator']:
         superoperator = settings['superoperator']
-        settings['superoperator additional'] = bool(superoperator.additional_superoperators)
+        settings['superoperator_failed'] = superoperator.file_name_failed_superoperator
+        settings['superoperator_GHZ_success'] = superoperator.GHZ_success
+        add = superoperator.additional_superoperators
+        if add:
+            [settings.update({'additional_superoperator_' + str(i): value}) for i, value in enumerate(add.keys())]
     pprint(settings)
     # print("\nusing config:")
     # pprint(config)

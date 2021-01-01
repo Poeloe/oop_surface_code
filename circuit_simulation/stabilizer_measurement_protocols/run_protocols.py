@@ -317,6 +317,7 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
         # Run the user requested protocol
         operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
         superoperator_qubits_list = protocol_method(qc, operation=operation)
+        qc.end_current_sub_circuit(total=True)
         add_decoherence_if_cut_off(qc)
 
         qc.draw_circuit(no_color=not color, color_nodes=True) if draw_circuit else None

@@ -1974,7 +1974,6 @@ class QuantumCircuit:
             node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
 
         self.cut_off_time_reached = False
-        self.end_current_sub_circuit(total=True)
 
     """
         ---------------------------------------------------------------------------------------------------------
@@ -2421,7 +2420,7 @@ class QuantumCircuit:
             fid_no_me = fidelity_elementwise(error_density_matrix, total_density_matrix)
             fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
 
-            if fid_me != 0 and not self.cut_off_time_reached:
+            if fid_me != 0:
                 superoperator.append(SuperoperatorElement(fid_me, True, list(kraus_operator), me_error_density_matrix))
             if fid_no_me != 0:
                 superoperator.append(SuperoperatorElement(fid_no_me, False, list(kraus_operator), error_density_matrix))
