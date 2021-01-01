@@ -16,6 +16,7 @@ from copy import copy
 import random
 from plot_non_local_cnot import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
+from collections import defaultdict
 
 
 def print_signature():
@@ -94,9 +95,9 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
 
         Parameters
         ----------
-        dataframe_1 : pd.DataFrame
+        dataframe_1 : pd.DataFrame or None
             Superoperator dataframe to be combined
-        dataframe_2 : pd.DataFrame
+        dataframe_2 : pd.DataFrame or None
             Superoperator dataframe to be combined
     """
     if dataframe_1 is None and dataframe_2 is None:
@@ -184,6 +185,31 @@ def _additional_parsing_of_arguments(args):
     return args
 
 
+def _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off, cp_path):
+    # Adding confidence intervals to the superoperator
+    succeeded = _add_interval_to_dataframe(succeeded, characteristics)
+
+    if fn:
+        pickle.dump(characteristics, file=open(fn + '.pkl', 'wb')) if characteristics else None
+        for result, fn_add in zip([succeeded, cut_off], ['.csv', '_failed.csv']):
+            fn_new = fn + fn_add
+            existing_file = _open_existing_superoperator_file(fn_new)
+            result = _combine_superoperator_dataframes(result, existing_file)
+            if result is not None:
+                result.to_csv(fn_new, sep=';')
+                os.system("rsync -rvu {} {}".format(os.path.dirname(fn), cp_path)) if cp_path else None
+
+
+def _add_interval_to_dataframe(dataframe, characteristics):
+    if dataframe is not None:
+        add_column_values(dataframe, ['int_stab_682', 'int_ghz_682', 'int_dur_682', 'dur_99'],
+                          [str(confidence_interval(characteristics['stab_fid'])),
+                           str(confidence_interval(characteristics['ghz_fid'])),
+                           str(confidence_interval(characteristics['dur'])),
+                           str(confidence_interval(characteristics['dur'], 0.98)[1])])
+    return dataframe
+
+
 def main_threaded(*, iterations, fn, cp_path, **kwargs):
     # Run main method asynchronously with each worker getting an equal amount of iterations to run
     results = []
@@ -196,73 +222,31 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
 
         results.append(thread_pool.apply_async(main, kwds=kwargs))
 
-    # Collect all the results from the workers and close the threadpool
-    superoperator_results = []
+    # Collect all the results from the workers and close the thread pool
+    succeeded = None
+    cut_off = None
     print_lines_results = []
-    characteristics_dicts = []
+    tot_characteristics = defaultdict(list)
     for res in results:
-        superoperator_tuple, print_lines, characteristics = res.get()
-        superoperator_results.append(superoperator_tuple)
-        print_lines_results.append(print_lines)
-        characteristics_dicts.append(characteristics)
+        (succeeded_res, cut_off_res), print_lines, characteristics = res.get()
+        succeeded = _combine_superoperator_dataframes(succeeded, succeeded_res)
+        cut_off = _combine_superoperator_dataframes(cut_off, cut_off_res)
+        print_lines_results.extend(print_lines)
+        [tot_characteristics[key].extend(value) for key, value in characteristics.items()]
     thread_pool.close()
 
-    # Check if csv already exists to append new data to it, if user requested saving of csv file
-    normal = _open_existing_superoperator_file(fn, ".csv")
-    cut_off = _open_existing_superoperator_file(fn, "_failed.csv")
-
-    # Combine the superoperator results obtained for each worker
-    for (superoperator_succeed, superoperator_failed), print_line in zip(superoperator_results, print_lines_results):
-        normal = _combine_superoperator_dataframes(normal, superoperator_succeed)
-        cut_off = _combine_superoperator_dataframes(cut_off, superoperator_failed)
-        print(*print_line)
-
-    # Adding confidence intervals to the superoperator
-    characteristics_dict = None
-    if normal is not None:
-        stab_fids = []
-        ghz_fids = []
-        dur = []
-        [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']), )
-         for d in characteristics_dicts]
-        characteristics_dict = {'stab_fid': stab_fids, 'ghz_fid': ghz_fids, 'dur': dur}
-        add_column_values(normal, ['int_stab_682', 'int_ghz_682', 'int_dur_682', '99_duration'],
-                          [str(confidence_interval(stab_fids)),
-                           str(confidence_interval(ghz_fids)),
-                           str(confidence_interval(dur)),
-                           str(confidence_interval(dur, 0.98)[1])])
+    print(*print_lines_results)
 
     # Save superoperator dataframe to csv if exists and requested by user
-    if fn:
-        pickle.dump(characteristics_dict, file=open(fn + '.pkl', 'wb')) if characteristics_dict else None
-        for superoperator, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
-            filename = fn + fn_add
-            superoperator.to_csv(filename, sep=';') if superoperator is not None else None
-            os.system("rsync -rvu {} {}".format(os.path.dirname(filename), cp_path)) if cp_path and superoperator is \
-                                                                                        not None else None
+    _save_superoperator_dataframe(fn, tot_characteristics, succeeded, cut_off, cp_path)
 
 
 def main_series(fn, cp_path, **kwargs):
-    (normal, cut_off), print_lines, characteristics = main(**kwargs)
+    (succeeded, cut_off), print_lines, characteristics = main(**kwargs)
     print(*print_lines)
 
-    # Adding the confidence intervals to the superoperator
-    if normal is not None:
-        add_column_values(normal, ['int_stab_682', 'int_ghz_682', 'int_dur_682', 'dur_99'],
-                          [str(confidence_interval(characteristics['stab_fid'])),
-                           str(confidence_interval(characteristics['ghz_fid'])),
-                           str(confidence_interval(characteristics['dur'])),
-                           str(confidence_interval(characteristics['dur'], 0.98)[1])])
-
-    # Save the superoperator to the according csv files (options: normal, cut-off, idle)
-    if fn and not args['print_run_order']:
-        pickle.dump(characteristics, file=open(fn + '.pkl', 'wb')) if characteristics else None
-        for result, fn_add in zip([normal, cut_off], ['.csv', '_failed.csv']):
-            fn_new = fn + fn_add
-            existing_file = _open_existing_superoperator_file(fn_new)
-            result = _combine_superoperator_dataframes(result, existing_file)
-            if result is not None:
-                result.to_csv(fn_new, sep=';')
+    # Save the superoperator to the according csv files (options: normal, cut-off)
+    _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off, cp_path)
 
 
 def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=False, gate_duration_file=None,
@@ -290,31 +274,24 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
     # Run iterations of the protocol
     for iter in range(iterations):
         pbar.reset() if pbar else None
-        if pbar_2 and iterations > 1:
-            pbar_2.update(1)
-        if pbar_2 is None:
-            print(">>> At iteration {} of the {}.".format(iter + 1, iterations), end='\r', flush=True)
+        pbar_2.update(1) if pbar_2 and iterations > 1 else None
+
+        print(">>> At iteration {}/{}.".format(iter + 1, iterations), end='\r', flush=True) if pbar_2 is None else None
 
         _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
         # Run the user requested protocol
         operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
         superoperator_qubits_list = protocol_method(qc, operation=operation)
-        qc.end_current_sub_circuit(total=True)
         add_decoherence_if_cut_off(qc)
 
-        if draw_circuit:
-            qc.draw_circuit(no_color=not color, color_nodes=True)
-
-        if save_latex_pdf:
-            qc.draw_circuit_latex()
+        qc.draw_circuit(no_color=not color, color_nodes=True) if draw_circuit else None
+        qc.draw_circuit_latex() if save_latex_pdf else None
 
         # If no superoperator qubits are returned, take the data qubits as such
-        if superoperator_qubits_list is None:
-            superoperator_qubits_list = [qc.data_qubits]
-        if type(superoperator_qubits_list[0]) == int:
-            superoperator_qubits_list = [superoperator_qubits_list]
+        superoperator_qubits_list = [qc.data_qubits] if superoperator_qubits_list is None else superoperator_qubits_list
 
+        # Obtain the superoperator in a dataframe format
         supop_dataframe = []
         for i, superoperator_qubits in enumerate(superoperator_qubits_list):
             idle_data_qubit = 4 if i != 0 else False
@@ -338,10 +315,8 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
             supop_dataframe_succeed = _combine_superoperator_dataframes(supop_dataframe_succeed, supop_dataframe)
 
         total_print_lines.extend(qc.print_lines)
-        total_print_lines.append("\nGHZ fidelity: {} ".format(qc.ghz_fidelity)) \
-            if draw_circuit else None
-        total_print_lines.append("\nTotal circuit duration: {} seconds".format(qc.total_duration)) \
-            if draw_circuit else None
+        total_print_lines.append("\nGHZ fidelity: {} ".format(qc.ghz_fidelity)) if draw_circuit else None
+        total_print_lines.append("\nTotal circuit duration: {} s".format(qc.total_duration)) if draw_circuit else None
         qc.reset()
 
     return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines, characteristics
@@ -382,7 +357,6 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     args = _additional_parsing_of_arguments(args)
     print_signature()
-    time.sleep(1)
     _print_circuit_parameters(**copy(args))
 
     # Loop over all possible combinations of the user determined parameters

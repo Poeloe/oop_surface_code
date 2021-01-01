@@ -1974,6 +1974,7 @@ class QuantumCircuit:
             node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit)
 
         self.cut_off_time_reached = False
+        self.end_current_sub_circuit(total=True)
 
     """
         ---------------------------------------------------------------------------------------------------------
