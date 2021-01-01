@@ -131,11 +131,6 @@ def compose_parser():
                         help="Print a drawing of the circuit to the console",
                         required=False,
                         action="store_true")
-    parser.add_argument("--print_run_order",
-                        help="When added, the program will only print out the run order for the typed command. This can"
-                             "be useful for debugging or file naming purposes",
-                        required=False,
-                        action="store_true")
     parser.add_argument("-lkt_1q",
                         "--single_qubit_gate_lookup",
                         help="Name of a .pkl single-qubit gate lookup file.",
@@ -216,5 +211,11 @@ def compose_parser():
                         help='Specifies the cut-off time for performing a stabilizer measurement.',
                         type=float,
                         default=np.inf)
+    parser.add_argument('-cut_file',
+                        '--cut_off_file',
+                        help='Specifies the file to load the cut-off time from for performing a stabilizer '
+                             'measurement.',
+                        type=str,
+                        default=None)
 
     return parser

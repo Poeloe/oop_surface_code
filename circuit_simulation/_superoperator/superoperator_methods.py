@@ -451,7 +451,8 @@ def _create_new_superoperator_dataframe(self, protocol_name, qubit_order):
                        'ghz_fidelity', 'protocol_name', 'qubit_order']
     circuit_properties = ['pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
                           'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise',
-                          'cut_off_time', 'probabilistic', 'fixed_lde_attempts']
+                          'cut_off_time', 'probabilistic', 'fixed_lde_attempts', 'T1_idle', 'T1_idle_electron',
+                          'T1_lde', 'T2_idle', 'T2_idle_electron', 'T2_lde']
     columns.extend(circuit_results)
     columns.extend(circuit_properties)
     dataframe = pd.DataFrame(0., index=index, columns=columns)

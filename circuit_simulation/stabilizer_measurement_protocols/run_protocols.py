@@ -17,11 +17,45 @@ import random
 from plot_non_local_cnot import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
 from collections import defaultdict
+import numpy as np
 
 
 def print_signature():
     cprint("\nQuantum Circuit Simulator®", color='cyan')
     print("--------------------------\n")
+
+
+def _get_cut_off_dataframe(file):
+    if file is None:
+        return
+    if not os.path.exists(file):
+        raise ValueError('File containing the cut-off times could not be found!')
+
+    return pd.read_csv(file, sep=";", float_precision='round_trip')
+
+
+def _get_cut_off_time(dataframe, **kwargs):
+    cut_off_time = kwargs.pop('cut_off_time')
+
+    if cut_off_time != np.inf or dataframe is None:
+        return cut_off_time
+
+    kwarg_cols = ['pm_1', 'pg', 'fixed_lde_attempts', 'pulse_duration', 'network_noise_type', 'pm', 'pn',
+                  'probabilistic', 'decoherence']
+    index = [kwargs[key] for key in kwarg_cols]
+    index_dict = dict(zip(kwarg_cols, index))
+    protocol_name = kwargs['protocol'] if kwargs['T1_lde'] == 2 else kwargs['protocol'] + "_na"
+    index_dict['protocol_name'] = protocol_name
+    index_dict['fixed_lde_attempts'] = 0 if index_dict['pulse_duration'] == 0 else index_dict['fixed_lde_attempts']
+
+    dataframe = dataframe.set_index(list(index_dict.keys()))
+
+    if tuple(index_dict.values()) not in dataframe.index:
+        raise ValueError("Cut-off value not found: Index does not exist in dataframe:\n{}".format(index_dict))
+
+    kwargs.pop('protocol')
+
+    return dataframe.loc[tuple(index_dict.values()), '99_duration']
 
 
 def _open_existing_superoperator_file(filename, addition=""):
@@ -249,7 +283,7 @@ def main_series(fn, cp_path, **kwargs):
     _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off, cp_path)
 
 
-def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=False, gate_duration_file=None,
+def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration_file=None,
          color=False, draw_circuit=True, save_latex_pdf=False, to_console=False, **kwargs):
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
@@ -324,10 +358,11 @@ def main(*, iterations, protocol, stabilizer_type, print_run_order, threaded=Fal
 
 def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
                       meas_error_probabilities_one_state, csv_filename, no_progress_bar, pm_equals_pg,
-                      use_swap_gates, fixed_lde_attempts, pulse_duration, **args):
+                      use_swap_gates, fixed_lde_attempts, pulse_duration, cut_off_file, **args):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
+    cut_off_dataframe = _get_cut_off_dataframe(cut_off_file)
 
     # Loop over command line arguments
     for protocol, pg, pn, pm, pm_1, lde, pulse in itertools.product(protocols, gate_error_probabilities,
@@ -335,20 +370,24 @@ def run_for_arguments(protocols, gate_error_probabilities, network_error_probabi
                                                                     meas_1_errors, fixed_lde_attempts, pulse_duration):
         pm = pg if pm is None or pm_equals_pg else pm
         protocol = protocol + "_swap" if use_swap_gates else protocol
+        cut_off_time = _get_cut_off_time(cut_off_dataframe, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
+                                         pulse_duration=pulse, progress_bar=no_progress_bar,
+                                         fixed_lde_attempts=lde, **args)
+        args.pop('cut_off_time')
 
         fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}_pulse{}"\
             .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde, pulse) \
             if csv_filename else None
 
-        print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}, pulse={}"
-              .format(args['iterations'], protocol, pg, pn, pm, pm_1, lde, pulse))
+        print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}, pulse={}, "
+              "cut_off_time={}".format(args['iterations'], protocol, pg, pn, pm, pm_1, lde, pulse, cut_off_time))
 
         if args['threaded']:
             main_threaded(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
-                          fixed_lde_attempts=lde, pulse_duration=pulse, **args)
+                          fixed_lde_attempts=lde, pulse_duration=pulse, cut_off_time=cut_off_time, **args)
         else:
             main_series(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
-                        fixed_lde_attempts=lde, pulse_duration=pulse, **args)
+                        fixed_lde_attempts=lde, pulse_duration=pulse, cut_off_time=cut_off_time, **args)
 
 
 if __name__ == "__main__":
