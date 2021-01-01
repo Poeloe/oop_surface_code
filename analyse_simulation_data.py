@@ -11,6 +11,7 @@ def confidence_interval(data, confidence=0.682):
 
     lower_bound = math.floor(n * ((1 - confidence) / 2))
     upper_bound = math.floor(n * (1 - (1 - confidence) / 2))
+    upper_bound = upper_bound if upper_bound < len(data) else -1
 
     return data_sorted[lower_bound], data_sorted[upper_bound]
 

@@ -14,20 +14,13 @@ import itertools
 import time
 from copy import copy
 import random
-from plot_non_local_cnot import mean_confidence_interval
+from plot_non_local_cnot import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
 
 
 def print_signature():
-    cprint("\n Quantum Circuit Simulator® wishes you\n", color='cyan')
-    cprint(''.join(['\t\t', ' ' * 10 + '*' + ' ' * 10]), color='yellow')
-    cprint("".join(
-        '\t\t{0}{1}{0}\n'.format(' ' * ((21 - c) // 2), ''.join(map(lambda i: '#' if i % 2 else 'o', range(c)))) for
-        c in
-        range(3, 22, 2)), color='green')
-    cprint("".join(['\t\t', ' ' * 9 + '/|\\' + ' ' * 9]), color='red')
-    cprint("\n a Merry Christmas and a Happy New Year!\n\n", color="red")
-    print("\n --------------------------------------------------- \n")
+    cprint("\nQuantum Circuit Simulator®", color='cyan')
+    print("--------------------------\n")
 
 
 def _open_existing_superoperator_file(filename, addition=""):
@@ -233,14 +226,11 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
         [(stab_fids.extend(d['stab_fid']), ghz_fids.extend(d['ghz_fid']), dur.extend(d['dur']), )
          for d in characteristics_dicts]
         characteristics_dict = {'stab_fid': stab_fids, 'ghz_fid': ghz_fids, 'dur': dur}
-        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99', 'stab_std', 'ghz_std', 'dur_std'],
-                          [mean_confidence_interval(stab_fids),
-                           mean_confidence_interval(ghz_fids),
-                           mean_confidence_interval(dur),
-                           mean_confidence_interval(dur, 0.99, True),
-                           np.std(stab_fids),
-                           np.std(ghz_fids),
-                           np.std(dur)])
+        add_column_values(normal, ['int_stab_682', 'int_ghz_682', 'int_dur_682', '99_duration'],
+                          [str(confidence_interval(stab_fids)),
+                           str(confidence_interval(ghz_fids)),
+                           str(confidence_interval(dur)),
+                           str(confidence_interval(dur, 0.98)[1])])
 
     # Save superoperator dataframe to csv if exists and requested by user
     if fn:
@@ -258,14 +248,11 @@ def main_series(fn, cp_path, **kwargs):
 
     # Adding the confidence intervals to the superoperator
     if normal is not None:
-        add_column_values(normal, ['int_stab', 'int_ghz', 'int_dur', 'dur_99', 'stab_std', 'ghz_std', 'dur_std'],
-                          [mean_confidence_interval(characteristics['stab_fid']),
-                           mean_confidence_interval(characteristics['ghz_fid']),
-                           mean_confidence_interval(characteristics['dur']),
-                           mean_confidence_interval(characteristics['dur'], 0.99, True),
-                           np.std(characteristics['stab_fid']),
-                           np.std(characteristics['ghz_fid']),
-                           np.std(characteristics['dur'])])
+        add_column_values(normal, ['int_stab_682', 'int_ghz_682', 'int_dur_682', 'dur_99'],
+                          [str(confidence_interval(characteristics['stab_fid'])),
+                           str(confidence_interval(characteristics['ghz_fid'])),
+                           str(confidence_interval(characteristics['dur'])),
+                           str(confidence_interval(characteristics['dur'], 0.98)[1])])
 
     # Save the superoperator to the according csv files (options: normal, cut-off, idle)
     if fn and not args['print_run_order']:
