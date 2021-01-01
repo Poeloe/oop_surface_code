@@ -188,13 +188,13 @@ def _additional_qc_arguments(**kwargs):
     return kwargs
 
 
-def _print_circuit_parameters(**kwargs):
+def print_circuit_parameters(**kwargs):
     print("All circuit parameters:\n-----------------------\n")
     pprint(kwargs)
     print('\n-----------------------\n')
 
 
-def _additional_parsing_of_arguments(args):
+def additional_parsing_of_arguments(**args):
     # Pop the argument_file since it is no longer needed from this point
     args.pop("argument_file")
 
@@ -358,11 +358,12 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
 
 def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
                       meas_error_probabilities_one_state, csv_filename, no_progress_bar, pm_equals_pg,
-                      use_swap_gates, fixed_lde_attempts, pulse_duration, cut_off_file, **args):
+                      use_swap_gates, fixed_lde_attempts, pulse_duration, cut_off_file, force_run, **args):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
     cut_off_dataframe = _get_cut_off_dataframe(cut_off_file)
+    filenames = []
 
     # Loop over command line arguments
     for protocol, pg, pn, pm, pm_1, lde, pulse in itertools.product(protocols, gate_error_probabilities,
@@ -374,10 +375,16 @@ def run_for_arguments(protocols, gate_error_probabilities, network_error_probabi
                                          pulse_duration=pulse, progress_bar=no_progress_bar,
                                          fixed_lde_attempts=lde, **args)
         args.pop('cut_off_time')
+        node = "pur" if args.get('T1_lde') == 2 else 'nat_ab'
 
-        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}_pulse{}"\
-            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde, pulse) \
-            if csv_filename else None
+        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}_pulse{}_node_{}_cutoff_{}"\
+            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde, pulse, node,
+                    cut_off_time) if csv_filename else None
+        filenames.append(fn)
+
+        if not force_run and fn is not None and os.path.exists(fn + ".csv"):
+            print("Skipping circuit for file '{}', since it already exists.".format(fn))
+            continue
 
         print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}, pulse={}, "
               "cut_off_time={}".format(args['iterations'], protocol, pg, pn, pm, pm_1, lde, pulse, cut_off_time))
@@ -389,14 +396,16 @@ def run_for_arguments(protocols, gate_error_probabilities, network_error_probabi
             main_series(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
                         fixed_lde_attempts=lde, pulse_duration=pulse, cut_off_time=cut_off_time, **args)
 
+    return filenames
+
 
 if __name__ == "__main__":
     parser = compose_parser()
 
     args = vars(parser.parse_args())
-    args = _additional_parsing_of_arguments(args)
+    args = additional_parsing_of_arguments(**args)
     print_signature()
-    _print_circuit_parameters(**copy(args))
+    print_circuit_parameters(**args)
 
     # Loop over all possible combinations of the user determined parameters
     run_for_arguments(**args)

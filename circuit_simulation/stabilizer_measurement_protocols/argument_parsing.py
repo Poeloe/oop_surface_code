@@ -217,5 +217,9 @@ def compose_parser():
                              'measurement.',
                         type=str,
                         default=None)
-
+    parser.add_argument("-fr",
+                        "--force_run",
+                        help="Force simulation to run if file already exists",
+                        required=False,
+                        action="store_true")
     return parser

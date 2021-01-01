@@ -6,7 +6,7 @@ from circuit_simulation.circuit_simulator import QuantumCircuit
 from circuit_simulation.basic_operations.basic_operations import *
 from circuit_simulation.states.states import *
 from circuit_simulation.gate_teleportation.argument_parsing import compose_parser
-from circuit_simulation.stabilizer_measurement_protocols.run_protocols import _additional_parsing_of_arguments, \
+from circuit_simulation.stabilizer_measurement_protocols.run_protocols import additional_parsing_of_arguments, \
     _additional_qc_arguments
 from itertools import product
 import pandas as pd
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     parser = compose_parser()
 
     args = vars(parser.parse_args())
-    args = _additional_parsing_of_arguments(args)
+    args = additional_parsing_of_arguments(args)
     args.pop('gate_duration_file')
 
     run_for_arguments(**args)

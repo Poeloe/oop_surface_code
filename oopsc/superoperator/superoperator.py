@@ -78,7 +78,7 @@ class Superoperator:
 
         self.sup_op_elements_p, self.sup_op_elements_s = self._csv_to_superoperator(path_to_file=self._path_to_file,
                                                                                     check_sum=True, set_attributes=True)
-        self.failed_ghz_elements, _ = self._set_failed_superoperator(self._path_to_file_failed)
+        self.failed_ghz_elements = self._set_failed_superoperator(self._path_to_file_failed)
         self.sup_op_elements_p_before_meas, self.sup_op_elements_s_before_meas = \
             self._convert_elements_to_before_projection()
 
@@ -92,7 +92,7 @@ class Superoperator:
         return self.__repr__()
 
     def _handle_additional_superoperators(self, additional_superoperators):
-        if additional_superoperators is not None:
+        if additional_superoperators is None:
             return {}
 
         superoperators = {}
