@@ -70,6 +70,7 @@ if __name__ == "__main__":
         description="run a threshold computation",
         usage='%(prog)s [-h/--help] decoder lattice_type iters -l [..] -p [..] (lattice_size)'
     )
+    parser = add_arguments(parser)
 
     args=vars(parser.parse_args())
     decoder = args.pop("decoder")
