@@ -554,7 +554,7 @@ class toric(object):
             if dir == 'n':
                 return
 
-            # Idle node (containing two qubits) at South-West of stabilizer, wil get last to errors of error array
+            # Idle node (containing two qubits) at South-West of stabilizer, wil get last two errors of error array
             elif dir == 'w':
                 stab = stab.neighbors[dir][0].neighbors['s']
                 self._apply_error_stabilizer("n", i, random_error_array_idle, stab)

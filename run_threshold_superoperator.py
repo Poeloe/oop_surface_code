@@ -1,15 +1,9 @@
-'''
-2020 Mark Shui Hu, QuTech
-
-www.github.com/watermarkhu/oop_surface_code
-_____________________________________________
-
-'''
-from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
+from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser, group_arguments
 from run_threshold import add_arguments
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import run_for_arguments, \
     additional_parsing_of_arguments, print_circuit_parameters
 from oopsc.threshold.sim import sim_thresholds
+import re
 
 
 def determine_superoperators(superoperator_filenames, args):
@@ -36,6 +30,9 @@ def determine_superoperators(superoperator_filenames, args):
     if primary_superoperators_failed:
         args['GHZ_successes'] = [0.99]
 
+    args['folder'] = re.sub('pg[0-9.]*_', '', primary_superoperators[0])
+    args['save_result'] = True
+
     return args
 
 
@@ -48,10 +45,11 @@ if __name__ == "__main__":
     print('\n #############################################')
     print(' ############ CIRCUIT SIMULATIONS ############')
     print(' #############################################\n')
-    circuit_args = {action.dest: args[action.dest] for action in compose_parser()._actions if action.dest != 'help'}
-    circuit_args = additional_parsing_of_arguments(**circuit_args)
-    print_circuit_parameters(**circuit_args)
-    superoperator_filenames = run_for_arguments(**circuit_args)
+    circuit_sim_args = {action.dest: args[action.dest] for action in compose_parser()._actions if action.dest != 'help'}
+    circuit_sim_args = additional_parsing_of_arguments(**circuit_sim_args)
+    grouped_arguments = group_arguments(compose_parser(), **circuit_sim_args)
+    print_circuit_parameters(*grouped_arguments)
+    superoperator_filenames = run_for_arguments(*grouped_arguments, **circuit_sim_args)
     print('\n -----------------------------------------------------------')
 
     # Run surface code simulations

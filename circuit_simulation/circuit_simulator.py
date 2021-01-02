@@ -140,7 +140,7 @@ class QuantumCircuit:
                  T2_idle_electron=None, T1_lde=None, T2_lde=None, lde_success=1, time_step=1, measurement_duration=1,
                  lde_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
-                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf, noiseless_swap=False):
+                 pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf, noiseless_swap=False, **kwargs):
 
         # Basic attributes
         self.num_qubits = num_qubits

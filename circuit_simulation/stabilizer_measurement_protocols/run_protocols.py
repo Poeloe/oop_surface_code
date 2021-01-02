@@ -7,12 +7,11 @@ import threading
 import pickle
 import pandas as pd
 import circuit_simulation.stabilizer_measurement_protocols.stabilizer_measurement_protocols as stab_protocols
-from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser
+from circuit_simulation.stabilizer_measurement_protocols.argument_parsing import compose_parser, group_arguments
 from circuit_simulation.gates.gates import *
 from circuit_simulation.circuit_simulator import QuantumCircuit
-import itertools
+import itertools as it
 import time
-from copy import copy
 import random
 from plot_non_local_cnot import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
@@ -22,7 +21,22 @@ import numpy as np
 
 def print_signature():
     cprint("\nQuantum Circuit Simulator®", color='cyan')
-    print("--------------------------\n")
+    print("--------------------------")
+
+
+def create_file_name(filename, **kwargs):
+    protocol = kwargs.pop('protocol')
+    filename += "_" + protocol
+
+    for key, value in kwargs.items():
+        if not value:
+            continue
+        if value is True:
+            value = ""
+        value = value.capitalize() if type(value) == str else str(value)
+        filename += "_" + str(key) + value
+
+    return filename
 
 
 def _get_cut_off_dataframe(file):
@@ -188,10 +202,12 @@ def _additional_qc_arguments(**kwargs):
     return kwargs
 
 
-def print_circuit_parameters(**kwargs):
-    print("All circuit parameters:\n-----------------------\n")
-    pprint(kwargs)
-    print('\n-----------------------\n')
+def print_circuit_parameters(operational_args, circuit_args, varational_circuit_args):
+    print('\n' + 80*'#')
+    for args_name, args_values in locals().items():
+        print("\n{}:\n-----------------------".format(args_name.capitalize()))
+        pprint(args_values)
+    print('\n' + 80*'#' + '\n')
 
 
 def additional_parsing_of_arguments(**args):
@@ -219,19 +235,24 @@ def additional_parsing_of_arguments(**args):
     return args
 
 
-def _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off, cp_path):
+def _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off):
     # Adding confidence intervals to the superoperator
     succeeded = _add_interval_to_dataframe(succeeded, characteristics)
 
     if fn:
+        # Save pickle the characteristics file
+        if os.path.exists(fn + '.pkl') and characteristics:
+            characteristics_old = pickle.load(open(fn + '.pkl', 'rb'))
+            [characteristics[key].extend(value) for key, value in characteristics_old.items() if key != 'index']
         pickle.dump(characteristics, file=open(fn + '.pkl', 'wb')) if characteristics else None
+
+        # Save the superoperators to a csv file
         for result, fn_add in zip([succeeded, cut_off], ['.csv', '_failed.csv']):
             fn_new = fn + fn_add
             existing_file = _open_existing_superoperator_file(fn_new)
             result = _combine_superoperator_dataframes(result, existing_file)
             if result is not None:
                 result.to_csv(fn_new, sep=';')
-                os.system("rsync -rvu {} {}".format(os.path.dirname(fn), cp_path)) if cp_path else None
 
 
 def _add_interval_to_dataframe(dataframe, characteristics):
@@ -244,7 +265,7 @@ def _add_interval_to_dataframe(dataframe, characteristics):
     return dataframe
 
 
-def main_threaded(*, iterations, fn, cp_path, **kwargs):
+def main_threaded(*, iterations, fn, **kwargs):
     # Run main method asynchronously with each worker getting an equal amount of iterations to run
     results = []
     workers = iterations if 0 < iterations < cpu_count() else cpu_count()
@@ -272,15 +293,15 @@ def main_threaded(*, iterations, fn, cp_path, **kwargs):
     print(*print_lines_results)
 
     # Save superoperator dataframe to csv if exists and requested by user
-    _save_superoperator_dataframe(fn, tot_characteristics, succeeded, cut_off, cp_path)
+    _save_superoperator_dataframe(fn, tot_characteristics, succeeded, cut_off)
 
 
-def main_series(fn, cp_path, **kwargs):
+def main_series(fn, **kwargs):
     (succeeded, cut_off), print_lines, characteristics = main(**kwargs)
     print(*print_lines)
 
     # Save the superoperator to the according csv files (options: normal, cut-off)
-    _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off, cp_path)
+    _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off)
 
 
 def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration_file=None,
@@ -357,56 +378,55 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
     return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines, characteristics
 
 
-def run_for_arguments(protocols, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
-                      meas_error_probabilities_one_state, csv_filename, no_progress_bar, pm_equals_pg,
-                      use_swap_gates, fixed_lde_attempts, pulse_duration, cut_off_file, force_run, **args):
-
-    meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
-    meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
-    cut_off_dataframe = _get_cut_off_dataframe(cut_off_file)
+def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs):
     filenames = []
+    cut_off_dataframe = _get_cut_off_dataframe(operational_args['cut_off_file'])
 
     # Loop over command line arguments
-    for protocol, pg, pn, pm, pm_1, lde, pulse in itertools.product(protocols, gate_error_probabilities,
-                                                                    network_error_probabilities, meas_errors,
-                                                                    meas_1_errors, fixed_lde_attempts, pulse_duration):
-        pm = pg if pm is None or pm_equals_pg else pm
-        protocol = protocol + "_swap" if use_swap_gates else protocol
-        cut_off_time = _get_cut_off_time(cut_off_dataframe, protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn,
-                                         pulse_duration=pulse, progress_bar=no_progress_bar,
-                                         fixed_lde_attempts=lde, **args)
-        args.pop('cut_off_time')
-        node = "pur" if args.get('T1_lde') == 2 else 'nat_ab'
+    for run in it.product(*(it.product([key], var_circuit_args[key]) for key in var_circuit_args.keys())):
+        run_dict = dict(run)
+        run_dict['pm'] = (run_dict['pg'] if circuit_args['pm_equals_pg'] else run_dict['pm'])
+        run_dict['protocol'] = (run_dict['protocols'] + "_swap" if circuit_args['use_swap_gates']
+                                else run_dict['protocols'])
+        run_dict.pop('protocols')
+        run_dict['cut_off_time'] = _get_cut_off_time(cut_off_dataframe, **run_dict, **circuit_args)
+        circuit_args.pop('cut_off_time')
+        node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
 
-        fn = "{}_{}_pg{}_pn{}_pm{}_pm_1{}_lde{}_pulse{}_node_{}_cutoff_{}"\
-            .format(csv_filename, protocol, pg, pn, pm, pm_1 if pm_1 is not None else "", lde, pulse, node,
-                    cut_off_time) if csv_filename else None
+        fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
+                              prob=circuit_args['probabilistic'], **run_dict, node=node[circuit_args['T1_lde']])
         filenames.append(fn)
 
-        if not force_run and fn is not None and os.path.exists(fn + ".csv"):
-            print("Skipping circuit for file '{}', since it already exists.".format(fn))
-            continue
+        if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
+            data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
+            res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
+            # iterations within 1% margin
+            if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.01 > res_iterations:
+                print("Skipping circuit for file '{}', since it already exists.".format(fn))
+                continue
+            else:
+                print("File found, but with too less iterations. Running for {} iterations\n".format(res_iterations))
+                circuit_args['iterations'] = res_iterations
 
-        print("\nRunning {} iteration(s): protocol={}, pg={}, pn={}, pm={}, pm_1={}, fixed_lde_attempts={}, pulse={}, "
-              "cut_off_time={}".format(args['iterations'], protocol, pg, pn, pm, pm_1, lde, pulse, cut_off_time))
+        print("Running {} iteration(s) with values for the variational arguments:".format(circuit_args['iterations']))
+        pprint({**run_dict})
 
-        if args['threaded']:
-            main_threaded(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
-                          fixed_lde_attempts=lde, pulse_duration=pulse, cut_off_time=cut_off_time, **args)
+        if operational_args['threaded']:
+            main_threaded(fn=fn, **operational_args, **run_dict, **circuit_args)
         else:
-            main_series(protocol=protocol, pg=pg, pm=pm, pm_1=pm_1, pn=pn, progress_bar=no_progress_bar, fn=fn,
-                        fixed_lde_attempts=lde, pulse_duration=pulse, cut_off_time=cut_off_time, **args)
+            main_series(fn=fn, **operational_args, **run_dict, **circuit_args)
 
     return filenames
 
 
 if __name__ == "__main__":
     parser = compose_parser()
-
     args = vars(parser.parse_args())
     args = additional_parsing_of_arguments(**args)
+
+    grouped_arguments = group_arguments(parser, **args)
     print_signature()
-    print_circuit_parameters(**args)
+    print_circuit_parameters(*grouped_arguments)
 
     # Loop over all possible combinations of the user determined parameters
-    run_for_arguments(**args)
+    run_for_arguments(*grouped_arguments, **args)
