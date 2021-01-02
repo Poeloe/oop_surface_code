@@ -40,7 +40,7 @@ def determine_superoperators(superoperator_filenames, args):
     return args
 
 
-def determine_args_by_file(surface_args, var_circuit_args):
+def determine_lattice_evaluation_by_result(surface_args, var_circuit_args):
     folder = surface_args['folder']
     lattices = copy(surface_args['lattices'])
     pg = var_circuit_args['pg']
@@ -56,6 +56,7 @@ def determine_args_by_file(surface_args, var_circuit_args):
                 if all([surface_args['iters'] * 0.01 > it for it in res_it]):
                     lattices.remove(lat)
 
+    # If there are no lattices left to evaluate, the program can exit
     if not lattices:
         pprint(data)
         print("\nAll surface code simulations have already been performed. Exiting Surface Code simulations")
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     print(' ##################################################\n')
     surface_code_args = {action.dest: args[action.dest] for action in add_arguments()._actions if action.dest != 'help'}
     surface_code_args = determine_superoperators(superoperator_filenames, surface_code_args)
-    surface_code_args = determine_args_by_file(surface_code_args, grouped_arguments[2])
+    surface_code_args = determine_lattice_evaluation_by_result(surface_code_args, grouped_arguments[2])
 
     decoder = surface_code_args.pop("decoder")
 
