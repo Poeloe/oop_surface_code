@@ -4,6 +4,10 @@ from circuit_simulation.stabilizer_measurement_protocols.run_protocols import ru
     additional_parsing_of_arguments, print_circuit_parameters
 from oopsc.threshold.sim import sim_thresholds
 import re
+import os
+import pandas as pd
+from pprint import pprint
+from copy import copy
 
 
 def determine_superoperators(superoperator_filenames, args):
@@ -36,6 +40,33 @@ def determine_superoperators(superoperator_filenames, args):
     return args
 
 
+def determine_args_by_file(surface_args, var_circuit_args):
+    folder = surface_args['folder']
+    lattices = copy(surface_args['lattices'])
+    pg = var_circuit_args['pg']
+    ghz = 0.99 if not 'timeinf' in folder else 1.1
+    res_iters = []
+
+    if os.path.exists(folder):
+        for file in os.listdir(folder):
+            data = pd.read_csv(os.path.join(folder, file), index_col=['L', 'p', 'GHZ_success'])
+            for lat in surface_args['lattices']:
+                res_it = [int(surface_args['iters'] - n) for n in data.loc[pd.IndexSlice[lat, pg, ghz], 'N']]
+                res_iters.extend(res_it)
+                if all([surface_args['iters'] * 0.01 > it for it in res_it]):
+                    lattices.remove(lat)
+
+    if not lattices:
+        pprint(data)
+        print("\nAll surface code simulations have already been performed. Exiting Surface Code simulations")
+        exit(1)
+
+    surface_args['lattices'] = lattices
+    surface_args['iters'] = max(res_iters)
+
+    return surface_args
+
+
 if __name__ == "__main__":
     parser = compose_parser()
     add_arguments(parser)
@@ -55,9 +86,10 @@ if __name__ == "__main__":
     # Run surface code simulations
     print('\n ##################################################')
     print(' ############ SURFACE CODE SIMULATIONS ############')
-    print(' ##################################################')
+    print(' ##################################################\n')
     surface_code_args = {action.dest: args[action.dest] for action in add_arguments()._actions if action.dest != 'help'}
     surface_code_args = determine_superoperators(superoperator_filenames, surface_code_args)
+    surface_code_args = determine_args_by_file(surface_code_args, grouped_arguments[2])
 
     decoder = surface_code_args.pop("decoder")
 
