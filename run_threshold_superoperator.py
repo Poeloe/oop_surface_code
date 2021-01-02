@@ -16,16 +16,16 @@ def determine_superoperators(superoperator_filenames, args):
     for filename in superoperator_filenames:
         if 'secondary' in filename:
             secondary_superoperators.append(filename)
-            secondary_superoperators.append(filename) if 'cutoff_inf' not in filename else None
+            secondary_superoperators.append(filename) if 'timeinf' not in filename else None
         else:
             primary_superoperators.append(filename)
-            primary_superoperators_failed.append(filename + "_failed") if 'cutoff_inf' not in filename else None
+            primary_superoperators_failed.append(filename + "_failed") if 'timeinf' not in filename else None
 
     args['superoperator_filenames'] = primary_superoperators
-    args['superoperator_filenames_failed'] = primary_superoperators_failed if 'cutoff_inf' not in filename else None
+    args['superoperator_filenames_failed'] = primary_superoperators_failed if 'timeinf' not in filename else None
     args['superoperator_filenames_additional'] = secondary_superoperators if multiple_superoperators else None
     args['superoperator_filenames_additional_failed'] = (secondary_superoperators_failed if multiple_superoperators
-                                                         and 'cutoff_inf' not in filename else None)
+                                                         and 'timeinf' not in filename else None)
 
     if primary_superoperators_failed:
         args['GHZ_successes'] = [0.99]
