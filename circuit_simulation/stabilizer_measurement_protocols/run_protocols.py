@@ -244,7 +244,7 @@ def _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off):
         if os.path.exists(fn + '.pkl') and characteristics:
             characteristics_old = pickle.load(open(fn + '.pkl', 'rb'))
             [characteristics[key].extend(value) for key, value in characteristics_old.items() if key != 'index']
-        pickle.dump(characteristics, file=open(fn + '.pkl', 'wb')) if characteristics else None
+        pickle.dump(characteristics, file=open(fn + '.pkl', 'wb+')) if characteristics else None
 
         # Save the superoperators to a csv file
         for result, fn_add in zip([succeeded, cut_off], ['.csv', '_failed.csv']):
