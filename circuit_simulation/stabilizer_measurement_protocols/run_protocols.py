@@ -334,7 +334,7 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
         if pbar_2 is not None:
             pbar_2.update(1) if pbar_2 else None
         elif not kwargs['progress_bar']:
-            print(">>> At iteration {}/{}.".format(iter + 1, iterations), end='\r')
+            print(">>> At iteration {}/{}.".format(iter + 1, iterations), end='\r', flush=True)
 
         _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
