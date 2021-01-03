@@ -38,8 +38,6 @@ def create_file_name(filename, **kwargs):
         value = value.capitalize() if type(value) == str else str(value)
         filename += "_" + str(key) + value
 
-    if 'decoupling' not in filename:
-        filename = re.sub('fixed_lde_attempts[0-9]*(_|$)', '', filename)
     if 'prob' not in filename:
         filename = re.sub('lde_success[0-9.]*(_|$)', '', filename)
 
@@ -392,19 +390,24 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
     # Loop over command line arguments
     for run in it.product(*(it.product([key], var_circuit_args[key]) for key in var_circuit_args.keys())):
         run_dict = dict(run)
+
+        # Set run_dict values based on circuit arguments
         run_dict['pm'] = (run_dict['pg'] if circuit_args['pm_equals_pg'] else run_dict['pm'])
         run_dict['protocol'] = (run_dict['protocols'] + "_swap" if circuit_args['use_swap_gates']
                                 else run_dict['protocols'])
+        run_dict['fixed_lde_attempts'] = run_dict['fixed_lde_attempts'] if run_dict['pulse_duration'] > 0 else 0
         run_dict.pop('protocols')
         run_dict['cut_off_time'] = _get_cut_off_time(cut_off_dataframe, **run_dict, **circuit_args)
         circuit_args.pop('cut_off_time')
-        node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
 
+        # Create parameter specific filename
+        node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
         fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
                               prob=circuit_args['probabilistic'], node=node[circuit_args['T1_lde']],
                               decoupling=run_dict['pulse_duration'], **run_dict)
         filenames.append(fn)
 
+        # Check if parameter settings has not yet been evaluated, else skip
         if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
             data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
             res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])

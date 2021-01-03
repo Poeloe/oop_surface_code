@@ -1117,15 +1117,17 @@ class QuantumCircuit:
                 self._increase_duration(bell_creation_duration)
 
     def get_cut_off_corrected_lde_time(self, attempts, bell_creation_duration):
+        fixed_ldes = self.fixed_lde_attempts if self.pulse_duration else 1
+
         lde_time = attempts * bell_creation_duration
-        pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
+        pulse_time = math.floor(attempts / (2 * fixed_ldes)) * self.pulse_duration
         longest_duration = max([self.nodes[node].sub_circuit_time for node in self._current_sub_circuit.involved_nodes])
         lde_plus_longest = lde_time + longest_duration + pulse_time
 
         if self.total_duration + lde_plus_longest > self.cut_off_time:
             time_till_cut_off = self.cut_off_time - self.total_duration
-            attempts = time_till_cut_off // (bell_creation_duration + self.pulse_duration / (2*self.fixed_lde_attempts))
-            pulse_time = math.floor(attempts / (2 * self.fixed_lde_attempts)) * self.pulse_duration
+            attempts = time_till_cut_off // (bell_creation_duration + self.pulse_duration / (2*fixed_ldes))
+            pulse_time = math.floor(attempts / (2 * fixed_ldes)) * self.pulse_duration
             return time_till_cut_off - pulse_time, attempts, pulse_time
 
         return lde_time, attempts, pulse_time
