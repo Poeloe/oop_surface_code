@@ -17,6 +17,7 @@ from plot_non_local_cnot import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
 from collections import defaultdict
 import numpy as np
+import re
 
 
 def print_signature():
@@ -26,17 +27,21 @@ def print_signature():
 
 def create_file_name(filename, **kwargs):
     protocol = kwargs.pop('protocol')
-    filename += "_" + protocol
+    filename = "{}{}{}".format(filename, "_" if filename[-1] not in "/_" else "", protocol)
 
     for key, value in kwargs.items():
-        if not value:
+        # Do not include if value is None, 0 or np.inf (default cut_off_time) or if key is pulse_duration
+        if not value or value == np.inf or key == 'pulse_duration':
             continue
         if value is True:
             value = ""
         value = value.capitalize() if type(value) == str else str(value)
         filename += "_" + str(key) + value
 
-    return filename
+    if 'decoupling' not in filename:
+        filename = re.sub('fixed_lde_attempts[0-9]*_', '', filename)
+
+    return filename.strip('_')
 
 
 def _get_cut_off_dataframe(file):
@@ -394,7 +399,8 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
         node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
 
         fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
-                              prob=circuit_args['probabilistic'], **run_dict, node=node[circuit_args['T1_lde']])
+                              prob=circuit_args['probabilistic'], node=node[circuit_args['T1_lde']],
+                              decoupling=run_dict['pulse_duration'], **run_dict)
         filenames.append(fn)
 
         if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
