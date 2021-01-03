@@ -38,9 +38,6 @@ def create_file_name(filename, **kwargs):
         value = value.capitalize() if type(value) == str else str(value)
         filename += "_" + str(key) + value
 
-    if 'prob' not in filename:
-        filename = re.sub('lde_success[0-9.]*(_|$)', '', filename)
-
     return filename.strip('_')
 
 
@@ -71,8 +68,6 @@ def _get_cut_off_time(dataframe, **kwargs):
 
     if tuple(index_dict.values()) not in dataframe.index:
         raise ValueError("Cut-off value not found: Index does not exist in dataframe:\n{}".format(index_dict))
-
-    kwargs.pop('protocol')
 
     return dataframe.loc[tuple(index_dict.values()), '99_duration']
 
@@ -392,13 +387,12 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
         run_dict = dict(run)
 
         # Set run_dict values based on circuit arguments
-        run_dict['pm'] = (run_dict['pg'] if circuit_args['pm_equals_pg'] else run_dict['pm'])
-        run_dict['protocol'] = (run_dict['protocols'] + "_swap" if circuit_args['use_swap_gates']
-                                else run_dict['protocols'])
+        run_dict['lde_success'] = run_dict['lde_success'] if circuit_args['probabilistic'] else 0
         run_dict['fixed_lde_attempts'] = run_dict['fixed_lde_attempts'] if run_dict['pulse_duration'] > 0 else 0
-        run_dict.pop('protocols')
+        run_dict['pm'] = (run_dict['pg'] if circuit_args['pm_equals_pg'] else run_dict['pm'])
+        run_dict['protocol'] = (run_dict['protocol'] + "_swap" if circuit_args['use_swap_gates']
+                                else run_dict['protocol'])
         run_dict['cut_off_time'] = _get_cut_off_time(cut_off_dataframe, **run_dict, **circuit_args)
-        circuit_args.pop('cut_off_time')
 
         # Create parameter specific filename
         node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}

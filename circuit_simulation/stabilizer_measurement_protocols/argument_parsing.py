@@ -100,7 +100,7 @@ def compose_parser():
 
     # Variational Circuit Arguments
     var_circuit_arg.add_argument('-p',
-                                 '--protocols',
+                                 '--protocol',
                                  help='Specifies which protocol should be used. - options: {'
                                       'monolithic/expedient/stringent}',
                                  nargs="*",
@@ -156,6 +156,12 @@ def compose_parser():
                                  type=float,
                                  nargs='*',
                                  default=[0])
+    var_circuit_arg.add_argument('-cut',
+                                 '--cut_off_time',
+                                 help='Specifies the cut-off time for performing a stabilizer measurement.',
+                                 type=float,
+                                 nargs="*",
+                                 default=[np.inf])
 
     # Constant Circuit arguments
     circuit_arg.add_argument('-it',
@@ -243,9 +249,4 @@ def compose_parser():
                              help='T2 relaxation time for an electron qubit.',
                              type=float,
                              default=1)
-    circuit_arg.add_argument('-cut',
-                             '--cut_off_time',
-                             help='Specifies the cut-off time for performing a stabilizer measurement.',
-                             type=float,
-                             default=np.inf)
     return parser
