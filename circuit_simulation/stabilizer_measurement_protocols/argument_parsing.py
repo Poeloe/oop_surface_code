@@ -83,9 +83,9 @@ def compose_parser():
                          help="Specify the path to the file that contains the gate duration times.",
                          type=str,
                          required=False)
-    opp_arg.add_argument("--no_progress_bar",
+    opp_arg.add_argument("--progress_bar",
                          help="Displays no progress bar for simulation.",
-                         action='store_false')
+                         action='store_true')
     opp_arg.add_argument('-cut_file',
                          '--cut_off_file',
                          help='Specifies the file to load the cut-off time from for performing a stabilizer '

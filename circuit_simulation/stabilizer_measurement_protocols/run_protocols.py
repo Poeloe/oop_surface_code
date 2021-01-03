@@ -17,7 +17,7 @@ from plot_non_local_cnot import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
 from collections import defaultdict
 import numpy as np
-import re
+from tqdm import tqdm
 
 
 def print_signature():
@@ -271,10 +271,9 @@ def main_threaded(*, iterations, fn, **kwargs):
     workers = iterations if 0 < iterations < cpu_count() else cpu_count()
     thread_pool = Pool(workers)
     kwargs['iterations'] = iterations // workers
-    for _ in range(workers):
-        kwargs["threaded"] = True
-        kwargs["progress_bar"] = None
+    pbar_2 = (tqdm(total=kwargs['iterations'] * workers) if kwargs.get('progress_bar') else None)
 
+    for i in range(workers):
         results.append(thread_pool.apply_async(main, kwds=kwargs))
 
     # Collect all the results from the workers and close the thread pool
@@ -288,7 +287,9 @@ def main_threaded(*, iterations, fn, **kwargs):
         cut_off = _combine_superoperator_dataframes(cut_off, cut_off_res)
         print_lines_results.extend(print_lines)
         [tot_characteristics[key].extend(value) for key, value in characteristics.items()]
+        pbar_2.update(kwargs['iterations']) if pbar_2 else None
     thread_pool.close()
+    pbar_2.close() if pbar_2 else None
 
     print(*print_lines_results)
 
@@ -297,7 +298,8 @@ def main_threaded(*, iterations, fn, **kwargs):
 
 
 def main_series(fn, **kwargs):
-    (succeeded, cut_off), print_lines, characteristics = main(**kwargs)
+    pbar_2 = tqdm(total=kwargs['iterations']) if kwargs.get('progress_bar') else None
+    (succeeded, cut_off), print_lines, characteristics = main(pbar_2=pbar_2, **kwargs)
     print(*print_lines)
 
     # Save the superoperator to the according csv files (options: normal, cut-off)
@@ -305,18 +307,16 @@ def main_series(fn, **kwargs):
 
 
 def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration_file=None,
-         color=False, draw_circuit=True, save_latex_pdf=False, to_console=False, **kwargs):
+         color=False, draw_circuit=True, save_latex_pdf=False, to_console=False, pbar_2=None, **kwargs):
     supop_dataframe_failed = None
     supop_dataframe_succeed = None
     total_print_lines = []
     characteristics = {'dur': [], 'stab_fid': [], 'ghz_fid': []}
 
     # Progress bar initialisation
-    progress_bar = kwargs.pop('progress_bar')
-    if progress_bar:
-        from tqdm import tqdm
-    pbar = tqdm(total=100, position=0) if progress_bar else None
-    pbar_2 = tqdm(total=iterations, position=1) if progress_bar and iterations > 1 else None
+    pbar = None
+    if pbar_2:
+        pbar = tqdm(total=100, position=1, desc='Current circuit simulation')
 
     # Get the QuantumCircuit object corresponding to the protocol and the protocol method by its name
     kwargs = _additional_qc_arguments(**kwargs)
@@ -329,9 +329,7 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
     # Run iterations of the protocol
     for iter in range(iterations):
         pbar.reset() if pbar else None
-        pbar_2.update(1) if pbar_2 and iterations > 1 else None
-
-        print(">>> At iteration {}/{}.".format(iter + 1, iterations), end='\r', flush=True) if pbar_2 is None else None
+        pbar_2.update(1) if pbar_2 else None
 
         _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
@@ -375,6 +373,8 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
         total_print_lines.append("\nTotal circuit duration: {} s".format(qc.total_duration)) if draw_circuit else None
         qc.reset()
 
+    pbar_2.close() if pbar_2 else None
+    pbar.close() if pbar is not None else None
     return (supop_dataframe_succeed, supop_dataframe_failed), total_print_lines, characteristics
 
 
@@ -413,7 +413,7 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                 print("File found, but with too less iterations. Running for {} iterations\n".format(res_iterations))
                 circuit_args['iterations'] = res_iterations
 
-        print("Running {} iteration(s) with values for the variational arguments:".format(circuit_args['iterations']))
+        print("\nRunning {} iteration(s) with values for the variational arguments:".format(circuit_args['iterations']))
         pprint({**run_dict})
 
         if operational_args['threaded']:
