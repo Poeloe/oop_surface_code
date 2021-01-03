@@ -39,7 +39,9 @@ def create_file_name(filename, **kwargs):
         filename += "_" + str(key) + value
 
     if 'decoupling' not in filename:
-        filename = re.sub('fixed_lde_attempts[0-9]*_', '', filename)
+        filename = re.sub('fixed_lde_attempts[0-9]*(_|$)', '', filename)
+    if 'prob' not in filename:
+        filename = re.sub('lde_success[0-9.]*(_|$)', '', filename)
 
     return filename.strip('_')
 
