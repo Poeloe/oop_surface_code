@@ -1,6 +1,6 @@
 from circuit_simulation.circuit_simulator import *
-import pickle
-PBAR = None
+from tqdm import tqdm
+PBAR: tqdm = None
 
 
 def create_quantum_circuit(protocol, pbar, **kwargs):

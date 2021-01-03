@@ -316,7 +316,9 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
     # Progress bar initialisation
     pbar = None
     if pbar_2:
-        pbar = tqdm(total=100, position=1, desc='Current circuit simulation')
+        # Second bar not working properly within PyCharm. Uncomment when using in normal terminal
+        pass
+        #pbar = tqdm(total=100, position=1, desc='Current circuit simulation')
 
     # Get the QuantumCircuit object corresponding to the protocol and the protocol method by its name
     kwargs = _additional_qc_arguments(**kwargs)
@@ -329,10 +331,10 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
     # Run iterations of the protocol
     for iter in range(iterations):
         pbar.reset() if pbar else None
-        if pbar_2:
+        if pbar_2 is not None:
             pbar_2.update(1) if pbar_2 else None
-        else:
-            print(">>> At iteration {}/{}.".format(iter + 1, iterations), end='\r', flush=True)
+        elif not kwargs['progress_bar']:
+            print(">>> At iteration {}/{}.".format(iter + 1, iterations), end='\r')
 
         _init_random_seed(worker=threading.get_ident(), iteration=iter)
 
@@ -383,6 +385,7 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
 
 def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs):
     filenames = []
+    fn = None
     cut_off_dataframe = _get_cut_off_dataframe(operational_args['cut_off_file'])
 
     # Loop over command line arguments
@@ -397,24 +400,25 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                                 else run_dict['protocol'])
         run_dict['cut_off_time'] = _get_cut_off_time(cut_off_dataframe, **run_dict, **circuit_args)
 
-        # Create parameter specific filename
-        node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
-        fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
-                              prob=circuit_args['probabilistic'], node=node[circuit_args['T1_lde']],
-                              decoupling=run_dict['pulse_duration'], **run_dict)
-        filenames.append(fn)
+        if operational_args['csv_filename']:
+            # Create parameter specific filename
+            node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
+            fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
+                                  prob=circuit_args['probabilistic'], node=node[circuit_args['T1_lde']],
+                                  decoupling=run_dict['pulse_duration'], **run_dict)
+            filenames.append(fn)
 
-        # Check if parameter settings has not yet been evaluated, else skip
-        if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
-            data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
-            res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
-            # iterations within 1% margin
-            if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.01 > res_iterations:
-                print("Skipping circuit for file '{}', since it already exists.".format(fn))
-                continue
-            else:
-                print("File found, but with too less iterations. Running for {} iterations\n".format(res_iterations))
-                circuit_args['iterations'] = res_iterations
+            # Check if parameter settings has not yet been evaluated, else skip
+            if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
+                data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
+                res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
+                # iterations within 1% margin
+                if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.01 > res_iterations:
+                    print("Skipping circuit for file '{}', since it already exists.".format(fn))
+                    continue
+                else:
+                    print("File found with too less iterations. Running for {} iterations\n".format(res_iterations))
+                    circuit_args['iterations'] = res_iterations
 
         print("\nRunning {} iteration(s) with values for the variational arguments:".format(circuit_args['iterations']))
         pprint({**run_dict})
