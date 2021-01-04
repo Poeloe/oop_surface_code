@@ -957,7 +957,7 @@ def dyn_prot_4_14_1_swap(qc: QuantumCircuit, *, operation):
         qc.SWAP("A-e", "A-e+2", efficient=True)
         qc.SWAP("C-e", "C-e+2", efficient=True)
         measurement_outcomes = qc.measure(["C-e", "A-e"], basis="Z")           # 9, 13, 2, 6
-        success = measurement_outcomes != SKIP() and measurement_outcomes[0] == measurement_outcomes[1]
+        success = measurement_outcomes == SKIP() or measurement_outcomes[0] == measurement_outcomes[1]
         if not success:
             qc.start_sub_circuit("AB")
             qc.X("A-e+2")

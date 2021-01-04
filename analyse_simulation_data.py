@@ -16,6 +16,16 @@ def confidence_interval(data, confidence=0.682):
     return data_sorted[lower_bound], data_sorted[upper_bound]
 
 
+def remove_identical_columns(data):
+    data_no_index = data.reset_index()
+    drop_cols = []
+    for col in data_no_index:
+        if data_no_index[col].nunique() == 1:
+           drop_cols.append(col)
+
+    return data.droplevel(drop_cols)
+
+
 def get_all_files_from_folder(folder, folder_name, pkl=False):
     pattern = re.compile('^{}.*'.format(folder_name))
     files = []
@@ -49,11 +59,10 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
         df = pd.read_csv(superoperator_file, sep=';', index_col=[0, 1], float_precision='round_trip')
         if df.iloc[0, df.columns.get_loc('pulse_duration')] == 0:
             df.iloc[0, df.columns.get_loc('fixed_lde_attempts')] = 0
-        df.iloc[0, df.columns.get_loc('protocol_name')] += "_na" if 'na' in superoperator_file else ""
+        df.iloc[0, df.columns.get_loc('protocol_name')] += "_na" if re.match('.*[Nn]a', superoperator_file) else ""
         index = tuple(df.iloc[0, df.columns.get_loc(index)] for index in indices)
 
-        variables = ['written_to', 'total_lde_attempts', 'avg_lde_attempts', 'total_duration', 'avg_duration',
-                     'ghz_fidelity']
+        variables = ['written_to', 'avg_lde_attempts', 'avg_duration', 'ghz_fidelity']
         for variable in variables:
             if variable in df:
                 result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
@@ -69,6 +78,7 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
         result_df.loc[index, 'IIII'] = df['p'].loc[('IIII', False)]
         result_df.loc[index, 'IIZZ'] = df['p'].loc[('IIZZ', False)]
 
+    # result_df = remove_identical_columns(result_df)
     result_df = result_df.sort_index()
     result_df.to_csv(name_csv, sep=';')
     print(result_df)
