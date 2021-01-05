@@ -152,5 +152,5 @@ class SKIP:
 
     def __eq__(self, other):
         if type(other) != SKIP:
-            return False
+            return True
         return self.name == other.name

@@ -248,5 +248,10 @@ def compose_parser():
                              '--T2_idle_electron',
                              help='T2 relaxation time for an electron qubit.',
                              type=float,
-                             default=1)
+                             default=1),
+    circuit_arg.add_argument("-combine",
+                             "--combine",
+                             help="Combine superoperator permutations (Used when twirling).",
+                             required=False,
+                             action="store_true")
     return parser

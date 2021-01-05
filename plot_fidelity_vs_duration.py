@@ -33,14 +33,15 @@ def scatter_plot(y_value, title, xlabel, ylabel):
     fig, ax = plot_style(title, xlabel, ylabel)
     prev_protocol = None
     i = 0
-    for protocol, lde, pulse_duration in product(protocol_names, lde_attempts, pulse_durations):
+    for protocol, node, lde, pulse_duration, dec in product(protocol_names, nodes, lde_attempts, pulse_durations,
+                                                            decoherence):
         idx = pd.IndexSlice
-        index = idx[protocol, lde, pulse_duration]
+        index = idx[protocol, node, lde, pulse_duration, dec]
         if index in dataframe.index:
             color = colors[protocol]
             dataframe_new = dataframe.loc[index, :]
             i = i + 1 if protocol == prev_protocol else 0
-            style = 'none' if 'NA' not in protocol else 'full'
+            style = 'none' if node == 'Purified' else 'full'
             error = {'ghz_fidelity': 'ghz_int', "IIII": "stab_int"}
             y_err = [[abs(eval(dataframe_new[error[y_value]])[0] - dataframe_new[y_value])],
                      [eval(dataframe_new[error[y_value]])[1] - dataframe_new[y_value]]]
@@ -54,7 +55,10 @@ def scatter_plot(y_value, title, xlabel, ylabel):
                         color=color,
                         ms=18,
                         capsize=12,
-                        label="{}-{}".format(protocol, str(lde)),
+                        label="{}, {}{}{}".format(protocol.replace('_swap', '').replace('_na', ''),
+                                                  node,
+                                                  ', ' + str(int(lde)) if lde else "",
+                                                  ', decoherence' if dec else ''),
                         fillstyle=style)
             prev_protocol = protocol
 
@@ -65,12 +69,16 @@ if __name__ == '__main__':
     file_name = './results/circuit_data_NV_info.csv'
     save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration_info.pdf'
     save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration_info.pdf'
-    lde_skip = [2000, 5000]
+    lde_skip = [3000, 5000, 2000]
+    protocol_skip = ['stringent_swap']
 
-    dataframe = pd.read_csv(file_name, sep=';', index_col=['protocol_name', 'fixed_lde_attempts', 'pulse_duration'])
-    protocol_names = sorted(set([name[0] for name in dataframe.index]))
-    lde_attempts = sorted(set([index[1] for index in dataframe.index]).difference(lde_skip))
-    pulse_durations = sorted(set([index[2] for index in dataframe.index]))
+    dataframe = pd.read_csv(file_name, sep=';', index_col=['protocol_name', 'node', 'fixed_lde_attempts',
+                                                           'pulse_duration', 'decoherence'])
+    protocol_names = sorted(set([index[0] for index in dataframe.index]).difference(protocol_skip))
+    nodes = sorted(set([index[1] for index in dataframe.index]))
+    lde_attempts = sorted(set([index[2] for index in dataframe.index]).difference(lde_skip))
+    pulse_durations = sorted(set([index[3] for index in dataframe.index]))
+    decoherence = sorted(set([index[4] for index in dataframe.index]))
 
     fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. Duration", "Duration (s)", "Fidelity (-)")
     fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. Duration", "Duration (s)", "Fidelity (-)")

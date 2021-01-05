@@ -957,7 +957,7 @@ def dyn_prot_4_14_1_swap(qc: QuantumCircuit, *, operation):
         qc.SWAP("A-e", "A-e+2", efficient=True)
         qc.SWAP("C-e", "C-e+2", efficient=True)
         measurement_outcomes = qc.measure(["C-e", "A-e"], basis="Z")           # 9, 13, 2, 6
-        success = measurement_outcomes == SKIP() or measurement_outcomes[0] == measurement_outcomes[1]
+        success = type(measurement_outcomes) == SKIP or measurement_outcomes[0] == measurement_outcomes[1]
         if not success:
             qc.start_sub_circuit("AB")
             qc.X("A-e+2")
@@ -970,7 +970,7 @@ def dyn_prot_4_14_1_swap(qc: QuantumCircuit, *, operation):
         qc.SWAP("B-e", "B-e+2", efficient=True)
         qc.SWAP("D-e", "D-e+2", efficient=True)
         measurement_outcomes2 = qc.measure(["D-e", "B-e"], basis="X")
-        ghz_success = measurement_outcomes == SKIP() or measurement_outcomes2[0] == measurement_outcomes2[1]
+        ghz_success = type(measurement_outcomes) == SKIP or measurement_outcomes2[0] == measurement_outcomes2[1]
         PBAR.update(30) if PBAR is not None else None
 
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
@@ -1068,7 +1068,7 @@ def dyn_prot_4_22_1(qc: QuantumCircuit, *, operation):
         # qc._thread_safe_printing = False
         # qc.draw_circuit()
         measurement_outcomes = qc.measure([10, 14], basis="Z")           # 3, 7, 11, 15
-        success = measurement_outcomes == SKIP() or measurement_outcomes[0] == measurement_outcomes[1]
+        success = type(measurement_outcomes) == SKIP or measurement_outcomes[0] == measurement_outcomes[1]
         qc.start_sub_circuit("AC")
         if not success:
             qc.X(15)
@@ -1079,7 +1079,7 @@ def dyn_prot_4_22_1(qc: QuantumCircuit, *, operation):
         qc.apply_gate(CZ_gate, cqubit=3, tqubit=2)
         # qc.start_sub_circuit("BD")
         measurement_outcomes2 = qc.measure([2, 6])      # 3, 7, 11, 15
-        ghz_success = measurement_outcomes == SKIP() or measurement_outcomes2[1]
+        ghz_success = type(measurement_outcomes) == SKIP or measurement_outcomes2[1]
         PBAR.update(30) if PBAR is not None else None
 
     qc.stabilizer_measurement(operation, nodes=["D", "C", "B", "A"], swap=False)

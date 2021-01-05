@@ -45,7 +45,7 @@ def get_all_files_from_folder(folder, folder_name, pkl=False):
 
 
 def get_results_from_files(superoperator_files, pkl_files, name_csv):
-    indices = ['protocol_name', 'pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
+    indices = ['protocol_name', 'node', 'pg', 'pm', 'pm_1', 'pn', 'decoherence', 'p_bell_success', 'pulse_duration',
                'network_noise_type', 'no_single_qubit_error', 'basis_transformation_noise', 'cut_off_time',
                'probabilistic', 'fixed_lde_attempts']
     result_df = pd.DataFrame(columns=indices)
@@ -59,7 +59,7 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
         df = pd.read_csv(superoperator_file, sep=';', index_col=[0, 1], float_precision='round_trip')
         if df.iloc[0, df.columns.get_loc('pulse_duration')] == 0:
             df.iloc[0, df.columns.get_loc('fixed_lde_attempts')] = 0
-        df.iloc[0, df.columns.get_loc('protocol_name')] += "_na" if re.match('.*[Nn]a', superoperator_file) else ""
+        df.loc[:, 'node'] = "Natural Abundance" if re.match('.*[Nn]a', superoperator_file) else "Purified"
         index = tuple(df.iloc[0, df.columns.get_loc(index)] for index in indices)
 
         variables = ['written_to', 'avg_lde_attempts', 'avg_duration', 'ghz_fidelity']
