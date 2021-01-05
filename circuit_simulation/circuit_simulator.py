@@ -1920,7 +1920,7 @@ class QuantumCircuit:
 
     @skip_if_cut_off_reached
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
-                               electron_qubit=None, end_circuit=True):
+                               electron_qubit=None):
 
         # Function is here, such that user parameters are not overwritten in the loop
         def node_measurement(node, operation, cqubit, tqubit, swap, electron_qubit):
