@@ -179,6 +179,7 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     dataframe_1['ghz_fidelity'] = dataframe_1['ghz_fidelity'].mul(written_to_original)
 
     dataframe_1['ghz_fidelity'] = (dataframe_1['ghz_fidelity'] + dataframe_2['ghz_fidelity']) / corrected_written_to
+    dataframe_1 = dataframe_1[(dataframe_1.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
 
     return dataframe_1
 
@@ -374,7 +375,7 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
             supop_dataframe_succeed = _combine_superoperator_dataframes(supop_dataframe_succeed, supop_dataframe)
 
         total_print_lines.extend(qc.print_lines)
-        total_print_lines.append("\nStab fidelity: {}".format(supop_dataframe.iloc[0, 0]))
+        total_print_lines.append("\nStab fidelity: {}".format(supop_dataframe.iloc[0, 0])) if draw_circuit else None
         total_print_lines.append("\nGHZ fidelity: {} ".format(qc.ghz_fidelity)) if draw_circuit else None
         total_print_lines.append("\nTotal circuit duration: {} s".format(qc.total_duration)) if draw_circuit else None
         qc.reset()
