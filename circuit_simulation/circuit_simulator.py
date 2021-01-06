@@ -2420,9 +2420,12 @@ class QuantumCircuit:
                                                                                              noiseless_density_matrix,
                                                                                              measerror_density_matrix,
                                                                                              error_matrix)
-
-            fid_no_me = fidelity_elementwise(error_density_matrix, total_density_matrix)
-            fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
+            try:
+                fid_no_me = fidelity_elementwise(error_density_matrix, total_density_matrix)
+                fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
+            except:
+                print(error_density_matrix.shape, total_density_matrix.shape, kraus_operator)
+                exit(0)
 
             if fid_me != 0:
                 superoperator.append(SuperoperatorElement(fid_me, True, list(kraus_operator), me_error_density_matrix))
