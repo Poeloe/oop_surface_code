@@ -1196,7 +1196,7 @@ class QuantumCircuit:
 
         # If qubits are not single qubit states or in a state with different qubits the matrix should be reset
         if ((num_qubits_1 > 2 or num_qubits_2 > 2) or
-            (num_qubits_1 > 2 and not all(qubit in qubits_1 for qubit in qubits_2))):
+            (num_qubits_1 > 1 and not all(qubit in qubits_1 for qubit in qubits_2))):
             reset_qubits = qubits_1 + qubits_2
             self._reset_density_matrices(reset_qubits)
 
@@ -2425,6 +2425,8 @@ class QuantumCircuit:
                 fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
             except:
                 print(error_density_matrix.shape, total_density_matrix.shape, kraus_operator)
+                for item in [error_density_matrix, total_density_matrix, self.print_lines]:
+                    pickle.dump(item, )
                 print(self.draw_circuit(color_nodes=True))
                 self.print()
                 exit()
