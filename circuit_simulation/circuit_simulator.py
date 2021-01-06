@@ -1196,7 +1196,7 @@ class QuantumCircuit:
 
         # If qubits are not single qubit states or in a state with different qubits the matrix should be reset
         if ((num_qubits_1 > 2 or num_qubits_2 > 2) or
-            (num_qubits_1 > 1 and not all(qubit in qubits_1 for qubit in qubits_2))):
+           ((num_qubits_1 > 1 or num_qubits_2 > 1) and not all(qubit in qubits_1 for qubit in qubits_2))):
             reset_qubits = qubits_1 + qubits_2
             self._reset_density_matrices(reset_qubits)
 
