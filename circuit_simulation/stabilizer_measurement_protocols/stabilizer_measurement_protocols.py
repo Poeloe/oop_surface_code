@@ -119,7 +119,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[12, 2, 1, 0])
 
     # Common sub circuit defining handled here
-    if protocol in ['plain', 'plain_swap', 'weight_2_4_swap', 'expedient', 'expedient', 'expedient_swap', 'stringent',
+    if protocol in ['plain', 'plain_swap', 'weight_2_4_swap', 'expedient', 'expedient_swap', 'stringent',
                     'stringent_swap', 'dyn_prot_4_6_sym_1', 'dyn_prot_4_6_sym_1_swap', 'dyn_prot_4_14_1',
                     'dyn_prot_4_4_1_swap', 'dyn_prot_4_14_1_swap', 'dyn_prot_4_22_1', 'dyn_prot_4_42_1']:
         qc.define_sub_circuit("AB")

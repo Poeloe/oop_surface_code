@@ -2425,7 +2425,9 @@ class QuantumCircuit:
                 fid_me = fidelity_elementwise(me_error_density_matrix, total_density_matrix)
             except:
                 print(error_density_matrix.shape, total_density_matrix.shape, kraus_operator)
-                exit(0)
+                print(self.draw_circuit(color_nodes=True))
+                self.print()
+                exit()
 
             if fid_me != 0:
                 superoperator.append(SuperoperatorElement(fid_me, True, list(kraus_operator), me_error_density_matrix))
