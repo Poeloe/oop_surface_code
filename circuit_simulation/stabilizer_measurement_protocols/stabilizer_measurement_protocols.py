@@ -970,7 +970,7 @@ def dyn_prot_4_14_1_swap(qc: QuantumCircuit, *, operation):
         qc.SWAP("B-e", "B-e+2", efficient=True)
         qc.SWAP("D-e", "D-e+2", efficient=True)
         measurement_outcomes2 = qc.measure(["D-e", "B-e"], basis="X")
-        ghz_success = type(measurement_outcomes) == SKIP or measurement_outcomes2[0] == measurement_outcomes2[1]
+        ghz_success = type(measurement_outcomes2) == SKIP or measurement_outcomes2[0] == measurement_outcomes2[1]
         PBAR.update(30) if PBAR is not None else None
 
     qc.stabilizer_measurement(operation, nodes=["B", "A", "D", "C"], swap=True)
