@@ -1376,10 +1376,11 @@ class QuantumCircuit:
         if nodes is None:
             nodes = [node.name]
 
-        # If the gate duration exceeds the cut-off time, increase the time as decoherence
+        # If the gate duration exceeds the cut-off time, increase the time as decoherence. Set cut-off time reached
         if total_time + duration > self.cut_off_time:
             time_till_cut_off = self.cut_off_time - total_time
             self._increase_duration(time_till_cut_off, [], involved_nodes=nodes)
+            self.cut_off_time_reached = True
             return False
 
         return True
