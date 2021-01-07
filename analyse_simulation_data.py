@@ -87,7 +87,7 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
 if __name__ == '__main__':
     name_csv = "./results/circuit_data_NV_info.csv"
     folder = "./results/sim_data_4"
-    folder_name = "superoperator_cutoff_info"
+    folder_name = "superoperator_cutoff_info_new"
 
     files, pkl_files = get_all_files_from_folder(folder, folder_name, pkl=True)
 

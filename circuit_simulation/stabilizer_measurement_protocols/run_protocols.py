@@ -60,9 +60,8 @@ def _get_cut_off_time(dataframe, **kwargs):
                   'probabilistic', 'decoherence']
     index = [kwargs[key] for key in kwarg_cols]
     index_dict = dict(zip(kwarg_cols, index))
-    protocol_name = kwargs['protocol'] if kwargs['T1_lde'] == 2 else kwargs['protocol'] + "_na"
-    index_dict['protocol_name'] = protocol_name
-    index_dict['fixed_lde_attempts'] = 0 if index_dict['pulse_duration'] == 0 else index_dict['fixed_lde_attempts']
+    index_dict['protocol_name'] = kwargs['protocol']
+    index_dict['node'] = 'Purified' if kwargs['T1_lde'] == 2 else "Natural Abundance"
 
     dataframe = dataframe.set_index(list(index_dict.keys()))
 
