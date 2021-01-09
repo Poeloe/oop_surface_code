@@ -16,7 +16,7 @@ import math
 import multiprocessing
 from pprint import pprint
 import pickle
-import time
+from analyse_simulation_data import confidence_interval
 
 
 def get_perfect_matrix():
@@ -128,37 +128,43 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
 
     pickle.dump({"index": list(index_columns.items()), "fidelities": fidelities, "durations": durations},
                 open(csv_filename + str(it) + ".pkl", 'wb'))
+    index = tuple(index_columns.values())
 
-    data_frame.loc[tuple(index_columns.values()), :] = 0
-    data_frame.loc[tuple(index_columns.values()), 'iterations'] += len(noisy_matrices)
-    data_frame.loc[tuple(index_columns.values()), 'avg_fidelity'] = avg_fid
-    data_frame.loc[tuple(index_columns.values()), 'avg_duration'] = np.mean(durations)
-    data_frame.loc[tuple(index_columns.values()), 'fid_std'] = np.std(fidelities)
-    data_frame.loc[tuple(index_columns.values()), 'dur_std'] = np.std(durations)
+    if index not in data_frame.index:
+        data_frame.loc[tuple(index_columns.values()), :] = 0
+
+    data_frame.loc[index, 'iterations'] += len(noisy_matrices)
+    data_frame.loc[index, 'avg_fidelity'] = avg_fid
+    data_frame.loc[index, 'avg_duration'] = np.mean(durations)
+    data_frame.loc[index, 'fid_int'] = str(confidence_interval(fidelities))
+    data_frame.loc[index, 'dur_std'] = str(confidence_interval(durations))
 
     return data_frame, index_columns
 
 
 def run_for_arguments(gates, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
                       meas_error_probabilities_one_state, csv_filename, pm_equals_pg, cp_path,
-                      fixed_lde_attempts, threaded, **kwargs):
+                      fixed_lde_attempts, threaded, pulse_duration, **kwargs):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
     pb = kwargs.pop('no_progress_bar')
     iter_list = [gates, gate_error_probabilities, network_error_probabilities, meas_errors, meas_1_errors,
-                 fixed_lde_attempts]
+                 fixed_lde_attempts, pulse_duration]
     pbar1 = tqdm(total=len(list(product(*iter_list))), position=0)
 
-    data_frame, index_columns = (None, None)
+    if csv_filename and os.path.exists(csv_filename + ".csv"):
+        data_frame = pd.read_csv(csv_filename + ".csv", sep=";")
+    else:
+        data_frame, index_columns = (None, None)
     print_lines_total = []
 
     # Loop over command line arguments
     pbar = tqdm(total=kwargs['iterations'], position=1) if pb else None
-    for it, (gate, pg, pn, pm, pm_1, lde) in enumerate(product(*iter_list)):
-        pbar1.update(1)
+    for it, (gate, pg, pn, pm, pm_1, lde, pulse) in enumerate(product(*iter_list)):
         pbar.reset() if pbar is not None else None
         pm = pg if pm is None or pm_equals_pg else pm
+        lde = lde if pulse else 0
         loop_arguments = {
             'gate': gate,
             'pg': pg,
@@ -166,16 +172,20 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'pn': pn,
             'pm_1': pm_1,
             'fixed_lde_attempts': lde,
-            'pb': pbar
+            'pb': pbar,
+            'pulse': pulse
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
+        print("\n\nRunning {} iterations with arguments:".format(kwargs['iterations']))
+        pprint(loop_arguments)
         data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it)
+        pbar1.update(1)
+
+        if csv_filename:
+            data_frame.to_csv(csv_filename + ".csv", sep=';')
 
     print(*print_lines_total)
-    if csv_filename:
-        file_path = csv_filename.replace('.csv', '') + ".csv"
-        data_frame.to_csv(file_path, sep=';')
     pprint(data_frame)
 
 
