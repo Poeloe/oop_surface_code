@@ -183,7 +183,7 @@ if __name__ == '__main__':
     parser = compose_parser()
 
     args = vars(parser.parse_args())
-    args = additional_parsing_of_arguments(args)
+    args = additional_parsing_of_arguments(**args)
     args.pop('gate_duration_file')
 
     run_for_arguments(**args)
