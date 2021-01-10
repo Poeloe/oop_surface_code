@@ -164,7 +164,7 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     dataframe_2[['p', 's']] = dataframe_2[['p', 's']].mul(written_to_new)
     dataframe_1[['p', 's']] = dataframe_1[['p', 's']].mul(written_to_original)
 
-    dataframe_1[['s', 'p']] = dataframe_1[['s', 'p']].add(dataframe_2[['s', 'p']], fill_value=0) / corrected_written_to
+    dataframe_1[['p', 's']] = dataframe_1[['p', 's']].add(dataframe_2[['p', 's']], fill_value=0) / corrected_written_to
 
     # Update the average of the other system characteristics
     dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])
@@ -188,7 +188,7 @@ def add_decoherence_if_cut_off(qc: QuantumCircuit):
         waiting_time = qc.cut_off_time - qc.total_duration
         if waiting_time > 0:
             qc._increase_duration(waiting_time, [], involved_nodes=list(qc.nodes.keys()), check=False)
-            qc.end_current_sub_circuit(total=True, duration=waiting_time, sub_circuit="Waiting")
+            qc.end_current_sub_circuit(total=True, duration=waiting_time, sub_circuit="Waiting", apply_decoherence=True)
 
 
 def _additional_qc_arguments(**kwargs):
@@ -237,6 +237,7 @@ def additional_parsing_of_arguments(**args):
 
 def _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off):
     # Adding confidence intervals to the superoperator
+    print("Probability sum: {}".format(sum(succeeded['p'])))
     succeeded = _add_interval_to_dataframe(succeeded, characteristics)
 
     if fn:
@@ -358,6 +359,12 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
                                                 stabilizer_protocol=True, print_to_console=to_console,
                                                 idle_data_qubit=idle_data_qubit, protocol_name=protocol)
             supop_dataframe.append(dataframe)
+
+        if ((not qc.cut_off_time_reached and qc.ghz_fidelity is None) or (qc.cut_off_time_reached and qc.ghz_fidelity)
+            or round(sum(dataframe['p']), 10) != 1.0):
+            print("Warning: Superoperator calculation was corrupted. Please check the protocol.", file=sys.stderr)
+            qc.draw_circuit(color_nodes=True)
+            qc.print()
 
         supop_dataframe = _combine_idle_and_stabilizer_superoperator(supop_dataframe)
         pbar.update(10) if pbar is not None else None

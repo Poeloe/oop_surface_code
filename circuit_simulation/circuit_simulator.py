@@ -584,30 +584,15 @@ class QuantumCircuit:
             raise ValueError('Provided sub circuit name is not an existing sub circuit.')
 
         # Add the maximum duration of the concurrent sub circuits to the total duration of the QuantumCircuit object
-        current_sub_circuit = self._current_sub_circuit
         started_sub_circuit = self._sub_circuits[name]
         started_sub_circuit.set_ran(False)
-        if current_sub_circuit is not None and not current_sub_circuit.ran:
-            self._update_sub_circuit_duration_with_node_duration()
-            current_sub_circuit.set_ran()
-            if current_sub_circuit.all_ran or forced_level:
-                added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
-                                 + [current_sub_circuit]])
-                self._draw_order.append(["LEVEL", added_dur, current_sub_circuit])
-                self.total_duration += added_dur
-                if self.total_duration > self.cut_off_time:
-                    self.cut_off_time_reached = True
-
-                self._apply_waiting_time_to_fastest_sub_circuits()
-                self._draw_order.append(["LEVEL", None, None])
-                # Reset all the sub_circuits when all ran or when a forced level is requested
-                [sub_circuit.reset() for sub_circuit in current_sub_circuit.concurrent_sub_circuits
-                 + [current_sub_circuit]]
+        self.end_current_sub_circuit(forced_level=forced_level)
 
         started_sub_circuit.reset()
         self._current_sub_circuit = started_sub_circuit
 
-    def end_current_sub_circuit(self, total=False, duration=None, sub_circuit=None):
+    def end_current_sub_circuit(self, total=False, duration=None, sub_circuit=None, forced_level=False,
+                                apply_decoherence=False):
         """
             Method can be used to mark the current sub circuit as 'ran'. This method is only needed when no new sub
             circuit is started. DO NOT USE THIS METHOD IN BETWEEN SUB CIRCUITS THAT ARE MARKED AS CONCURRENT, OTHERWISE
@@ -622,25 +607,32 @@ class QuantumCircuit:
                 methods from being skipped when not used specifically as an operation to the main circuit.
         """
         # Add duration of the current sub circuit to the total duration if sub circuit present
-        if self._current_sub_circuit is not None:
+        current_sub_circuit = self._current_sub_circuit if sub_circuit is None else None
+        if current_sub_circuit is not None and not current_sub_circuit.ran:
             self._update_sub_circuit_duration_with_node_duration()
-            self.total_duration += self._current_sub_circuit.total_duration
-            self._current_sub_circuit.set_ran()
+            current_sub_circuit.set_ran()
+            if current_sub_circuit.all_ran or forced_level:
+                added_dur = max([sc.total_duration for sc in current_sub_circuit.concurrent_sub_circuits
+                                 + [current_sub_circuit]])
+                self._draw_order.append(["LEVEL", added_dur, current_sub_circuit])
+                self.total_duration += added_dur
+                if self.total_duration >= self.cut_off_time:
+                    self.cut_off_time_reached = True
 
-        # Apply decoherence to the fastest sub circuits if applicable. Hereafter all sub circuits have the same duration
-            self._apply_waiting_time_to_fastest_sub_circuits()
+                self._apply_waiting_time_to_fastest_sub_circuits()
+                self._draw_order.append(["LEVEL", None, None])
+                # Reset all the sub_circuits when all ran or when a forced level is requested
+                [sub_circuit.reset() for sub_circuit in current_sub_circuit.concurrent_sub_circuits
+                 + [current_sub_circuit]]
+
+                self._current_sub_circuit = None
 
         # First apply left over waiting time of all qubits in the form of decoherence
-        if self.noise:
+        if apply_decoherence and self.noise:
             self._N_decoherence(decoherence=self.decoherence)
 
-        if duration is None:
-            duration = self._current_sub_circuit.total_duration
-        if sub_circuit is None:
-            sub_circuit = self._current_sub_circuit
-
-        self._draw_order.append(["LEVEL", duration, sub_circuit])
-        self._current_sub_circuit = None
+        if duration is not None and sub_circuit is not None:
+            self._draw_order.append(["LEVEL", duration, sub_circuit]) if sub_circuit is not None else None
 
         # Used in case cut-off can be reached, this frees the methods that otherwise will be skipped due to cut-off
         # reached.
@@ -1925,7 +1917,6 @@ class QuantumCircuit:
 
         return success
 
-    @skip_if_cut_off_reached
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
                                electron_qubit=None):
 
@@ -1954,6 +1945,7 @@ class QuantumCircuit:
             self.measure(cqubit, probabilistic=False)
 
         # Main code of the method
+        self.end_current_sub_circuit(forced_level=True)
 
         # Check if stabilizer measurement within cut-off time
         if self.nodes and self.cut_off_time < np.inf:
@@ -2829,6 +2821,7 @@ class QuantumCircuit:
         self._qubit_density_matrix_lookup = {}
         self._print_lines = []
         self._fused = False
+        self.ghz_fidelity = None
 
         # Decoherence and duration attributes
         self.total_duration = 0
