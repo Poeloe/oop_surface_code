@@ -142,7 +142,7 @@ class QuantumCircuit:
                  lde_duration=1, probabilistic=False, network_noise_type=0, no_single_qubit_error=False,
                  thread_safe_printing=False, single_qubit_gate_lookup=None, two_qubit_gate_lookup=None,
                  pulse_duration=0, fixed_lde_attempts=1, cut_off_time=np.inf, noiseless_swap=False, combine=False,
-                 **kwargs):
+                 debug=False, **kwargs):
 
         # Basic attributes
         self.num_qubits = num_qubits
@@ -212,7 +212,7 @@ class QuantumCircuit:
 
         self._init_parameters = self._init_parameters_to_dict()
 
-        if kwargs['debug']:
+        if debug:
             pprint({k: getattr(self, k) for k in self.__dir__()
                     if k[0:2] != '__' and type(getattr(self, k)) in [float, int, str, bool]})
 
