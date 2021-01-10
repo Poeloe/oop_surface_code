@@ -22,6 +22,7 @@ from circuit_simulation.utilities.decorators import (handle_none_parameters, ski
                                                      determine_qubit_index)
 from copy import copy
 import pickle
+from pprint import pprint
 
 
 class QuantumCircuit:
@@ -210,6 +211,10 @@ class QuantumCircuit:
         self._init_density_matrix()
 
         self._init_parameters = self._init_parameters_to_dict()
+
+        if kwargs['debug']:
+            pprint({k: getattr(self, k) for k in self.__dir__()
+                    if k[0:2] != '__' and type(getattr(self, k)) in [float, int, str, bool]})
 
     from . import _noise
     from . import _quantum_circuit_init

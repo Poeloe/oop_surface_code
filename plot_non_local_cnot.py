@@ -91,8 +91,8 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
 
 
 if __name__ == '__main__':
-    save_file_path = './results/thesis_files/draft_figures/non_local_gate.pdf'
-    files, pkl_files = get_all_files_from_folder('/Users/Paul/Desktop', 'non_local_gate_result', True)
+    save_file_path = './results/thesis_files/draft_figures/non_local_gate_cluster.pdf'
+    files, pkl_files = get_all_files_from_folder('/Users/Paul/Desktop/non_local_gate', ['purified'], True)
 
     dataframes = combine_files(files, pkl_files)
-    plot_non_local_cnot_fidelity(dataframes, save_file_path, [])
+    plot_non_local_cnot_fidelity(dataframes, save_file_path)

@@ -56,7 +56,6 @@ def create_data_frame(data_frame, **kwargs):
     data_frame = pd.DataFrame(index=index)
     data_frame['avg_fidelity'] = 0
     data_frame['iterations'] = 0
-    data_frame['fid_std'] = 0
     data_frame['dur_std'] = 0
     data_frame['avg_duration'] = 0
 
@@ -173,7 +172,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'pm_1': pm_1,
             'fixed_lde_attempts': lde,
             'pb': pbar,
-            'pulse': pulse
+            'pulse_duration': pulse
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
