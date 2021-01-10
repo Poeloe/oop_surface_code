@@ -164,7 +164,7 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     dataframe_2[['p', 's']] = dataframe_2[['p', 's']].mul(written_to_new)
     dataframe_1[['p', 's']] = dataframe_1[['p', 's']].mul(written_to_original)
 
-    dataframe_1[['s', 'p']] = (dataframe_1[['s', 'p']] + dataframe_2[['s', 'p']]) / corrected_written_to
+    dataframe_1[['s', 'p']] = dataframe_1[['s', 'p']].add(dataframe_2[['s', 'p']], fill_value=0) / corrected_written_to
 
     # Update the average of the other system characteristics
     dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])

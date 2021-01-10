@@ -389,7 +389,7 @@ def superoperator_to_dataframe(self, superoperator, proj_type, file_name=None, u
 
     for supop_el in superoperator:
         # When Z and X errors are equally likely, symmetry between proj_type and only H gate difference in error_array
-        error_array_str = "".join((supop_el.error_array))
+        error_array_str = "".join(supop_el.error_array)
         opp_error_array_str = "".join((error_array_str.translate(str.maketrans({'X': 'Z', 'Z': 'X'}))))
 
         for error_array, current_stab_type in zip([error_array_str, opp_error_array_str], [stab_type, opp_stab]):
