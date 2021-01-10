@@ -1369,18 +1369,19 @@ class QuantumCircuit:
         if self._circuit_operations_ended or self.cut_off_time == np.inf or self.nodes is None:
             return True
         # Get total duration of the node on which the gate is applied
-        node = self.nodes[self.get_node_name_from_qubit(tqubit)] if nodes is None else self.nodes[nodes[0]]
-        node_time = node.sub_circuit_time
-        total_time = self.total_duration + node_time
+        if tqubit is not None:
+            node = self.nodes[self.get_node_name_from_qubit(tqubit)]
+        else:
+            _, node = max([(self.nodes[n].sub_circuit_time, self.nodes[n]) for n in nodes], key=lambda tup: tup[0])
+        total_time = self.total_duration + node.sub_circuit_time
 
         if nodes is None:
             nodes = [node.name]
 
         # If the gate duration exceeds the cut-off time, increase the time as decoherence. Set cut-off time reached
-        if total_time + duration > self.cut_off_time:
+        if total_time + duration >= self.cut_off_time:
             time_till_cut_off = self.cut_off_time - total_time
-            self._increase_duration(time_till_cut_off, [], involved_nodes=nodes)
-            self.cut_off_time_reached = True
+            self._increase_duration(time_till_cut_off, [], involved_nodes=nodes, check=True)
             return False
 
         return True
