@@ -18,6 +18,7 @@ from circuit_simulation.termcolor.termcolor import cprint
 from collections import defaultdict
 import numpy as np
 from tqdm import tqdm
+from copy import copy
 
 
 def print_signature():
@@ -77,7 +78,7 @@ def _open_existing_superoperator_file(filename, addition=""):
     if not os.path.exists(filename + addition):
         return
 
-    existing_file = pd.read_csv(filename + addition, sep=';')
+    existing_file = pd.read_csv(filename + addition, sep=';', float_precision='round_trip')
     index = ['error_config', 'lie'] if 'error_idle' not in existing_file else ['error_stab', 'error_idle', 'lie']
 
     existing_file = existing_file.set_index(index)
@@ -154,33 +155,44 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
     if dataframe_2 is None:
         return dataframe_1
 
+    new_df = copy(dataframe_1) if dataframe_1.shape[0] > dataframe_2.shape[0] else copy(dataframe_2)
+    other_df = copy(dataframe_2) if dataframe_1.shape[0] > dataframe_2.shape[0] else copy(dataframe_1)
+
     # First combine the total amount of iterations, such that it can be used later
-    written_to_original = dataframe_1.iloc[0, dataframe_1.columns.get_loc("written_to")]
-    written_to_new = dataframe_2.iloc[0, dataframe_2.columns.get_loc("written_to")]
+    written_to_original = new_df.iloc[0, new_df.columns.get_loc("written_to")]
+    written_to_new = other_df.iloc[0, other_df.columns.get_loc("written_to")]
     corrected_written_to = written_to_new + written_to_original
-    dataframe_1.iloc[0, dataframe_1.columns.get_loc("written_to")] = corrected_written_to
+    new_df.iloc[0, new_df.columns.get_loc("written_to")] = corrected_written_to
+
+    if round(sum(new_df['p']), 10) != 1.0 or round(sum(other_df['p']), 10) != 1.0:
+        print("Warning: Probabilities of (one of) the dataframes does not sum to 1.", file=sys.stderr)
 
     # Calculate the average probability of the error configurations per stabilizer
-    dataframe_2[['p', 's']] = dataframe_2[['p', 's']].mul(written_to_new)
-    dataframe_1[['p', 's']] = dataframe_1[['p', 's']].mul(written_to_original)
+    other_df[['p', 's']] = other_df[['p', 's']].mul(written_to_new)
+    new_df[['p', 's']] = new_df[['p', 's']].mul(written_to_original)
 
-    dataframe_1[['p', 's']] = dataframe_1[['p', 's']].add(dataframe_2[['p', 's']], fill_value=0) / corrected_written_to
+    combined_elements = new_df[['p', 's']].add(other_df[['p', 's']], fill_value=0).div(corrected_written_to)
+    new_df = new_df.assign(p=combined_elements['p'])
+    new_df = new_df.assign(s=combined_elements['s'])
 
     # Update the average of the other system characteristics
-    dataframe_1['total_duration'] = (dataframe_1['total_duration'] + dataframe_2['total_duration'])
-    dataframe_1['total_lde_attempts'] = (dataframe_1['total_lde_attempts'] + dataframe_2['total_lde_attempts'])
+    new_df['total_duration'] = (new_df['total_duration'] + other_df['total_duration'])
+    new_df['total_lde_attempts'] = (new_df['total_lde_attempts'] + other_df['total_lde_attempts'])
 
-    dataframe_1['avg_lde_attempts'] = dataframe_1['total_lde_attempts'] / corrected_written_to
-    dataframe_1['avg_duration'] = dataframe_1['total_duration'] / corrected_written_to
+    new_df['avg_lde_attempts'] = new_df['total_lde_attempts'] / corrected_written_to
+    new_df['avg_duration'] = new_df['total_duration'] / corrected_written_to
 
     # Update fidelity
-    dataframe_2['ghz_fidelity'] = dataframe_2['ghz_fidelity'].mul(written_to_new)
-    dataframe_1['ghz_fidelity'] = dataframe_1['ghz_fidelity'].mul(written_to_original)
+    other_df['ghz_fidelity'] = other_df['ghz_fidelity'].mul(written_to_new)
+    new_df['ghz_fidelity'] = new_df['ghz_fidelity'].mul(written_to_original)
 
-    dataframe_1['ghz_fidelity'] = (dataframe_1['ghz_fidelity'] + dataframe_2['ghz_fidelity']) / corrected_written_to
-    dataframe_1 = dataframe_1[(dataframe_1.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
+    new_df['ghz_fidelity'] = (new_df['ghz_fidelity'] + other_df['ghz_fidelity']) / corrected_written_to
+    new_df = new_df[(new_df.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
 
-    return dataframe_1
+    if round(sum(new_df['p']), 10) != 1.0:
+        print("Warning: The combined dataframe sums to {}.".format(sum(new_df['p'])), file=sys.stderr)
+
+    return new_df
 
 
 def add_decoherence_if_cut_off(qc: QuantumCircuit):
@@ -272,10 +284,10 @@ def main_threaded(*, iterations, fn, **kwargs):
     workers = iterations if 0 < iterations < cpu_count() else cpu_count()
     thread_pool = Pool(workers)
     kwargs['iterations'] = iterations // workers
-    pbar_2 = (tqdm(total=kwargs['iterations'] * workers) if kwargs.get('progress_bar') else None)
 
     for i in range(workers):
         results.append(thread_pool.apply_async(main, kwds=kwargs))
+    thread_pool.close()
 
     # Collect all the results from the workers and close the thread pool
     succeeded = None
@@ -288,9 +300,6 @@ def main_threaded(*, iterations, fn, **kwargs):
         cut_off = _combine_superoperator_dataframes(cut_off, cut_off_res)
         print_lines_results.extend(print_lines)
         [tot_characteristics[key].extend(value) for key, value in characteristics.items()]
-        pbar_2.update(kwargs['iterations']) if pbar_2 else None
-    thread_pool.close()
-    pbar_2.close() if pbar_2 else None
 
     print(*print_lines_results)
 
