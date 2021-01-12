@@ -1917,6 +1917,7 @@ class QuantumCircuit:
 
         return success
 
+    @skip_if_cut_off_reached
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
                                electron_qubit=None):
 

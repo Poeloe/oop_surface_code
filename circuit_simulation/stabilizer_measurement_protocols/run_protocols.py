@@ -289,7 +289,7 @@ def main_threaded(*, iterations, fn, **kwargs):
         results.append(thread_pool.apply_async(main, kwds=kwargs))
     thread_pool.close()
 
-    # Collect all the results from the workers and close the thread pool
+    # Collect all the results from the workers
     succeeded = None
     cut_off = None
     print_lines_results = []
@@ -351,7 +351,7 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
         # Run the user requested protocol
         operation = CZ_gate if stabilizer_type == "Z" else CNOT_gate
         superoperator_qubits_list = protocol_method(qc, operation=operation)
-        qc.end_current_sub_circuit(total=True)
+        qc.end_current_sub_circuit(total=True, forced_level=True)
         add_decoherence_if_cut_off(qc)
 
         qc.draw_circuit(no_color=not color, color_nodes=True) if draw_circuit else None
@@ -371,9 +371,9 @@ def main(*, iterations, protocol, stabilizer_type, threaded=False, gate_duration
 
         if ((not qc.cut_off_time_reached and qc.ghz_fidelity is None) or (qc.cut_off_time_reached and qc.ghz_fidelity)
             or round(sum(dataframe['p']), 10) != 1.0):
-            print("Warning: Superoperator calculation was corrupted. Please check the protocol.", file=sys.stderr)
-            qc.draw_circuit(color_nodes=True)
-            qc.print()
+            print("Warning: Unexpected combination of parameters experienced:", file=sys.stderr, flush=True)
+            print({'cutoff_reached': qc.cut_off_time_reached, 'ghz_fid': qc.ghz_fidelity, 'sum': sum(dataframe['p'])},
+                  flush=True)
 
         supop_dataframe = _combine_idle_and_stabilizer_superoperator(supop_dataframe)
         pbar.update(10) if pbar is not None else None
