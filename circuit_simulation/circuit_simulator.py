@@ -1964,8 +1964,9 @@ class QuantumCircuit:
             # The max amount of data qubits in a node indicates the amount op gates necessary to perform stabilizer
             num_op = max([len(node.data_qubits) for node in self.nodes.values() if node.data_qubits is not None])
             swap_dur = SWAP_gate.duration if swap else 0
-            refocus_time = (max([self._determine_additional_waiting_pulse_sequence(self.qubits[q]) for q in tqubits])
-                            if self.pulse_duration else 0)
+            initialised_qubits = set(self.qubits.keys()).difference(self._uninitialised_qubits)
+            refocus_time = (max([self._determine_additional_waiting_pulse_sequence(self.qubits[q])
+                                 for q in initialised_qubits]) if self.pulse_duration else 0)
             duration = (operation.duration * num_op + self.measurement_duration + swap_dur + refocus_time)
             if not self._check_if_operation_within_cut_off(duration, nodes=nodes):
                 return
