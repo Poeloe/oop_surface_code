@@ -1948,16 +1948,6 @@ class QuantumCircuit:
         # Main code of the method
         self.end_current_sub_circuit(forced_level=True)
 
-        # Check if stabilizer measurement within cut-off time
-        if self.nodes and self.cut_off_time < np.inf:
-            # The max amount of data qubits in a node indicates the amount op gates necessary to perform stabilizer
-            num_op = max([len(node.data_qubits) for node in self.nodes.values() if node.data_qubits is not None])
-            duration = (operation.duration * num_op + self.measurement_duration + SWAP_gate.duration
-                        if swap else operation.duration * num_op + self.measurement_duration)
-            if not self._check_if_operation_within_cut_off(duration, nodes=nodes):
-                return
-
-        self.get_state_fidelity() if len(self.nodes) > 1 else None
         if nodes is None:
             nodes = [self.get_node_name_from_qubit(cqubit)]
         if tqubit is None:
@@ -1969,8 +1959,20 @@ class QuantumCircuit:
         else:
             raise ValueError("The target qubit must be either None, int or list. It was {}".format(type(tqubit)))
 
+        # Check if stabilizer measurement within cut-off time
+        if self.nodes and self.cut_off_time < np.inf:
+            # The max amount of data qubits in a node indicates the amount op gates necessary to perform stabilizer
+            num_op = max([len(node.data_qubits) for node in self.nodes.values() if node.data_qubits is not None])
+            swap_dur = SWAP_gate.duration if swap else 0
+            refocus_time = (max([self._determine_additional_waiting_pulse_sequence(self.qubits[q]) for q in tqubits])
+                            if self.pulse_duration else 0)
+            duration = (operation.duration * num_op + self.measurement_duration + swap_dur + refocus_time)
+            if not self._check_if_operation_within_cut_off(duration, nodes=nodes):
+                return
+
         # Cut-off holds for the GHZ creation, stabilizer measurement should always be fully performed if reached
         self._circuit_operations_ended = True
+        self.get_state_fidelity() if len(self.nodes) > 1 else None
 
         for i, node in enumerate(nodes):
             tqubit = [qubit for qubit in tqubits if qubit in self.nodes[node].qubits] if self.nodes and all(tqubits) \
