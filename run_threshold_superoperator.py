@@ -63,7 +63,7 @@ def determine_lattice_evaluation_by_result(surface_args, var_circuit_args):
         exit(1)
 
     surface_args['lattices'] = lattices
-    surface_args['iters'] = max(res_iters)
+    surface_args['iters'] = max(res_iters) if res_iters else surface_args['iters']
 
     return surface_args
 
