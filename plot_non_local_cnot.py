@@ -5,7 +5,7 @@ import scipy.stats as stats
 from analyse_simulation_data import get_all_files_from_folder
 from matplotlib import colors as mcolors
 import pickle
-from analyse_simulation_data import confidence_interval
+from scipy.stats import sem
 
 
 def mean_confidence_interval(data, confidence=0.682, plus_mean=False):
@@ -51,19 +51,16 @@ def combine_files(files, pkl_files):
                   files]
 
     for filename in pkl_files:
-        dataframe = [dataframe for file, dataframe in dataframes if file.replace(".csv", "") in filename][0]
-        file = open(filename, 'rb')
-        data = pickle.load(file)
-        y_err = [[abs(confidence_interval(data['fidelities'])[0] - np.mean(confidence_interval(data['fidelities'])))],
-                 [abs(confidence_interval(data['fidelities'])[1] - np.mean(confidence_interval(data['fidelities'])))]]
-        index = tuple(index[1] for index in data["index"])
-        dataframe.loc[index, 'ghz_int'] = str(y_err)
+        str_filename = filename.replace('.pkl', '').rstrip('0123456789')
+        dataframe = [dataframe for file, dataframe in dataframes if file.replace(".csv", "") == str_filename][0]
+        data = pickle.load(open(filename, 'rb'))
+        dataframe.loc[tuple(index[1] for index in data["index"]), 'fid_sem'] = sem(data['fidelities'])
 
     return dataframes
 
 
 def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
-    fig, ax = plot_style(title="Non-local CNOT gate", xlabel="Gate error probability (-)", ylabel="Fidelity (-)")
+    fig, ax = plot_style(title="Non-local CNOT gate", xlabel="Gate error probability", ylabel="Average fidelity")
     colors = [color for key, color in mcolors.TABLEAU_COLORS.items() if key not in ['tab:orange', 'tab:red']]
 
     color_count = 0
@@ -77,9 +74,8 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
                 continue
             color_count = color_count + 1 if color_count < (len(colors) - 1) else 0
             color = colors[color_count]
-            y_err = [[], []]
-            [(y_err[0].extend(eval(err)[1]), y_err[1].extend(eval(err)[1])) for err in df.loc[lde, 'ghz_int']]
-            ax.errorbar(df.loc[lde, 'pg'], df.loc[lde, 'avg_fidelity'], yerr=y_err, ms=8, fmt='-', capsize=8,
+            ax.errorbar(df.loc[lde, 'pg'], df.loc[lde, 'avg_fidelity'], yerr=df.loc[lde, 'fid_sem'], ms=8, fmt='-o',
+                        capsize=8,
                         label="{} - {}".format(sample, lde_string), color=color)
             ax.set_xlim(0.051, 0)
 
@@ -92,7 +88,9 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
 
 if __name__ == '__main__':
     save_file_path = './results/thesis_files/draft_figures/non_local_gate_cluster.pdf'
-    files, pkl_files = get_all_files_from_folder('/Users/Paul/Desktop/non_local_gate', ['purified'], True)
+    files, pkl_files = get_all_files_from_folder('./results/sim_data_4/non_local_gate',
+                                                 ['purified', 'natural_abundance'],
+                                                 True)
 
     dataframes = combine_files(files, pkl_files)
     plot_non_local_cnot_fidelity(dataframes, save_file_path)

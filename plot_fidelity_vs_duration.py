@@ -2,7 +2,6 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib import colors as mcolors
 from itertools import product
-import numpy as np
 
 
 def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
@@ -31,27 +30,29 @@ def scatter_plot(y_value, title, xlabel, ylabel):
     [colors.update({name: color}) for name, color in zip(protocol_names, mcolors.TABLEAU_COLORS)]
     points = ["o", "s", "v", "D", "p", "^", "h", "X", "<", "P", "*", ">", "H", "d"]
     fig, ax = plot_style(title, xlabel, ylabel)
-    prev_protocol = None
     i = 0
+    protocol_markers = {}
     for protocol, node, lde, pulse_duration, dec in product(protocol_names, nodes, lde_attempts, pulse_durations,
                                                             decoherence):
+
         idx = pd.IndexSlice
         index = idx[protocol, node, lde, pulse_duration, dec]
         if index in dataframe.index:
+            marker_index = (protocol, lde, dec)
+            if marker_index not in protocol_markers:
+                protocol_markers[marker_index] = i
+                i += 1
             color = colors[protocol]
             dataframe_new = dataframe.loc[index, :]
-            i = i + 1 if protocol == prev_protocol else 0
             style = 'none' if node == 'Purified' else 'full'
             error = {'ghz_fidelity': 'ghz_int', "IIII": "stab_int"}
-            y_err = [[abs(eval(dataframe_new[error[y_value]])[0] - dataframe_new[y_value])],
-                     [eval(dataframe_new[error[y_value]])[1] - dataframe_new[y_value]]]
-            x_err = [[abs(eval(dataframe_new["dur_int"])[0] - dataframe_new["avg_duration"])],
-                     [eval(dataframe_new["dur_int"])[1] - dataframe_new["avg_duration"]]]
+            y_err = dataframe_new[error[y_value]]
+            x_err = dataframe_new['dur_int']
             ax.errorbar(dataframe_new['avg_duration'],
                         dataframe_new[y_value],
                         yerr=y_err,
                         xerr=x_err,
-                        marker=points[i],
+                        marker=points[protocol_markers[marker_index]],
                         color=color,
                         ms=18,
                         capsize=12,
@@ -60,16 +61,15 @@ def scatter_plot(y_value, title, xlabel, ylabel):
                                                   ', ' + str(int(lde)) if lde else "",
                                                   ', decoherence' if dec else ''),
                         fillstyle=style)
-            prev_protocol = protocol
 
     return fig, ax
 
 
 if __name__ == '__main__':
-    file_name = './results/circuit_data_NV_info.csv'
-    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration_info.pdf'
-    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration_info.pdf'
-    lde_skip = [3000, 5000, 2000]
+    file_name = './results/circuit_data_NV_info_full.csv'
+    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration.pdf'
+    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration.pdf'
+    lde_skip = [3000, 5000]
     protocol_skip = ['stringent_swap']
 
     dataframe = pd.read_csv(file_name, sep=';', index_col=['protocol_name', 'node', 'fixed_lde_attempts',
@@ -80,8 +80,9 @@ if __name__ == '__main__':
     pulse_durations = sorted(set([index[3] for index in dataframe.index]))
     decoherence = sorted(set([index[4] for index in dataframe.index]))
 
-    fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. Duration", "Duration (s)", "Fidelity (-)")
-    fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. Duration", "Duration (s)", "Fidelity (-)")
+    fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. Duration", "Duration (s)",
+                           "Fidelity")
+    fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. Duration", "Duration (s)", "Fidelity")
 
     ax2.legend(prop={'size': 12})
     ax.legend(prop={'size': 12})

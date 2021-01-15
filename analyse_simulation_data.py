@@ -3,6 +3,7 @@ import os
 import re
 import pickle
 import math
+from scipy.stats import sem
 
 
 def confidence_interval(data, confidence=0.682):
@@ -33,7 +34,7 @@ def get_all_files_from_folder(folder, folder_name, pkl=False):
     for sub_dir in os.listdir(folder):
         if pattern.fullmatch(sub_dir):
             for file in os.listdir(os.path.join(folder, sub_dir)):
-                if file.endswith(".csv"):
+                if file.endswith(".csv") and not "failed" in file:
                     files.append(os.path.join(folder, sub_dir, file))
                 elif file.endswith(".pkl") and pkl:
                     pkl_files.append(os.path.join(folder, sub_dir, file))
@@ -71,7 +72,7 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
         for interval in interval_data:
             kind = interval.split(sep="_")[0]
             key = kind if "dur" in kind else kind + "_fid"
-            result_df.loc[index, interval] = str(confidence_interval(full_data[key]))
+            result_df.loc[index, interval] = sem(full_data[key])
 
         result_df.loc[index, '99_duration'] = confidence_interval(full_data["dur"], 0.98)[1]
 
@@ -85,9 +86,9 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/circuit_data_NV_info.csv"
+    name_csv = "./results/circuit_data_NV_info_full.csv"
     folder = "./results/sim_data_4"
-    folder_name = "superoperator_cutoff_info_new"
+    folder_name = "superoperator_cutoff_99_full"
 
     files, pkl_files = get_all_files_from_folder(folder, folder_name, pkl=True)
 
