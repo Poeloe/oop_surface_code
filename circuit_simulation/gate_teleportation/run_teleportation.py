@@ -130,7 +130,7 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
     index = tuple(index_columns.values())
 
     if index not in data_frame.index:
-        data_frame.loc[tuple(index_columns.values()), :] = 0
+        data_frame.loc[index, :] = 0
 
     data_frame.loc[index, 'iterations'] += len(noisy_matrices)
     data_frame.loc[index, 'avg_fidelity'] = avg_fid

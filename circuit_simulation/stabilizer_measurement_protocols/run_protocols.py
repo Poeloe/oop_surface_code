@@ -13,7 +13,7 @@ from circuit_simulation.circuit_simulator import QuantumCircuit
 import itertools as it
 import time
 import random
-from plot_non_local_cnot import confidence_interval
+from analyse_simulation_data import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
 from collections import defaultdict
 import numpy as np
@@ -32,7 +32,7 @@ def create_file_name(filename, **kwargs):
 
     for key, value in kwargs.items():
         # Do not include if value is None, 0 or np.inf (default cut_off_time) or if key is pulse_duration
-        if not value or value == np.inf or key == 'pulse_duration':
+        if not value or value == np.inf or key in ['pulse_duration', '_node']:
             continue
         if value is True:
             value = ""
@@ -42,23 +42,36 @@ def create_file_name(filename, **kwargs):
     return filename.strip('_')
 
 
-def _get_cut_off_dataframe(file):
+def _get_cut_off_dataframe(file: str):
     if file is None:
         return
+    if file.lower() == 'auto':
+        return file
     if not os.path.exists(file):
         raise ValueError('File containing the cut-off times could not be found!')
 
     return pd.read_csv(file, sep=";", float_precision='round_trip')
 
 
-def _get_cut_off_time(dataframe, **kwargs):
-    cut_off_time = kwargs.pop('cut_off_time')
+def _get_cut_off_time(dataframe, run_dict, **kwargs):
+    cut_off_time = run_dict.pop('cut_off_time')
 
     if cut_off_time != np.inf or dataframe is None:
         return cut_off_time
+    if type(dataframe) == str and dataframe.lower() == 'auto':
+        file_n = create_file_name(kwargs['csv_filename'], dec=kwargs['decoherence'], prob=kwargs['probabilistic'],
+                                  node=run_dict['_node'], decoupling=run_dict['pulse_duration'], **run_dict)
+        if os.path.exists(file_n + '.csv'):
+            data = pd.read_csv(file_n + '.csv', sep=";", float_precision="round_trip")
+            if data.loc[0, 'written_to']*1.01 > kwargs['iterations']:
+                return data.loc[0, 'dur_99']
+
+        print('No records for cutoff time found or not enough iterations. First running for:\n{}'.format(file_n))
+        return np.inf
 
     kwarg_cols = ['pm_1', 'pg', 'fixed_lde_attempts', 'pulse_duration', 'network_noise_type', 'pm', 'pn',
                   'probabilistic', 'decoherence']
+    kwargs.update(run_dict)
     index = [kwargs[key] for key in kwarg_cols]
     index_dict = dict(zip(kwarg_cols, index))
     index_dict['protocol_name'] = kwargs['protocol']
@@ -181,6 +194,9 @@ def _combine_superoperator_dataframes(dataframe_1, dataframe_2):
 
     new_df['avg_lde_attempts'] = new_df['total_lde_attempts'] / corrected_written_to
     new_df['avg_duration'] = new_df['total_duration'] / corrected_written_to
+    if 'dur_99' in new_df:
+        new_df['dur_99'] = (new_df['dur_99'].mul(written_to_original) +
+                            other_df['dur_99'].mul(written_to_new)) / corrected_written_to
 
     # Update fidelity
     other_df['ghz_fidelity'] = other_df['ghz_fidelity'].mul(written_to_new)
@@ -270,11 +286,8 @@ def _save_superoperator_dataframe(fn, characteristics, succeeded, cut_off):
 
 def _add_interval_to_dataframe(dataframe, characteristics):
     if dataframe is not None:
-        add_column_values(dataframe, ['int_stab_682', 'int_ghz_682', 'int_dur_682', 'dur_99'],
-                          [str(confidence_interval(characteristics['stab_fid'])),
-                           str(confidence_interval(characteristics['ghz_fid'])),
-                           str(confidence_interval(characteristics['dur'])),
-                           str(confidence_interval(characteristics['dur'], 0.98)[1])])
+        add_column_values(dataframe, ['dur_99'],
+                          [confidence_interval(characteristics['dur'], 0.98)[1]])
     return dataframe
 
 
@@ -404,9 +417,12 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
     filenames = []
     fn = None
     cut_off_dataframe = _get_cut_off_dataframe(operational_args['cut_off_file'])
+    node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
+    iterations = circuit_args['iterations']
 
     # Loop over command line arguments
     for run in it.product(*(it.product([key], var_circuit_args[key]) for key in var_circuit_args.keys())):
+        count = 0
         run_dict = dict(run)
 
         # Set run_dict values based on circuit arguments
@@ -415,35 +431,42 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
         run_dict['pm'] = (run_dict['pg'] if circuit_args['pm_equals_pg'] else run_dict['pm'])
         run_dict['protocol'] = (run_dict['protocol'] + "_swap" if circuit_args['use_swap_gates']
                                 else run_dict['protocol'])
-        run_dict['cut_off_time'] = _get_cut_off_time(cut_off_dataframe, **run_dict, **circuit_args)
+        run_dict['_node'] = node[circuit_args['T1_lde']]
 
-        if operational_args['csv_filename']:
-            # Create parameter specific filename
-            node = {2: 'Pur', 0.021: 'NatAb', 0: 'Ideal'}
-            fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
-                                  prob=circuit_args['probabilistic'], node=node[circuit_args['T1_lde']],
-                                  decoupling=run_dict['pulse_duration'], **run_dict)
-            filenames.append(fn)
+        # If cutoff time is not found in auto mode, it first simulations to find this and then reruns with cutoff time
+        while (run_dict['cut_off_time'] == np.inf and cut_off_dataframe == 'auto') or count == 0:
+            count += 1
+            circuit_args['iterations'] = iterations
+            run_dict['cut_off_time'] = _get_cut_off_time(cut_off_dataframe, run_dict, **circuit_args,
+                                                         **operational_args)
 
-            # Check if parameter settings has not yet been evaluated, else skip
-            if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
-                data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
-                res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
-                # iterations within 1% margin
-                if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.01 > res_iterations:
-                    print("Skipping circuit for file '{}', since it already exists.".format(fn))
-                    continue
-                else:
-                    print("File found with too less iterations. Running for {} iterations\n".format(res_iterations))
-                    circuit_args['iterations'] = res_iterations
+            if operational_args['csv_filename']:
+                # Create parameter specific filename
+                fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
+                                      prob=circuit_args['probabilistic'], node=run_dict['_node'],
+                                      decoupling=run_dict['pulse_duration'], **run_dict)
+                filenames.append(fn)
 
-        print("\nRunning {} iteration(s) with values for the variational arguments:".format(circuit_args['iterations']))
-        pprint({**run_dict})
+                # Check if parameter settings has not yet been evaluated, else skip
+                if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
+                    data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
+                    res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
+                    # iterations within 1% margin
+                    if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.01 > res_iterations:
+                        print("Skipping circuit for file '{}', since it already exists.".format(fn))
+                        continue
+                    else:
+                        print("File found with too less iterations. Running for {} iterations\n".format(res_iterations))
+                        circuit_args['iterations'] = res_iterations
 
-        if operational_args['threaded']:
-            main_threaded(fn=fn, **operational_args, **run_dict, **circuit_args)
-        else:
-            main_series(fn=fn, **operational_args, **run_dict, **circuit_args)
+            print("\nRunning {} iteration(s) with values for the variational arguments:"
+                  .format(circuit_args['iterations']))
+            pprint({**run_dict})
+
+            if operational_args['threaded']:
+                main_threaded(fn=fn, **operational_args, **run_dict, **circuit_args)
+            else:
+                main_series(fn=fn, **operational_args, **run_dict, **circuit_args)
 
     return filenames
 
