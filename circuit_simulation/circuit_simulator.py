@@ -1967,10 +1967,12 @@ class QuantumCircuit:
             initialised_qubits = set(self.qubits.keys()).difference(self._uninitialised_qubits)
             # Refocus time control qubits
             refocus_time_cq = (max([self._determine_additional_waiting_pulse_sequence(self.qubits[q])
-                               for q in initialised_qubits.difference(tqubits)]) if self.pulse_duration else 0)
+                               for q in initialised_qubits.difference(self.data_qubits)]) if self.pulse_duration
+                               else 0)
             # Refocus time target qubits (estimation, may differ eventually after waiting on target qubit)
             refocus_time_tq = (max([self._determine_additional_waiting_pulse_sequence(self.qubits[q])
-                               for q in initialised_qubits.intersection(tqubits)]) if self.pulse_duration else 0)
+                               for q in initialised_qubits.intersection(self.data_qubits)]) if self.pulse_duration
+                               else 0)
             duration = (operation.duration * num_op + self.measurement_duration + swap_dur + refocus_time_cq +
                         refocus_time_tq)
             if not self._check_if_operation_within_cut_off(duration, nodes=nodes):
