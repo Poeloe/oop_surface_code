@@ -13,7 +13,7 @@ from circuit_simulation.circuit_simulator import QuantumCircuit
 import itertools as it
 import time
 import random
-from analyse_simulation_data import confidence_interval
+from plot_superoperator.analyse_simulation_data import confidence_interval
 from circuit_simulation.termcolor.termcolor import cprint
 from collections import defaultdict
 import numpy as np
@@ -453,11 +453,12 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                     data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
                     res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
                     # iterations within 1% margin
-                    if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.01 > res_iterations:
-                        print("Skipping circuit for file '{}', since it already exists.".format(fn))
+                    if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.05 > res_iterations:
+                        print("\nSkipping circuit for file '{}', since it already exists.".format(fn))
                         continue
                     else:
-                        print("File found with too less iterations. Running for {} iterations\n".format(res_iterations))
+                        print("\nFile found with too less iterations. Running for {} iterations\n".format(
+                            res_iterations))
                         circuit_args['iterations'] = res_iterations
 
             print("\nRunning {} iteration(s) with values for the variational arguments:"

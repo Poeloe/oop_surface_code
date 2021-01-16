@@ -33,16 +33,14 @@ class TestBasicOperations(unittest.TestCase):
         self.assertEqual(fidelity(rho_1, rho_0), 0)
 
     def test_fidelity_half(self):
-        rho_p = sp.lil_matrix([[1/2, 1/2], [1/2, 1/2]])
+        rho_p = sp.lil_matrix([[1/4, 0], [0, 3/4]])
         rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
-        self.assertAlmostEqual(fidelity(rho_p, rho_0), 1/2)
         self.assertAlmostEqual(fidelity(rho_0, rho_p), 1 / 2)
 
     def test_fidelity_elementwise_half(self):
-        rho_p = sp.lil_matrix([[1/2, 1/2], [1/2, 1/2]])
+        rho_p = sp.lil_matrix([[1/2, 0], [0, 1/2]])
         rho_0 = sp.lil_matrix([[1, 0], [0, 0]])
         self.assertAlmostEqual(fidelity_elementwise(rho_0, rho_p), 1/2)
-        self.assertAlmostEqual(fidelity_elementwise(rho_p, rho_0), 1/2)
 
 
 class TestQuantumCircuitInit(unittest.TestCase):

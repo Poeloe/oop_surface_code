@@ -16,7 +16,7 @@ import math
 import multiprocessing
 from pprint import pprint
 import pickle
-from analyse_simulation_data import confidence_interval
+from plot_superoperator.analyse_simulation_data import confidence_interval
 
 
 def get_perfect_matrix():
