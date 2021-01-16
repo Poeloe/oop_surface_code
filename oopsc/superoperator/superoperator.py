@@ -4,6 +4,7 @@ import os
 import random
 import copy
 import inspect
+import re
 
 
 class Superoperator:
@@ -66,12 +67,16 @@ class Superoperator:
 
         self.pg = None
         self.pm = None
+        self.pm_1 = None
         self.pn = None
         self.bell_dur = None
         self.meas_dur = None
         self.dec = None
         self.ts = None
         self.p_bell = None
+        self.protocol_name = None
+        self.pulse_duration = None
+        self.node = "Purified" if "nodePur" in file_name else "Natural Abundance"
 
         # Convert additional superoperators if present
         self.additional_superoperators = self._handle_additional_superoperators(additional_superoperators)
@@ -86,7 +91,7 @@ class Superoperator:
         self.stabs_p1, self.stabs_p2, self.stabs_s1, self.stabs_s2 = {}, {}, {}, {}
 
     def __repr__(self):
-        return "Superoperator ({})".format(self.file_name)
+        return "Superoperator ({}: {})".format(self.protocol_name, self.file_name)
 
     def __str__(self):
         return self.__repr__()
@@ -222,7 +227,11 @@ class Superoperator:
 
         for a in attributes:
             if a in data_frame:
-                setattr(self, a, round(float(str(data_frame[a][0]).replace(",", ".").replace(" ", "")), 9))
+                if re.match("^[0-9,.]*$", str(data_frame[a][0])):
+                    value = round(float(str(data_frame[a][0]).replace(",", ".").replace(" ", "")), 9)
+                else:
+                    value = data_frame[a][0]
+                setattr(self, a, value)
 
     def _check_sum_probabilities(self, sup_op_elements_p, sup_op_elements_s):
         # Check if the probabilities add up to 1 to ensure a valid decomposition

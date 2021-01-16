@@ -14,6 +14,22 @@ import pandas as pd
 import sys, os
 
 
+def get_superoperator_indices(lattices, superoperators):
+    index_dict = {"L": lattices}
+    for att in ['node', 'pg', 'pn', 'pm', 'pm_1', 'pulse_duration', 'GHZ_success']:
+        index_dict.update({att: list(set([getattr(s, att) for s in superoperators]))})
+
+    return index_dict
+
+
+def get_current_index(lattice, superoperator):
+    index = (lattice,)
+    for att in ['node', 'pg', 'pn', 'pm', 'pm_1', 'pulse_duration', 'GHZ_success']:
+        index += (getattr(superoperator, att),)
+
+    return index
+
+
 def read_data(file_path):
     try:
         data = pd.read_csv(file_path, header=0, float_precision='round_trip')
@@ -108,6 +124,7 @@ def sim_thresholds(
                                                  additional_superoperators=additional, failed_ghz_superoperator=failed)
                 superoperators.append(superoperator)
                 perror.append(superoperator.pg)
+    data_s = {s.protocol_name: None for s in superoperators} if superoperators else None
 
     # Simulate and save results to file
     for lati in lattices:
@@ -126,6 +143,7 @@ def sim_thresholds(
                 superoperator = superoperators[i]
                 superoperator.reset_stabilizer_rounds()
                 networked_architecture = bool(superoperator.pn) if not networked_architecture else True
+                data = data_s[superoperator.protocol_name]
 
             print("Calculating for L = {}{} and p = {}".format(lati, ', GHZ_success = ' +
                                                                str(superoperator.GHZ_success) if
@@ -147,22 +165,19 @@ def sim_thresholds(
             pprint(dict(output))
             print("")
 
-            indices = [lattices, perror] if not superoperator else [lattices, perror, GHZ_successes]
-            indices_names = ["L", "p"] if not superoperator else ["L", "p", "GHZ_success"]
-
+            ind_dict = {"L": lattices, "p": perror} if not superoperator else get_superoperator_indices(lattices,
+                                                                                                        superoperators)
             if data is None:
+                file_path = os.path.join(folder, superoperator.protocol_name + superoperator.node + full_name + ".csv")
                 if os.path.exists(file_path):
                     data = pd.read_csv(file_path, header=0, float_precision='round_trip')
-                    data = data.set_index(indices_names)
+                    data = data.set_index(ind_dict.keys())
                 else:
                     columns = list(output.keys())
-                    index = pd.MultiIndex.from_product(indices, names=indices_names)
-                    data = pd.DataFrame(
-                        np.zeros((len(lattices) * len(perror) * len(GHZ_successes), len(columns))), index=index,
-                        columns=columns
-                    )
+                    index = pd.MultiIndex.from_product([*ind_dict.values()], names=ind_dict.keys())
+                    data = pd.DataFrame(0, index=index, columns=columns)
 
-            current_index = (lati, pi) if not superoperator else (lati, pi, superoperator.GHZ_success)
+            current_index = (lati, pi) if not superoperator else get_current_index(lati, superoperator)
 
             if current_index in data.index:
                 for key, value in output.items():
@@ -174,6 +189,7 @@ def sim_thresholds(
             data = data.sort_index()
             if save_result:
                 data.to_csv(file_path)
+                data_s[superoperator.protocol_name] = data if superoperators else None
 
     print(data.to_string())
 

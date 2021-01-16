@@ -25,7 +25,7 @@ def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
     return fig, ax
 
 
-def scatter_plot(y_value, title, xlabel, ylabel):
+def scatter_plot(y_value, title, xlabel, ylabel, spread=False):
     colors = {}
     [colors.update({name: color}) for name, color in zip(protocol_names, mcolors.TABLEAU_COLORS)]
     points = ["o", "s", "v", "D", "p", "^", "h", "X", "<", "P", "*", ">", "H", "d"]
@@ -45,22 +45,23 @@ def scatter_plot(y_value, title, xlabel, ylabel):
             color = colors[protocol]
             dataframe_new = dataframe.loc[index, :]
             style = 'none' if node == 'Purified' else 'full'
-            error = {'ghz_fidelity': 'ghz_int', "IIII": "stab_int"}
-            y_err = dataframe_new[error[y_value]]
-            x_err = dataframe_new['dur_int']
+            error = {'ghz_fidelity': 'ghz', "IIII": "stab"}
+            y_err = [[dataframe_new[error[y_value] + '_lspread']], [dataframe_new[error[y_value] + '_rspread']]]
+            x_err = [[dataframe_new['dur_lspread']], [dataframe_new['dur_rspread']]]
             ax.errorbar(dataframe_new['avg_duration'],
                         dataframe_new[y_value],
-                        yerr=y_err,
-                        xerr=x_err,
+                        yerr=None if not spread or not dec else y_err,
+                        xerr=None if not spread or not dec else x_err,
                         marker=points[protocol_markers[marker_index]],
                         color=color,
-                        ms=18,
+                        ms=18 if dec else 8,
                         capsize=12,
                         label="{}, {}{}{}".format(protocol.replace('_swap', '').replace('_na', ''),
                                                   node,
                                                   ', ' + str(int(lde)) if lde else "",
                                                   ', decoherence' if dec else ''),
-                        fillstyle=style)
+                        fillstyle=style,
+                        linestyle='')
 
     return fig, ax
 
@@ -81,8 +82,8 @@ if __name__ == '__main__':
     decoherence = sorted(set([index[4] for index in dataframe.index]))
 
     fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. Duration", "Duration (s)",
-                           "Fidelity")
-    fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. Duration", "Duration (s)", "Fidelity")
+                           "Fidelity", spread=False)
+    fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. Duration", "Duration (s)", "Fidelity", spread=False)
 
     ax2.legend(prop={'size': 12})
     ax.legend(prop={'size': 12})

@@ -3,18 +3,20 @@ import os
 import re
 import pickle
 import math
+import numpy as np
 from scipy.stats import sem
 
 
-def confidence_interval(data, confidence=0.682):
+def confidence_interval(data, confidence=0.682, minus_mean=False):
     n = len(data)
+    mean = np.mean(data) if minus_mean else 0
     data_sorted = sorted(data)
 
     lower_bound = math.floor(n * ((1 - confidence) / 2))
     upper_bound = math.floor(n * (1 - (1 - confidence) / 2))
     upper_bound = upper_bound if upper_bound < len(data) else -1
 
-    return data_sorted[lower_bound], data_sorted[upper_bound]
+    return abs(data_sorted[lower_bound] - mean), data_sorted[upper_bound] - mean
 
 
 def remove_identical_columns(data):
@@ -68,11 +70,13 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
             if variable in df:
                 result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
 
-        interval_data = ['ghz_int', "dur_int", "stab_int"]
+        interval_data = ['ghz_sem', "dur_sem", "stab_sem"]
         for interval in interval_data:
             kind = interval.split(sep="_")[0]
             key = kind if "dur" in kind else kind + "_fid"
             result_df.loc[index, interval] = sem(full_data[key])
+            result_df.loc[index, kind + '_lspread'] = confidence_interval(full_data[key], minus_mean=True)[0]
+            result_df.loc[index, kind + '_rspread'] = confidence_interval(full_data[key], minus_mean=True)[1]
 
         result_df.loc[index, '99_duration'] = confidence_interval(full_data["dur"], 0.98)[1]
 
@@ -88,7 +92,7 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
 if __name__ == '__main__':
     name_csv = "./results/circuit_data_NV_info_full.csv"
     folder = "./results/sim_data_4"
-    folder_name = "superoperator_cutoff_99_full"
+    folder_name = "superoperator_cutoff_info_new"
 
     files, pkl_files = get_all_files_from_folder(folder, folder_name, pkl=True)
 

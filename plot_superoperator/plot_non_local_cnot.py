@@ -2,7 +2,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import numpy as np
 import scipy.stats as stats
-from analyse_simulation_data import get_all_files_from_folder
+from plot_superoperator.analyse_simulation_data import get_all_files_from_folder, confidence_interval
 from matplotlib import colors as mcolors
 import pickle
 from scipy.stats import sem
@@ -54,12 +54,15 @@ def combine_files(files, pkl_files):
         str_filename = filename.replace('.pkl', '').rstrip('0123456789')
         dataframe = [dataframe for file, dataframe in dataframes if file.replace(".csv", "") == str_filename][0]
         data = pickle.load(open(filename, 'rb'))
-        dataframe.loc[tuple(index[1] for index in data["index"]), 'fid_sem'] = sem(data['fidelities'])
+        index = tuple(index[1] for index in data["index"])
+        dataframe.loc[index, 'fid_sem'] = sem(data['fidelities'])
+        dataframe.loc[index, 'fid_std_l'] = confidence_interval(data['fidelities'], minus_mean=True)[0]
+        dataframe.loc[index, 'fid_std_r'] = confidence_interval(data['fidelities'], minus_mean=True)[1]
 
     return dataframes
 
 
-def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
+def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None, spread=False):
     fig, ax = plot_style(title="Non-local CNOT gate", xlabel="Gate error probability", ylabel="Average fidelity")
     colors = [color for key, color in mcolors.TABLEAU_COLORS.items() if key not in ['tab:orange', 'tab:red']]
 
@@ -74,7 +77,12 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
                 continue
             color_count = color_count + 1 if color_count < (len(colors) - 1) else 0
             color = colors[color_count]
-            ax.errorbar(df.loc[lde, 'pg'], df.loc[lde, 'avg_fidelity'], yerr=df.loc[lde, 'fid_sem'], ms=8, fmt='-o',
+            ax.errorbar(df.loc[lde, 'pg'],
+                        df.loc[lde, 'avg_fidelity'],
+                        yerr=None if not spread else [df.loc[lde, 'fid_std_l'],
+                                                                        df.loc[lde, 'fid_std_r']],
+                        ms=8,
+                        fmt='-o',
                         capsize=8,
                         label="{} - {}".format(sample, lde_string), color=color)
             ax.set_xlim(0.051, 0)
@@ -87,10 +95,10 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None):
 
 
 if __name__ == '__main__':
-    save_file_path = './results/thesis_files/draft_figures/non_local_gate_cluster.pdf'
-    files, pkl_files = get_all_files_from_folder('./results/sim_data_4/non_local_gate',
+    save_file_path = '../results/thesis_files/draft_figures/non_local_gate.pdf'
+    files, pkl_files = get_all_files_from_folder('../results/sim_data_4/non_local_gate',
                                                  ['purified', 'natural_abundance'],
                                                  True)
 
     dataframes = combine_files(files, pkl_files)
-    plot_non_local_cnot_fidelity(dataframes, save_file_path)
+    plot_non_local_cnot_fidelity(dataframes, save_file_path, spread=False)

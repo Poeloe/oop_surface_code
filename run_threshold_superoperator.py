@@ -34,7 +34,7 @@ def determine_superoperators(superoperator_filenames, args):
     if primary_superoperators_failed:
         args['GHZ_successes'] = [0.99]
 
-    args['folder'] = re.sub('pg[0-9.]*_', '', primary_superoperators[0])
+    args['folder'] = os.path.join(os.path.dirname(primary_superoperators[0]), "threshold_sim")
     args['save_result'] = True
 
     return args
@@ -49,7 +49,7 @@ def determine_lattice_evaluation_by_result(surface_args, var_circuit_args):
 
     if os.path.exists(folder):
         for file in os.listdir(folder):
-            data = pd.read_csv(os.path.join(folder, file), index_col=['L', 'p', 'GHZ_success'])
+            data = pd.read_csv(os.path.join(folder, file), index_col=['L', 'pg', 'GHZ_success'])
             for lat in surface_args['lattices']:
                 res_it = [int(surface_args['iters'] - n) for n in data.loc[pd.IndexSlice[lat, pg, ghz], 'N']]
                 res_iters.extend(res_it)
