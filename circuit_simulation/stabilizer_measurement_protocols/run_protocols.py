@@ -445,7 +445,8 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                 fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
                                       prob=circuit_args['probabilistic'], node=run_dict['_node'],
                                       decoupling=run_dict['pulse_duration'], **run_dict)
-                filenames.append(fn)
+                filenames.append(fn) if not (run_dict['cut_off_time'] == np.inf and cut_off_dataframe == 'auto') else \
+                    None
 
                 # Check if parameter settings has not yet been evaluated, else skip
                 if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):

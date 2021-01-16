@@ -29,7 +29,7 @@ def determine_superoperators(superoperator_filenames, args):
     args['superoperator_filenames_failed'] = primary_superoperators_failed if 'time' in filename else None
     args['superoperator_filenames_additional'] = secondary_superoperators if multiple_superoperators else None
     args['superoperator_filenames_additional_failed'] = (secondary_superoperators_failed if multiple_superoperators
-                                                         and 'timeinf' not in filename else None)
+                                                         and 'time' in filename else None)
 
     if primary_superoperators_failed:
         args['GHZ_successes'] = [0.99]
