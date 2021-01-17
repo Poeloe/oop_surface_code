@@ -63,7 +63,7 @@ def _get_cut_off_time(dataframe, run_dict, **kwargs):
                                   node=run_dict['_node'], decoupling=run_dict['pulse_duration'], **run_dict)
         if os.path.exists(file_n + '.csv'):
             data = pd.read_csv(file_n + '.csv', sep=";", float_precision="round_trip")
-            if data.loc[0, 'written_to']*1.01 > kwargs['iterations']:
+            if data.loc[0, 'written_to']*1.05 > kwargs['iterations']:
                 return data.loc[0, 'dur_99']
 
         print('No records for cutoff time found or not enough iterations. First running for:\n{}'.format(file_n))
