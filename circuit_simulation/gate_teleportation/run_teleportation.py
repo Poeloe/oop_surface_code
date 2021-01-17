@@ -30,16 +30,15 @@ def get_perfect_matrix():
 
 def get_average_fidelity(matrices):
     perfect_matrix = get_perfect_matrix()
-    d = perfect_matrix.shape[0]
+    d = perfect_matrix.shape[0] / 2
 
     # Error bar data
     entanglement_fidelities = [fidelity_elementwise(perfect_matrix, mat) for mat in matrices]
-    average_fidelities = [(d * fid + 1) / (d + 1) for fid in entanglement_fidelities]
 
     avg_matrix = sum(matrices) / len(matrices)
     entanglement_fidelity = fidelity_elementwise(perfect_matrix, avg_matrix)
 
-    return (d * entanglement_fidelity + 1) / (d + 1), average_fidelities
+    return (d * entanglement_fidelity + 1) / (d + 1), entanglement_fidelities
 
 
 def create_data_frame(data_frame, **kwargs):
