@@ -30,7 +30,7 @@ def get_perfect_matrix():
 
 def get_average_fidelity(matrices):
     perfect_matrix = get_perfect_matrix()
-    d = perfect_matrix.shape[0] / 2
+    d = math.sqrt(perfect_matrix.shape[0])
 
     # Error bar data
     entanglement_fidelities = [fidelity_elementwise(perfect_matrix, mat) for mat in matrices]
