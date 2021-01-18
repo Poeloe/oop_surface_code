@@ -48,10 +48,12 @@ def create_data_frame(data_frame, **kwargs):
     index_columns = copy(kwargs)
     [index_columns.pop(item) for item in pop_list]
 
+    index = pd.MultiIndex.from_product([[item] for item in index_columns.values()], names=list(index_columns.keys()))
     if data_frame is not None:
+        if index.nlevels != data_frame.index.nlevels:
+            data_frame = data_frame.set_index(index)
         return data_frame, index_columns
 
-    index = pd.MultiIndex.from_product([[item] for item in index_columns.values()], names=list(index_columns.keys()))
     data_frame = pd.DataFrame(index=index)
     data_frame['avg_fidelity'] = 0
     data_frame['iterations'] = 0
@@ -124,8 +126,9 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
     print_lines_total.extend(print_lines)
     avg_fid, fidelities = get_average_fidelity(noisy_matrices)
 
-    pickle.dump({"index": list(index_columns.items()), "fidelities": fidelities, "durations": durations},
-                open(csv_filename + str(it) + ".pkl", 'wb'))
+    if csv_filename:
+        pickle.dump({"index": list(index_columns.items()), "fidelities": fidelities, "durations": durations},
+                    open(csv_filename + str(it) + ".pkl", 'wb'))
     index = tuple(index_columns.values())
 
     if index not in data_frame.index:
