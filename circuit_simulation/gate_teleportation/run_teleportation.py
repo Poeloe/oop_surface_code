@@ -51,7 +51,8 @@ def create_data_frame(data_frame, **kwargs):
     index = pd.MultiIndex.from_product([[item] for item in index_columns.values()], names=list(index_columns.keys()))
     if data_frame is not None:
         if index.nlevels != data_frame.index.nlevels:
-            data_frame = data_frame.set_index(index)
+            data_frame.reset_index()
+            data_frame = data_frame.set_index(list(index_columns.keys()))
         return data_frame, index_columns
 
     data_frame = pd.DataFrame(index=index)
@@ -155,7 +156,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
     pbar1 = tqdm(total=len(list(product(*iter_list))), position=0)
 
     if csv_filename and os.path.exists(csv_filename + ".csv"):
-        data_frame = pd.read_csv(csv_filename + ".csv", sep=";")
+        data_frame = pd.read_csv(csv_filename + ".csv", sep=";", float_precision='round_trip')
     else:
         data_frame, index_columns = (None, None)
     print_lines_total = []

@@ -6,6 +6,7 @@ from plot_superoperator.analyse_simulation_data import get_all_files_from_folder
 from matplotlib import colors as mcolors
 import pickle
 from scipy.stats import sem
+import re
 
 
 def mean_confidence_interval(data, confidence=0.682, plus_mean=False):
@@ -96,10 +97,13 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None, sp
 
 if __name__ == '__main__':
     spread = False
-    save_file_path = '../results/thesis_files/draft_figures/non_local_gate'
+    file_filter = re.compile(".*check.*")
+    save_file_path = '../results/thesis_files/draft_figures/non_local_gate_check'
     files, pkl_files = get_all_files_from_folder('../results/sim_data_4/non_local_gate',
-                                                 ['purified', 'natural_abundance'],
+                                                 ['natural_abundance'],
                                                  True)
+    files = [f for f in files if re.match(file_filter, f)]
+    pkl_files = [p for p in pkl_files if re.match(file_filter, p)]
 
     dataframes = combine_files(files, pkl_files)
 
