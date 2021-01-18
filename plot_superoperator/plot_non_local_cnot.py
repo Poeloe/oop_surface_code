@@ -47,6 +47,25 @@ def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
 
 
 def combine_files(files, pkl_files):
+    index_cols = [index_tuple[0] for index_tuple in list(pickle.load(open(pkl_files[0], "rb")).keys())[0]]
+    dataframes = {file: pd.read_csv(file, sep=";", index_col=index_cols, float_precision='round_trip') for file in
+                  files}
+
+    for filename in pkl_files:
+        df_filename = filename.replace('.pkl', '.csv')
+        dataframe = dataframes[df_filename]
+        data = pickle.load(open(filename, 'rb'))
+        for key_value_index, sim_data in data.items():
+            index = tuple(v for _, v in key_value_index)
+            avg_fidelities = [(4*fid + 1)/(4 + 1) for fid in sim_data['fidelities']]
+            dataframe.loc[index, 'fid_sem'] = sem(sim_data['fidelities'])
+            dataframe.loc[index, 'fid_std_l'] = confidence_interval(avg_fidelities, minus_mean=True)[0]
+            dataframe.loc[index, 'fid_std_r'] = confidence_interval(avg_fidelities, minus_mean=True)[1]
+
+    return dataframes
+
+
+def combine_files_old(files, pkl_files):
     index_cols = [index[0] for index in pickle.load(open(pkl_files[0], "rb"))['index']]
     dataframes = [(file, pd.read_csv(file, sep=";", index_col=index_cols, float_precision='round_trip')) for file in
                   files]

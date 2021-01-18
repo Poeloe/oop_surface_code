@@ -128,10 +128,15 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
     avg_fid, fidelities = get_average_fidelity(noisy_matrices)
 
     if csv_filename:
-        pickle.dump({"index": list(index_columns.items()), "fidelities": fidelities, "durations": durations},
-                    open(csv_filename + str(it) + ".pkl", 'wb'))
-    index = tuple(index_columns.values())
+        ind = tuple(index_columns.items())
+        pkl_data = {ind: {"fidelities": fidelities, "durations": durations}}
+        pkl_fn = csv_filename + ".pkl"
+        if os.path.exists(pkl_fn):
+            pkl_data_old = pickle.load(open(pkl_fn, 'rb'))
+            [pkl_data[ind][key].extend(value) for key, value in pkl_data_old[ind].items()]
+        pickle.dump(pkl_data, open(pkl_fn, 'wb'))
 
+    index = tuple(index_columns.values())
     if index not in data_frame.index:
         data_frame.loc[index, :] = 0
 
