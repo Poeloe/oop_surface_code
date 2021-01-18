@@ -1,0 +1,3 @@
+error_config;lie;p;s;written_to;total_lde_attempts;avg_lde_attempts;total_duration;avg_duration;ghz_fidelity;protocol_name;qubit_order;pg;pm;pm_1;pn;decoherence;p_bell_success;pulse_duration;network_noise_type;no_single_qubit_error;basis_transformation_noise;cut_off_time;probabilistic;fixed_lde_attempts;T1_idle;T1_idle_electron;T1_lde;T2_idle;T2_idle_electron;T2_lde
+IIII;False;0.5;0.5;115.0;176393330.0;1533855.043478261;1697.6398893999992;14.762085994782602;0.0;expedient_swap;[18, 16, 14, 12];0.01;0.01;0.05;0.05;False;0.0001;0.0;1.0;True;False;14.4065921;True;0.0;300.0;10000.0;2.0;10.0;1.0;2.0
+IIII;True;0.5;0.5;;;;;;;;;;;;;;;;;;;;;;;;;;;

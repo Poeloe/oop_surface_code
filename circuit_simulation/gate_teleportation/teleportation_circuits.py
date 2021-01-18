@@ -42,6 +42,6 @@ def cnot_swap(qc: QuantumCircuit):
     if outcome_b == 1:
         qc.Z("A-0")
 
-    qc.end_current_sub_circuit(total=True)
+    qc.end_current_sub_circuit(total=True, apply_decoherence=True, forced_level=True)
 
     return qc.get_combined_density_matrix([4, 5, 2, 3])[0]

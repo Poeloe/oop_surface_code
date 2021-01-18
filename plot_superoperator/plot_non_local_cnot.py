@@ -54,10 +54,11 @@ def combine_files(files, pkl_files):
         str_filename = filename.replace('.pkl', '').rstrip('0123456789')
         dataframe = [dataframe for file, dataframe in dataframes if file.replace(".csv", "") == str_filename][0]
         data = pickle.load(open(filename, 'rb'))
+        avg_fidelities = [(4*fid + 1)/(4 + 1) for fid in data['fidelities']]
         index = tuple(index[1] for index in data["index"])
         dataframe.loc[index, 'fid_sem'] = sem(data['fidelities'])
-        dataframe.loc[index, 'fid_std_l'] = confidence_interval(data['fidelities'], minus_mean=True)[0]
-        dataframe.loc[index, 'fid_std_r'] = confidence_interval(data['fidelities'], minus_mean=True)[1]
+        dataframe.loc[index, 'fid_std_l'] = confidence_interval(avg_fidelities, minus_mean=True)[0]
+        dataframe.loc[index, 'fid_std_r'] = confidence_interval(avg_fidelities, minus_mean=True)[1]
 
     return dataframes
 
@@ -79,8 +80,7 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None, sp
             color = colors[color_count]
             ax.errorbar(df.loc[lde, 'pg'],
                         df.loc[lde, 'avg_fidelity'],
-                        yerr=None if not spread else [df.loc[lde, 'fid_std_l'],
-                                                                        df.loc[lde, 'fid_std_r']],
+                        yerr=None if not spread else [df.loc[lde, 'fid_std_l'], df.loc[lde, 'fid_std_r']],
                         ms=8,
                         fmt='-o',
                         capsize=8,
@@ -95,10 +95,14 @@ def plot_non_local_cnot_fidelity(dataframes, save_file_path, lde_values=None, sp
 
 
 if __name__ == '__main__':
-    save_file_path = '../results/thesis_files/draft_figures/non_local_gate.pdf'
+    spread = False
+    save_file_path = '../results/thesis_files/draft_figures/non_local_gate'
     files, pkl_files = get_all_files_from_folder('../results/sim_data_4/non_local_gate',
                                                  ['purified', 'natural_abundance'],
                                                  True)
 
     dataframes = combine_files(files, pkl_files)
-    plot_non_local_cnot_fidelity(dataframes, save_file_path, spread=False)
+
+    if spread:
+        save_file_path += '_spread'
+    plot_non_local_cnot_fidelity(dataframes, save_file_path + ".pdf", spread=spread)

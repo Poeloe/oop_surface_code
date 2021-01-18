@@ -67,9 +67,10 @@ def scatter_plot(y_value, title, xlabel, ylabel, spread=False):
 
 
 if __name__ == '__main__':
-    file_name = './results/circuit_data_NV_info_full.csv'
-    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration.pdf'
-    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration.pdf'
+    file_name = './results/circuit_data_NV_info.csv'
+    spread = True
+    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration'
+    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration'
     lde_skip = [3000, 5000]
     protocol_skip = ['stringent_swap']
 
@@ -81,13 +82,17 @@ if __name__ == '__main__':
     pulse_durations = sorted(set([index[3] for index in dataframe.index]))
     decoherence = sorted(set([index[4] for index in dataframe.index]))
 
-    fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. Duration", "Duration (s)",
-                           "Fidelity", spread=False)
-    fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. Duration", "Duration (s)", "Fidelity", spread=False)
+    fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. duration", "Duration (s)",
+                           "Fidelity", spread=spread)
+    fig2, ax2 = scatter_plot("IIII", "Stabilizer fidelity vs. duration", "Duration (s)", "Fidelity", spread=spread)
 
     ax2.legend(prop={'size': 12})
     ax.legend(prop={'size': 12})
     plt.show()
 
-    fig.savefig(save_file_path_ghz, transparent=False, format="pdf", bbox_inches="tight")
-    fig2.savefig(save_file_path_stab, transparent=False, format="pdf", bbox_inches="tight")
+    if spread:
+        save_file_path_stab += "_spread"
+        save_file_path_ghz += "_spread"
+
+    fig.savefig(save_file_path_ghz + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
+    fig2.savefig(save_file_path_stab + ".pdf", transparent=False, format="pdf", bbox_inches="tight")

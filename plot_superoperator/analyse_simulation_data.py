@@ -80,8 +80,8 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
 
         result_df.loc[index, '99_duration'] = confidence_interval(full_data["dur"], 0.98)[1]
 
-        result_df.loc[index, 'IIII'] = df['p'].loc[('IIII', False)]
-        result_df.loc[index, 'IIZZ'] = df['p'].loc[('IIZZ', False)]
+        d = 2**4
+        result_df.loc[index, 'IIII'] = (d * df['p'].loc[('IIII', False)] + 1) / (d + 1)
 
     # result_df = remove_identical_columns(result_df)
     result_df = result_df.sort_index()
@@ -90,9 +90,9 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/circuit_data_NV_info_full.csv"
+    name_csv = "./results/circuit_data_NV_99.csv"
     folder = "./results/sim_data_4"
-    folder_name = "superoperator_cutoff_info_new"
+    folder_name = "superoperator_cutoff_99_full"
 
     files, pkl_files = get_all_files_from_folder(folder, folder_name, pkl=True)
 

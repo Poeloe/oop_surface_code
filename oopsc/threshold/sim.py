@@ -9,14 +9,14 @@ from .. import oopsc
 from oopsc.superoperator import superoperator as so
 from pprint import pprint
 import multiprocessing as mp
-import numpy as np
 import pandas as pd
 import sys, os
+SUP_INDICES = ['node', 'pg', 'pn', 'pm', 'pm_1', 'p_bell_success', 'pulse_duration', 'GHZ_success']
 
 
 def get_superoperator_indices(lattices, superoperators):
     index_dict = {"L": lattices}
-    for att in ['node', 'pg', 'pn', 'pm', 'pm_1', 'pulse_duration', 'GHZ_success']:
+    for att in SUP_INDICES:
         index_dict.update({att: list(set([getattr(s, att) for s in superoperators]))})
 
     return index_dict
@@ -24,7 +24,7 @@ def get_superoperator_indices(lattices, superoperators):
 
 def get_current_index(lattice, superoperator):
     index = (lattice,)
-    for att in ['node', 'pg', 'pn', 'pm', 'pm_1', 'pulse_duration', 'GHZ_success']:
+    for att in SUP_INDICES:
         index += (getattr(superoperator, att),)
 
     return index
