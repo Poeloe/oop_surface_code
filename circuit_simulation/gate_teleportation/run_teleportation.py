@@ -41,17 +41,17 @@ def get_average_fidelity(matrices):
     return (d * entanglement_fidelity + 1) / (d + 1), entanglement_fidelities
 
 
-def create_data_frame(data_frame, **kwargs):
+def create_data_frame(data_frame: pd.DataFrame, **kwargs):
 
     pop_list = ['iterations', 'save_latex_pdf', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
                 'single_qubit_gate_lookup', 'thread_safe_printing']
     index_columns = copy(kwargs)
+    index_columns['pm_1'] = index_columns['pm_1'] if index_columns['pm_1'] is not None else index_columns['pm']
     [index_columns.pop(item) for item in pop_list]
 
     index = pd.MultiIndex.from_product([[item] for item in index_columns.values()], names=list(index_columns.keys()))
     if data_frame is not None:
         if index.nlevels != data_frame.index.nlevels:
-            data_frame.reset_index()
             data_frame = data_frame.set_index(list(index_columns.keys()))
         return data_frame, index_columns
 
