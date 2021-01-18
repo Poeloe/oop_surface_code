@@ -133,7 +133,11 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
         pkl_fn = csv_filename + ".pkl"
         if os.path.exists(pkl_fn):
             pkl_data_old = pickle.load(open(pkl_fn, 'rb'))
-            [pkl_data[ind][key].extend(value) for key, value in pkl_data_old[ind].items()]
+            if ind in pkl_data_old:
+                [pkl_data_old[ind][key].extend(value) for key, value in pkl_data_old[ind].items()]
+            else:
+                pkl_data_old.update(pkl_data)
+            pkl_data = pkl_data_old
         pickle.dump(pkl_data, open(pkl_fn, 'wb'))
 
     index = tuple(index_columns.values())
