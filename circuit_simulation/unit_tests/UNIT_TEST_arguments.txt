@@ -1,0 +1,39 @@
+#######PROTOCOL/SIMULATOR#########
+-p
+dyn_prot_4_14_1
+-s
+Z
+-it
+1
+-prb
+-c
+-combine
+--force_run
+--pm_equals_pg
+########OPERATION ERROR#########
+-pg
+0.01
+-pm
+0.01
+########LDE PARAMETERS##########
+-pn
+0.1
+-p_bell
+0.1
+-b_dur
+6e-6
+--network_noise_type
+0
+#########PULSE SEQUENCE#########
+-pulse_dur
+0
+-lde
+2000
+#########DURATION#########
+-m_dur
+4e-6
+#########DECOHERENCE#########
+--T1_lde
+2
+--T2_lde
+2

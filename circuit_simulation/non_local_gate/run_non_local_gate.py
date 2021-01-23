@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
-import circuit_simulation.gate_teleportation.teleportation_circuits as tel_circuits
+import circuit_simulation.gate_teleportation.non_local_gate_circuits as tel_circuits
 from circuit_simulation.circuit_simulator import QuantumCircuit
 from circuit_simulation.basic_operations.basic_operations import *
 from circuit_simulation.states.states import *
