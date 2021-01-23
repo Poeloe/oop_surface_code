@@ -1,11 +1,11 @@
 import os
 import sys
 sys.path.insert(1, os.path.abspath(os.getcwd()))
-import circuit_simulation.gate_teleportation.non_local_gate_circuits as tel_circuits
+import circuit_simulation.non_local_gate.non_local_gate_circuits as tel_circuits
 from circuit_simulation.circuit_simulator import QuantumCircuit
 from circuit_simulation.basic_operations.basic_operations import *
 from circuit_simulation.states.states import *
-from circuit_simulation.gate_teleportation.argument_parsing import compose_parser
+from circuit_simulation.non_local_gate.argument_parsing import compose_parser
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import additional_parsing_of_arguments, \
     _additional_qc_arguments
 from itertools import product
@@ -44,7 +44,7 @@ def get_average_fidelity(matrices):
 def create_data_frame(data_frame: pd.DataFrame, **kwargs):
 
     pop_list = ['iterations', 'save_latex_pdf', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
-                'single_qubit_gate_lookup', 'thread_safe_printing']
+                'single_qubit_gate_lookup', 'thread_safe_printing', 'cp_path']
     index_columns = copy(kwargs)
     index_columns['pm_1'] = index_columns['pm_1'] if index_columns['pm_1'] is not None else index_columns['pm']
     [index_columns.pop(item) for item in pop_list]
@@ -64,7 +64,7 @@ def create_data_frame(data_frame: pd.DataFrame, **kwargs):
     return data_frame, index_columns
 
 
-def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_latex_pdf, **kwargs):
+def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, **kwargs):
     qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
 
@@ -73,7 +73,7 @@ def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, save_l
     matrices = []
     for i in range(iterations):
         pb.update(1) if pb else None
-        noisy_matrix, print_lines, total_duration = run_gate_teleportation(qc, gate, draw_circuit, color, **kwargs)
+        noisy_matrix, print_lines, total_duration = run_non_local_gate(qc, gate, draw_circuit, color, **kwargs)
         total_print_lines.extend(print_lines)
         matrices.append(noisy_matrix)
         durations.append(total_duration)
@@ -103,7 +103,7 @@ def run_threaded(iterations, **kwargs):
     return noisy_matrices, print_lines, durations
 
 
-def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwargs):
+def run_non_local_gate(qc: QuantumCircuit, gate, draw_circuit, color, **kwargs):
     teleportation_circuit = getattr(tel_circuits, gate)
     noisy_matrix = teleportation_circuit(qc)
 
@@ -117,7 +117,7 @@ def run_gate_teleportation(qc: QuantumCircuit, gate, draw_circuit, color, **kwar
     return noisy_matrix, print_lines, total_duration
 
 
-def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
+def main(data_frame, kwargs, print_lines_total, threaded, csv_filename):
     data_frame, index_columns = create_data_frame(data_frame, **kwargs)
     if threaded:
         noisy_matrices, print_lines, durations = run_threaded(**kwargs)
@@ -154,8 +154,8 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it):
 
 
 def run_for_arguments(gates, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
-                      meas_error_probabilities_one_state, csv_filename, pm_equals_pg, cp_path,
-                      fixed_lde_attempts, threaded, pulse_duration, **kwargs):
+                      meas_error_probabilities_one_state, csv_filename, pm_equals_pg, fixed_lde_attempts, threaded,
+                      pulse_duration, **kwargs):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
@@ -190,7 +190,7 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
         kwargs = _additional_qc_arguments(**kwargs)
         print("\n\nRunning {} iterations with arguments:".format(kwargs['iterations']))
         pprint(loop_arguments)
-        data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded, csv_filename, it)
+        data_frame, index_columns = main(data_frame, kwargs, print_lines_total, threaded, csv_filename)
         pbar1.update(1)
 
         if csv_filename:
