@@ -1120,7 +1120,9 @@ class QuantumCircuit:
 
         lde_time = attempts * bell_creation_duration
         pulse_time = math.floor(attempts / (2 * fixed_ldes)) * self.pulse_duration
-        longest_duration = max([self.nodes[node].sub_circuit_time for node in self._current_sub_circuit.involved_nodes])
+        longest_duration = (max([self.nodes[node].sub_circuit_time
+                                for node in self._current_sub_circuit.involved_nodes]) if self._current_sub_circuit
+                            is not None else 0)
         lde_plus_longest = lde_time + longest_duration + pulse_time
 
         if self.total_duration + lde_plus_longest > self.cut_off_time:
