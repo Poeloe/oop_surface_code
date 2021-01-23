@@ -1,7 +1,63 @@
 import pandas as pd
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import colors as mcolors
+from matplotlib import markers as mkrs
 from itertools import product
+from pprint import pprint
+
+
+def get_unique_index_items(indices):
+    index_unique_values = {}
+    for key, value in indices.items():
+        unique_values = sorted(set(value))
+        if len(unique_values) > 1:
+            index_unique_values[key] = unique_values
+
+    return index_unique_values
+
+
+def get_marker_index(marker_cols, run_dict):
+    marker_ind = tuple()
+    for value in marker_cols:
+        marker_ind += (run_dict[value],)
+
+    return marker_ind
+
+
+def get_label_name(run_dict):
+    value_translation = {"decoherence": "dec", "fixed_lde_attempts": "decoupling"}
+    keep_key = ['pg', 'pn', 'pm', 'pm_1']
+    name = ""
+    for key, value in run_dict.items():
+        if value:
+            if key in value_translation:
+                value = value_translation[key]
+            name += "{}{}, ".format(key + "=" if key in keep_key else "", str(value).replace("_swap", ""))
+
+    name = name.strip(", ")
+
+    return name
+
+
+def keep_rows_to_evaluate(df):
+    df = df[df['cut_off_time'] != np.inf]
+    for key, value in evaluate_values.items():
+        df = df[df[key].isin(value)]
+
+    return df
+
+
+def identify_indices(df: pd.DataFrame):
+    no_index_idicators = ['99', 'ghz', 'avg', 'sem', 'spread', 'IIII', 'written', 'cut', 'pulse']
+    index_columns = {}
+    for column in df:
+        if all([indicator not in column for indicator in no_index_idicators]):
+            unique_values = sorted(set(df[column]))
+            if len(unique_values) > 1 or column in ['decoherence']:
+                index_columns[column] = unique_values
+
+    return index_columns
 
 
 def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
@@ -27,18 +83,20 @@ def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
 
 def scatter_plot(y_value, title, xlabel, ylabel, spread=False):
     colors = {}
-    [colors.update({name: color}) for name, color in zip(protocol_names, mcolors.TABLEAU_COLORS)]
-    points = ["o", "s", "v", "D", "p", "^", "h", "X", "<", "P", "*", ">", "H", "d"]
+    [colors.update({name: color}) for name, color in zip(index_dict['protocol_name'], mcolors.TABLEAU_COLORS)]
+    points = list(mkrs.MarkerStyle.filled_markers)
     fig, ax = plot_style(title, xlabel, ylabel)
     i = 0
     protocol_markers = {}
-    for protocol, node, lde, pulse_duration, dec in product(protocol_names, nodes, lde_attempts, pulse_durations,
-                                                            decoherence):
+    for index_tuple in product(*index_dict.values()):
+        iteration_dict = dict(zip(index_dict.keys(), index_tuple))
+        index = tuple(iteration_dict.values())
 
-        idx = pd.IndexSlice
-        index = idx[protocol, node, lde, pulse_duration, dec]
         if index in dataframe.index:
-            marker_index = (protocol, lde, dec)
+            protocol = iteration_dict['protocol_name']
+            node = iteration_dict['node']
+            dec = iteration_dict['decoherence']
+            marker_index = get_marker_index(marker_index_cols, iteration_dict)
             if marker_index not in protocol_markers:
                 protocol_markers[marker_index] = i
                 i += 1
@@ -56,10 +114,7 @@ def scatter_plot(y_value, title, xlabel, ylabel, spread=False):
                         color=color,
                         ms=18 if dec else 8,
                         capsize=12,
-                        label="{}, {}{}{}".format(protocol.replace('_swap', '').replace('_na', ''),
-                                                  node,
-                                                  ', ' + str(int(lde)) if lde else "",
-                                                  ', decoherence' if dec else ''),
+                        label=get_label_name(iteration_dict),
                         fillstyle=style,
                         linestyle='')
 
@@ -67,20 +122,31 @@ def scatter_plot(y_value, title, xlabel, ylabel, spread=False):
 
 
 if __name__ == '__main__':
-    file_name = './results/circuit_data_NV_info.csv'
     spread = True
-    save_file_path_ghz = './results/thesis_files/draft_figures/ghz_fidelity_vs_duration'
-    save_file_path_stab = './results/thesis_files/draft_figures/stab_fidelity_vs_duration'
-    lde_skip = [3000, 5000]
-    protocol_skip = ['stringent_swap']
+    save = False
+    file_name = '../results/circuit_data_NV_99_check.csv'
+    dataframe = pd.read_csv(file_name, sep=';', float_precision='round_trip')
+    pprint(identify_indices(dataframe))
+    save_file_path_ghz = '../results/thesis_files/draft_figures/ghz_fidelity_vs_duration_check'
+    save_file_path_stab = '../results/thesis_files/draft_figures/stab_fidelity_vs_duration_check'
 
-    dataframe = pd.read_csv(file_name, sep=';', index_col=['protocol_name', 'node', 'fixed_lde_attempts',
-                                                           'pulse_duration', 'decoherence'])
-    protocol_names = sorted(set([index[0] for index in dataframe.index]).difference(protocol_skip))
-    nodes = sorted(set([index[1] for index in dataframe.index]))
-    lde_attempts = sorted(set([index[2] for index in dataframe.index]).difference(lde_skip))
-    pulse_durations = sorted(set([index[3] for index in dataframe.index]))
-    decoherence = sorted(set([index[4] for index in dataframe.index]))
+    evaluate_values = {'decoherence':           [False, True],
+                       'fixed_lde_attempts':    [0.0, 2000.0],
+                       'node':                  ['Natural Abundance', 'Purified'],
+                       'p_bell_success':        [0.0001],
+                       'pg':                    [0.01],
+                       'pm':                    [0.01],
+                       'pm_1':                  ['0.001', '0.05', 'None'],
+                       'protocol_name':         ['dyn_prot_4_14_1_swap',
+                                                 'dyn_prot_4_4_1_swap',
+                                                 'expedient_swap',
+                                                 'plain_swap']
+                       }
+    dataframe = keep_rows_to_evaluate(dataframe)
+
+    index_dict = identify_indices(dataframe)
+    marker_index_cols = set(index_dict).difference(['node'])
+    dataframe = dataframe.set_index(list(index_dict.keys()))
 
     fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. duration", "Duration (s)",
                            "Fidelity", spread=spread)
@@ -94,5 +160,6 @@ if __name__ == '__main__':
         save_file_path_stab += "_spread"
         save_file_path_ghz += "_spread"
 
-    fig.savefig(save_file_path_ghz + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
-    fig2.savefig(save_file_path_stab + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
+    if save:
+        fig.savefig(save_file_path_ghz + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
+        fig2.savefig(save_file_path_stab + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
