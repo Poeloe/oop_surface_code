@@ -113,6 +113,35 @@ class StabilizerProtocolSanityTest(unittest.TestCase):
             [self.assertAlmostEqual(ghz_fid, ghz_fid_prob) for ghz_fid_prob in pkl_prob['ghz_fid']]
             [self.assertAlmostEqual(stab_fid, stab_fid_prob) for stab_fid_prob in pkl_prob['stab_fid']]
 
+    def test_node_sanity(self):
+        """
+            Tests if node results are the same when no decoherence is present (only gate times and decoherence times
+            are different, so there should be no difference without decoherence)
+        """
+        # ADD PROTOCOL TO LIST IF SWAP SANITY NEEDS TO BE CHECKED
+        protocols = ["plain", "expedient", "stringent", "dyn_prot_4_4_1", "dyn_prot_4_14_1"]
+
+        filenames = {'UNIT_TEST_arguments.txt': [], 'UNIT_TEST_arguments_na.txt': []}
+
+        for node in ['UNIT_TEST_arguments.txt', 'UNIT_TEST_arguments_na.txt']:
+            args, grouped_args = prepare_arguments(os.path.join(FILE_DIR, node))
+            grouped_args[2]['protocol'] = protocols
+            grouped_args[2]['pg'] = [0.001]
+
+            # USES SWAPPED VERSION OF PROTOCOL
+            grouped_args[1]['use_swap_gates'] = True
+            grouped_args[1]['iterations'] = 10
+            grouped_args[1]['decoherence'] = False
+
+            filenames[node].extend(run_for_arguments(*grouped_args, **args))
+
+        for file_pur, file_nat in zip(*filenames.values()):
+            df_pur = pd.read_csv(file_pur + ".csv", sep=";", float_precision='round_trip', index_col=[0, 1])
+            df_nat = pd.read_csv(file_nat + ".csv", sep=";", float_precision='round_trip', index_col=[0, 1])
+            self.assertAlmostEqual(df_pur.loc[('IIII', False), 'p'], df_nat.loc[('IIII', False), 'p'])
+            self.assertAlmostEqual(df_pur.loc[('IIII', False), 'ghz_fidelity'],
+                                   df_nat.loc[('IIII', False), 'ghz_fidelity'])
+
 
 if __name__ == "__main__":
     unittest.main()

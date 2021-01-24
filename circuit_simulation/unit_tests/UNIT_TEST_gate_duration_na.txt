@@ -1,0 +1,9 @@
+X_gate=1e-3
+Y_gate=1e-3
+Z_gate=0.5e-3
+CZ_gate=0.5e-3
+CNOT_gate=0.5e-3
+SWAP_gate=1.5e-3
+CY_gate=0.5e-3
+CminY_gate=1e-3
+H_gate=0.5e-3
