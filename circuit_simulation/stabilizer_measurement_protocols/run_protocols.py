@@ -258,7 +258,8 @@ def additional_parsing_of_arguments(**args):
     if gate_duration_file is not None and os.path.exists(gate_duration_file):
         set_gate_durations_from_file(gate_duration_file)
     elif gate_duration_file is not None:
-        raise ValueError("Cannot find file to set gate durations with. File path: {}".format(gate_duration_file))
+        raise ValueError("Cannot find file to set gate durations with. File path: {}"
+                         .format(os.path.abspath(gate_duration_file)))
 
     return args
 

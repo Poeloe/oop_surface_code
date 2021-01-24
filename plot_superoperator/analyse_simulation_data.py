@@ -36,7 +36,7 @@ def get_all_files_from_folder(folder, folder_name, pkl=False):
     for sub_dir in os.listdir(folder):
         if pattern.fullmatch(sub_dir):
             for file in os.listdir(os.path.join(folder, sub_dir)):
-                if file.endswith(".csv") and not "failed" in file:
+                if file.endswith(".csv") and "failed" not in file:
                     files.append(os.path.join(folder, sub_dir, file))
                 elif file.endswith(".pkl") and pkl:
                     pkl_files.append(os.path.join(folder, sub_dir, file))

@@ -31,9 +31,8 @@ _trial_temp/
 .vscode/
 !requirements.txt
 cartesiusdata
-!csv_files/
-!expedient*.csv
-!UNIT_TEST*.txt
+!csv_files/*.csv
+!unit_tests/UNIT_TEST*.txt
 old_files/
 !gate_lookup_tables/
 !single_qubit_gates.pkl

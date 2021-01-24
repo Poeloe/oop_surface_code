@@ -7,10 +7,19 @@ from itertools import product
 from pprint import pprint
 
 
-def create_file_name(fn: str, fixed_vls: dict, spread: bool):
+def create_file_name(kind: str, fn: str, fixed_vls: dict, spread: bool):
+    fn += "_" + kind
+    translation = {'decoherence': "dec", "p_bell_success": "lde_success"}
     for k, v in fixed_vls.items():
-        fn += "_{}{}".format(k, v)
+        if k in filename_skip_parameters or v == False:
+            continue
+        if k in translation:
+            k = translation[k]
 
+        fn += "_{}{}".format(k, v if not type(v) == bool else "")
+
+    if cutoff_results:
+        fn += "_cutoff"
     if spread:
         fn += "_spread"
 
@@ -41,7 +50,11 @@ def get_label_name(run_dict):
 
 
 def keep_rows_to_evaluate(df):
-    df = df[df['cut_off_time'] == np.inf]
+    if cutoff_results:
+        df = df[df['cut_off_time'] != np.inf]
+    else:
+        df = df[df['cut_off_time'] == np.inf]
+
     for key, values in evaluate_values.items():
         if values:
             df = df[df[key].isin(values)]
@@ -58,7 +71,7 @@ def identify_indices(df: pd.DataFrame):
             unique_values = sorted(set(df[column]))
             if len(unique_values) > 1 or column in ['decoherence', 'protocol_name', 'node']:
                 index_columns[column] = unique_values
-            else:
+            elif len(unique_values) == 1:
                 fixed_values[column] = unique_values[0]
 
     return index_columns, fixed_values
@@ -126,14 +139,13 @@ def scatter_plot(y_value, title, xlabel, ylabel, df: pd.DataFrame, marker_cols, 
     return fig, ax
 
 
-def main(spread, save, file_path_ghz, file_path_stab, no_dec_small):
-    file_name = '../results/circuit_data_NV_99_check.csv'
+def main(spread, save, file_name, file_path, no_dec_small):
     dataframe = pd.read_csv(file_name, sep=';', float_precision='round_trip')
     pprint(identify_indices(dataframe))
     dataframe = keep_rows_to_evaluate(dataframe)
     index_dict, fixed_values = identify_indices(dataframe)
     pprint(index_dict)
-    marker_index_cols = set(index_dict).difference(['node'])
+    marker_index_cols = set(index_dict).difference(['node', 'protocol_name'])
     dataframe = dataframe.set_index(list(index_dict.keys()))
 
     fig, ax = scatter_plot("ghz_fidelity", "GHZ fidelity vs. duration", "Duration (s)",
@@ -147,28 +159,35 @@ def main(spread, save, file_path_ghz, file_path_stab, no_dec_small):
     plt.show()
 
     if save:
-        file_path_stab = create_file_name(file_path_stab, fixed_values, spread)
-        file_path_ghz = create_file_name(file_path_ghz, fixed_values, spread)
+        file_path_stab = create_file_name('stab', file_path, fixed_values, spread)
+        file_path_ghz = create_file_name('ghz', file_path, fixed_values, spread)
         fig.savefig(file_path_ghz + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
         fig2.savefig(file_path_stab + ".pdf", transparent=False, format="pdf", bbox_inches="tight")
 
 
 if __name__ == '__main__':
-    spread = True
-    save = False
-    no_dec_small = False
-    file_path_ghz = '../results/thesis_files/draft_figures/ghz_fidelity_vs_duration_check'
-    file_path_stab = '../results/thesis_files/draft_figures/stab_fidelity_vs_duration_check'
+    # General booleans
+    spread = True           # Shows the 68.2% spread error bars
+    save = True             # Saves the figures to the given filepath
+    no_dec_small = True     # Plots the data points without decoherence smaller
 
-    evaluate_values = {'decoherence':           [False],
-                       'fixed_lde_attempts':    [],
+    # Input and output file parameters
+    file_name = '../results/circuit_data_NV_info.csv'
+    filename_skip_parameters = ['basis_transformation_noise', 'network_noise_type', 'probabilistic',
+                                'no_single_qubit_error']
+    file_path = '../results/thesis_files/draft_figures/fidelity_vs_duration'
+
+    # Filter on the data of the input file
+    cutoff_results = False
+    evaluate_values = {'decoherence':           [True, False],
+                       'fixed_lde_attempts':    [0, 2000],
                        'node':                  [],
-                       'p_bell_success':        [],
-                       'pg':                    [],
-                       'pm':                    [],
-                       'pm_1':                  ['None'],
+                       'p_bell_success':        [0.0001],
+                       'pg':                    [0.01],
+                       'pm':                    [0.01],
+                       'pm_1':                  ['0.05'],
                        'protocol_name':         [],
                        }
 
-    main(spread, save, file_path_ghz, file_path_stab, no_dec_small)
+    main(spread, save, file_name, file_path, no_dec_small)
 
