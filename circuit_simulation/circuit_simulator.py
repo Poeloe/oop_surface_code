@@ -1818,8 +1818,7 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     def single_dot(self, operation, bell_qubit_1, bell_qubit_2, bell_qubit_3=None, bell_qubit_4=None,
                    target_qubit_1=None, target_qubit_2=None, target_qubit_3=None, target_qubit_4=None, measure=True,
-                   noise=None, pn=None, pm=None, pg=None, draw_X_gate=False, parity_check=True, swap=False,
-                   user_operation=True):
+                   noise=None, pn=None, pm=None, pg=None, swap=False, user_operation=True):
         """ single dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         if bell_qubit_3 is None:
             bell_qubit_3 = bell_qubit_1 - 1 if not swap else bell_qubit_1
@@ -1863,14 +1862,6 @@ class QuantumCircuit:
                 return measurement_outcomes
             success = measurement_outcomes[0] == measurement_outcomes[1]
 
-            if draw_X_gate and self._sub_circuits:
-                self._add_draw_operation(X_gate, bell_qubit_2 + 1,
-                                         noise=self.noise and not self.no_single_qubit_error)
-            if not parity_check:
-                if not success:
-                    self.X(bell_qubit_2 + 1, noise=noise)
-                    self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-                return success
         elif swap:
             self.SWAP(bell_qubit_1, bell_qubit_1 + 2, efficient=True)
             self.SWAP(bell_qubit_2, bell_qubit_2 + 2, efficient=True)
@@ -1881,7 +1872,7 @@ class QuantumCircuit:
     @skip_if_cut_off_reached
     def double_dot(self, operation, bell_qubit_1, bell_qubit_2, bell_qubit_3=None, bell_qubit_4=None,
                    target_qubit_1=None, target_qubit_2=None, target_qubit_3=None, target_qubit_4=None, noise=None,
-                   pn=None, pm=None, pg=None, draw_X_gate=False, parity_check=True, swap=False, user_operation=True):
+                   pn=None, pm=None, pg=None, swap=False, user_operation=True):
         """ double dot as specified by Naomi Nickerson in https://www.nature.com/articles/ncomms2773.pdf """
         if bell_qubit_3 is None:
             bell_qubit_3 = bell_qubit_1 - 1 if not swap else bell_qubit_1
@@ -1906,18 +1897,7 @@ class QuantumCircuit:
         # If loop necessary for proper cut-off handling
         if type(measurement_outcomes) == SKIP:
             return measurement_outcomes
-        success = (single_selection_success and measurement_outcomes[0] == measurement_outcomes[1])
-
-        if draw_X_gate and self._sub_circuits:
-            self._add_draw_operation(X_gate, bell_qubit_2 + 1, noise=noise)
-
-        if not parity_check:
-            if not success and single_selection_success:
-                self.X(bell_qubit_2 + 1, noise=noise)
-                self.X(bell_qubit_2 - 2, noise=noise, draw=False if self._sub_circuits else True)
-            return success, single_selection_success
-
-        return success
+        return measurement_outcomes[0] == measurement_outcomes[1], single_selection_success
 
     @skip_if_cut_off_reached
     def stabilizer_measurement(self, operation, cqubit=None, tqubit=None, nodes: list = None, swap=False,
@@ -1939,10 +1919,10 @@ class QuantumCircuit:
                 electron_qubit = self.nodes[node].electron_qubits[0] if electron_qubit is None else electron_qubit
 
             self.start_sub_circuit(node)
-            for data_qubit in data_qubits:
+            for i, data_qubit in enumerate(data_qubits):
                 cqubit = ghz_qubit if swap else cqubit
                 if swap:
-                    self.SWAP(electron_qubit, cqubit, efficient=True)
+                    self.SWAP(electron_qubit, cqubit, efficient=True) if i == 0 else None
                     cqubit = electron_qubit
                 self.apply_gate(operation, cqubit=cqubit, tqubit=data_qubit)
             self.measure(cqubit, probabilistic=False)

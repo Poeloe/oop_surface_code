@@ -95,11 +95,11 @@ class StabilizerProtocolSanityTest(unittest.TestCase):
         for prob_value in [False, True]:
             args, grouped_args = prepare_arguments(os.path.join(FILE_DIR, 'UNIT_TEST_arguments.txt'))
             grouped_args[2]['protocol'] = protocols
-            grouped_args[2]['pg'] = [0.001]
+            grouped_args[2]['pg'] = [0.006]
 
             # USES SWAPPED VERSION OF PROTOCOL
             grouped_args[1]['use_swap_gates'] = True
-            grouped_args[1]['iterations'] = 1 if not prob_value else 20
+            grouped_args[1]['iterations'] = 1 if not prob_value else 10
             grouped_args[1]['probabilistic'] = prob_value
 
             filenames[prob_value].extend(run_for_arguments(*grouped_args, **args))
@@ -112,6 +112,8 @@ class StabilizerProtocolSanityTest(unittest.TestCase):
 
             [self.assertAlmostEqual(ghz_fid, ghz_fid_prob) for ghz_fid_prob in pkl_prob['ghz_fid']]
             [self.assertAlmostEqual(stab_fid, stab_fid_prob) for stab_fid_prob in pkl_prob['stab_fid']]
+            print("[+] Probabilistic ({}) is equal to deterministic ({})".format(os.path.basename(file_prob),
+                                                                                 os.path.basename(file)))
 
     def test_node_sanity(self):
         """
@@ -130,7 +132,7 @@ class StabilizerProtocolSanityTest(unittest.TestCase):
 
             # USES SWAPPED VERSION OF PROTOCOL
             grouped_args[1]['use_swap_gates'] = True
-            grouped_args[1]['iterations'] = 10
+            grouped_args[1]['iterations'] = 20
             grouped_args[1]['decoherence'] = False
 
             filenames[node].extend(run_for_arguments(*grouped_args, **args))
@@ -141,6 +143,8 @@ class StabilizerProtocolSanityTest(unittest.TestCase):
             self.assertAlmostEqual(df_pur.loc[('IIII', False), 'p'], df_nat.loc[('IIII', False), 'p'])
             self.assertAlmostEqual(df_pur.loc[('IIII', False), 'ghz_fidelity'],
                                    df_nat.loc[('IIII', False), 'ghz_fidelity'])
+            print("[+] Purified ({}) is equal to Natural Abundance ({})".format(os.path.basename(file_pur),
+                                                                                os.path.basename(file_nat)))
 
 
 if __name__ == "__main__":
