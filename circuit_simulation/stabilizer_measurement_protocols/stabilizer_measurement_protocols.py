@@ -102,8 +102,8 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         # If you don't specify which qubits are the data-qubits and electron-qubits, it is assumed that the first
         # qubit(s) in the list is (are) the data-qubit(s) and the last one is the electron_qubit.
 
-        qc.define_node("A", qubits=[26, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 12])
-        qc.define_node("B", qubits=[24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0])
+        qc.define_node("A", qubits=[26, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 12], amount_data_qubits=2)
+        qc.define_node("B", qubits=[24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0], amount_data_qubits=2)
 
         qc.define_sub_circuit("AB")
 
@@ -173,15 +173,15 @@ def plain(qc: QuantumCircuit, *, operation):
 def plain_swap(qc: QuantumCircuit, *, operation):
     qc.start_sub_circuit("AB")
     qc.create_bell_pair("B-e", "A-e")
-    qc.SWAP("A-e", "A-1")
+    qc.SWAP("A-e", "A-e+1")
     qc.start_sub_circuit("CD")
     qc.create_bell_pair("D-e", "C-e")
-    qc.SWAP("C-e", "C-1")
+    qc.SWAP("C-e", "C-e+1")
     qc.start_sub_circuit("AC")
     success = qc.single_selection(operation, "C-e", "A-e", swap=True)
     if not success:
         qc.start_sub_circuit("A")
-        qc.X("A-1")
+        qc.X("A-e+1")
         qc.start_sub_circuit("B")
         qc.X("B-e")
 
@@ -255,8 +255,8 @@ def dejmps_2_4_1_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB", forced_level=True)
         qc.create_bell_pair("B-e", "A-e")
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("A-e", "A-1", efficient=True)
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("A-e", "A-e+1", efficient=True)
         success_level_1 = qc.single_selection(CZ_gate, "B-e", "A-e")
         if not success_level_1:
             continue
@@ -266,15 +266,15 @@ def dejmps_2_4_1_swap(qc: QuantumCircuit, *, operation):
         level_2 = False
         while not level_2:
             qc.create_bell_pair("B-e", "A-e")
-            qc.SWAP("B-e", "B-2", efficient=True)
-            qc.SWAP("A-e", "A-2", efficient=True)
-            level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2")
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2")
 
         PBAR.update(35) if PBAR is not None else None
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)
-        level_1 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)
+        level_1 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)
 
         PBAR.update(20) if PBAR is not None else None
 
@@ -290,8 +290,8 @@ def dejmps_2_6_1_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB", forced_level=True)
         qc.create_bell_pair("B-e", "A-e")
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("A-e", "A-1", efficient=True)
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("A-e", "A-e+1", efficient=True)
         int_level_1 = qc.single_selection(CZ_gate, "B-e", "A-e")
         if not int_level_1:
             continue
@@ -301,15 +301,15 @@ def dejmps_2_6_1_swap(qc: QuantumCircuit, *, operation):
         level_2 = False
         while not level_2:
             qc.create_bell_pair("B-e", "A-e")
-            qc.SWAP("B-e", "B-2", efficient=True)
-            qc.SWAP("A-e", "A-2", efficient=True)
-            level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2")
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2")
 
         PBAR.update(20) if PBAR is not None else None
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)
-        int_level_3 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)
+        int_level_3 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)
         if not int_level_3:
             continue
 
@@ -318,13 +318,13 @@ def dejmps_2_6_1_swap(qc: QuantumCircuit, *, operation):
         level_4 = False
         while not level_4:
             qc.create_bell_pair("B-e", "A-e")
-            qc.SWAP("B-e", "B-2", efficient=True)
-            qc.SWAP("A-e", "A-2", efficient=True)
-            level_4 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2")
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            level_4 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2")
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)
-        level_1 = qc.single_selection(CiY_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False,)
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)
+        level_1 = qc.single_selection(CiY_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False,)
 
         PBAR.update(20) if PBAR is not None else None
 
@@ -340,8 +340,8 @@ def dejmps_2_8_1_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB", forced_level=True)
         qc.create_bell_pair("B-e", "A-e")
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("A-e", "A-1", efficient=True)
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("A-e", "A-e+1", efficient=True)
         int_level_1 = qc.single_selection(CZ_gate, "B-e", "A-e")
         if not int_level_1:
             continue
@@ -351,15 +351,15 @@ def dejmps_2_8_1_swap(qc: QuantumCircuit, *, operation):
         level_2 = False
         while not level_2:
             qc.create_bell_pair("B-e", "A-e")
-            qc.SWAP("B-e", "B-2", efficient=True)
-            qc.SWAP("A-e", "A-2", efficient=True)
-            level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2")
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2")
 
         PBAR.update(15) if PBAR is not None else None
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)
-        int_level_3 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)
+        int_level_3 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)
         if not int_level_3:
             continue
 
@@ -368,9 +368,9 @@ def dejmps_2_8_1_swap(qc: QuantumCircuit, *, operation):
         level_4 = False
         while not level_4:
             qc.create_bell_pair("B-e", "A-e")
-            qc.SWAP("B-e", "B-2", efficient=True)
-            qc.SWAP("A-e", "A-2", efficient=True)
-            int_level_4 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2")
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("A-e", "A-e+2", efficient=True)
+            int_level_4 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2")
             if not int_level_4:
                 continue
 
@@ -379,19 +379,19 @@ def dejmps_2_8_1_swap(qc: QuantumCircuit, *, operation):
             level_5 = False
             while not level_5:
                 qc.create_bell_pair("B-e", "A-e")
-                qc.SWAP("B-e", "B-3", efficient=True)
-                qc.SWAP("A-e", "A-3", efficient=True)
-                level_5 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-3", "A-3")
+                qc.SWAP("B-e", "B-e+3", efficient=True)
+                qc.SWAP("A-e", "A-e+3", efficient=True)
+                level_5 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+3", "A-e+3")
 
             PBAR.update(15) if PBAR is not None else None
 
-            qc.SWAP("B-3", "B-e", efficient=True)
-            qc.SWAP("A-3", "A-e", efficient=True)
-            level_4 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-2", "A-2", create_bell_pair=False)
+            qc.SWAP("B-e+3", "B-e", efficient=True)
+            qc.SWAP("A-e+3", "A-e", efficient=True)
+            level_4 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+2", "A-e+2", create_bell_pair=False)
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)
-        level_1 = qc.single_selection(CiY_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)
+        level_1 = qc.single_selection(CiY_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)
 
         PBAR.update(15) if PBAR is not None else None
 
@@ -406,27 +406,27 @@ def bipartite_4_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB", forced_level=True)
         qc.create_bell_pair("B-e", "A-e")       # [12, 0]
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("A-e", "A-1", efficient=True)   # [13, 1]
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("A-e", "A-e+1", efficient=True)   # [13, 1]
         qc.create_bell_pair("B-e", "A-e")
-        qc.SWAP("B-e", "B-2", efficient=True)
-        qc.SWAP("A-e", "A-2", efficient=True)   # [14, 2]
-        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", measure=False)   # [12, 0, 13, 1]
-        int_level_1 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-2", "A-2", create_bell_pair=False)    # [13, 1, 14, 2]
+        qc.SWAP("B-e", "B-e+2", efficient=True)
+        qc.SWAP("A-e", "A-e+2", efficient=True)   # [14, 2]
+        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+1", "A-e+1", measure=False)   # [12, 0, 13, 1]
+        int_level_1 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+2", "A-e+2", create_bell_pair=False)    # [13, 1, 14, 2]
         if not int_level_1:
             continue
 
         PBAR.update(30) if PBAR is not None else None
 
-        int_level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2")
+        int_level_2 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2")
         if not int_level_2:
             continue
 
         PBAR.update(30) if PBAR is not None else None
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)       # [13, 1, 12, 0]
-        level_1 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)       # [13, 1, 12, 0]
+        level_1 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)
         PBAR.update(30) if PBAR is not None else None
 
     qc.stabilizer_measurement(operation, nodes=["A", "B"])
@@ -440,49 +440,49 @@ def bipartite_6_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB", forced_level=True)
         qc.create_bell_pair("B-e", "A-e")           # [12, 0]
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("A-e", "A-1", efficient=True)       # [13, 1]
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("A-e", "A-e+1", efficient=True)       # [13, 1]
         qc.create_bell_pair("B-e", "A-e")
-        qc.SWAP("B-e", "B-2", efficient=True)
-        qc.SWAP("A-e", "A-2", efficient=True)
-        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", measure=False)   # [12, 0, 13, 1]
-        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-2", "A-2", create_bell_pair=False, measure=False, reverse_den_mat_add=True)   # [14, 2, 12, 0, 13, 1]
-        qc.SWAP("B-e", "B-3", efficient=True)
-        qc.SWAP("A-e", "A-3", efficient=True)   # [14, 2, 15, 3, 13, 1]
-        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-1", "A-1", measure=False, reverse_den_mat_add=True)   # [14, 2, 15, 3, 13, 1, 12, 0]
-        qc.SWAP("B-e", "B-4", efficient=True)
-        qc.SWAP("A-e", "A-4", efficient=True)   # [14, 2, 15, 3, 13, 1, 16, 4]
-        int_level_1 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-4", "A-4")
+        qc.SWAP("B-e", "B-e+2", efficient=True)
+        qc.SWAP("A-e", "A-e+2", efficient=True)
+        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+1", "A-e+1", measure=False)   # [12, 0, 13, 1]
+        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+2", "A-e+2", create_bell_pair=False, measure=False, reverse_den_mat_add=True)   # [14, 2, 12, 0, 13, 1]
+        qc.SWAP("B-e", "B-e+3", efficient=True)
+        qc.SWAP("A-e", "A-e+3", efficient=True)   # [14, 2, 15, 3, 13, 1]
+        qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+1", "A-e+1", measure=False, reverse_den_mat_add=True)   # [14, 2, 15, 3, 13, 1, 12, 0]
+        qc.SWAP("B-e", "B-e+4", efficient=True)
+        qc.SWAP("A-e", "A-e+4", efficient=True)   # [14, 2, 15, 3, 13, 1, 16, 4]
+        int_level_1 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+4", "A-e+4")
         if not int_level_1:
             continue
 
         PBAR.update(15) if PBAR is not None else None
 
-        int_level_2 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-3", "A-3")
+        int_level_2 = qc.single_selection(CNOT_gate, "B-e", "A-e", "B-e+3", "A-e+3")
         if not int_level_2:
             continue
 
         PBAR.update(15) if PBAR is not None else None
 
-        qc.SWAP("B-3", "B-e", efficient=True)
-        qc.SWAP("A-3", "A-e", efficient=True)   # [14, 2, 12, 0, 13, 1, 16, 4]
-        qc.single_selection(CZ_gate, "B-e", "A-e", "B-2", "A-2", create_bell_pair=False, measure=False)
-        int_level_3 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-1", "A-1", create_bell_pair=False)      # [14, 2, 13, 1, 16, 4]
+        qc.SWAP("B-e+3", "B-e", efficient=True)
+        qc.SWAP("A-e+3", "A-e", efficient=True)   # [14, 2, 12, 0, 13, 1, 16, 4]
+        qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+2", "A-e+2", create_bell_pair=False, measure=False)
+        int_level_3 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)      # [14, 2, 13, 1, 16, 4]
         if not int_level_3:
             continue
 
         PBAR.update(15) if PBAR is not None else None
 
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("A-2", "A-e", efficient=True)       # [12, 0, 13, 1, 16, 4]
-        int_level_4 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-4", "A-4", create_bell_pair=False)      # [13, 1, 16, 4]
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("A-e+2", "A-e", efficient=True)       # [12, 0, 13, 1, 16, 4]
+        int_level_4 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+4", "A-e+4", create_bell_pair=False)      # [13, 1, 16, 4]
         if not int_level_4:
             continue
 
         PBAR.update(15) if PBAR is not None else None
 
-        qc.SWAP("B-4", "B-e", efficient=True)
-        qc.SWAP("A-4", "A-e", efficient=True)
+        qc.SWAP("B-e+4", "B-e", efficient=True)
+        qc.SWAP("A-e+4", "A-e", efficient=True)
         meas_outc = qc.measure(["A-e", "B-e"])
         level_1 = meas_outc[0] == meas_outc[1]
 
@@ -500,15 +500,15 @@ def dyn_prot_3_4_1_swap(qc: QuantumCircuit, *, operation, tqubit=None):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AB")
         qc.create_bell_pair("A-e", "B-e")       # 3, 6
-        qc.SWAP("A-e", "A-2", efficient=True)
-        qc.SWAP("B-e", "B-1", efficient=True)   # 4, 7
+        qc.SWAP("A-e", "A-e+2", efficient=True)
+        qc.SWAP("B-e", "B-e+1", efficient=True)   # 4, 7
 
         PBAR.update(30) if PBAR is not None else None
 
         qc.start_sub_circuit("AC")
         qc.create_bell_pair("C-e", "A-e")       # 6, 0
-        qc.SWAP("C-e", "C-1", efficient=True)   # 6, 1
-        qc.apply_gate(CNOT_gate, cqubit="A-2", tqubit="A-e", electron_is_target=True, reverse=True)   # 6, 1, 4, 7
+        qc.SWAP("C-e", "C-e+1", efficient=True)   # 6, 1
+        qc.apply_gate(CNOT_gate, cqubit="A-e+2", tqubit="A-e", electron_is_target=True, reverse=True)   # 6, 1, 4, 7
         measurement_outcome = qc.measure(["A-e"], basis="Z")    # 1, 4, 7
         # BEGIN FUSION CORRECTION:
         time_in_A = qc.nodes["A"].sub_circuit_time
@@ -516,7 +516,7 @@ def dyn_prot_3_4_1_swap(qc: QuantumCircuit, *, operation, tqubit=None):
         if time_in_C < time_in_A:
             qc._increase_duration(time_in_A - time_in_C, [], involved_nodes=["C"])
         if measurement_outcome[0] == 1:
-            qc.X("C-1")
+            qc.X("C-e+1")
         # END FUSION CORRECTION
 
         PBAR.update(30) if PBAR is not None else None
@@ -525,12 +525,12 @@ def dyn_prot_3_4_1_swap(qc: QuantumCircuit, *, operation, tqubit=None):
         while not level_2:
             qc.start_sub_circuit("BC")
             qc.create_bell_pair("B-e", "C-e")  # 0, 3
-            qc.SWAP("B-e", "B-2", efficient=True)
-            qc.SWAP("C-e", "C-2", efficient=True)  # 2, 5
-            level_2 = qc.single_selection(CiY_gate, "B-e", "C-e", "B-2", "C-2")
-        qc.SWAP("B-2", "B-e", efficient=True)
-        qc.SWAP("C-2", "C-e", efficient=True)
-        ghz_success = qc.single_selection(CZ_gate, "B-e", "C-e", "B-1", "C-1", create_bell_pair=False)
+            qc.SWAP("B-e", "B-e+2", efficient=True)
+            qc.SWAP("C-e", "C-e+2", efficient=True)  # 2, 5
+            level_2 = qc.single_selection(CiY_gate, "B-e", "C-e", "B-e+2", "C-e+2")
+        qc.SWAP("B-e+2", "B-e", efficient=True)
+        qc.SWAP("C-e+2", "C-e", efficient=True)
+        ghz_success = qc.single_selection(CZ_gate, "B-e", "C-e", "B-e+1", "C-e+1", create_bell_pair=False)
 
         PBAR.update(30) if PBAR is not None else None
 
@@ -612,23 +612,23 @@ def dyn_prot_4_4_1_swap(qc: QuantumCircuit, *, operation):
         PBAR.reset() if PBAR is not None else None
         qc.start_sub_circuit("AC")
         qc.create_bell_pair("A-e", "C-e")       # 2, 6;     2 is "C-e" and 6 is "A-e"
-        qc.SWAP("A-e", "A-1", efficient=True)
-        qc.SWAP("C-e", "C-1", efficient=True)   # 3, 7
+        qc.SWAP("A-e", "A-e+1", efficient=True)
+        qc.SWAP("C-e", "C-e+1", efficient=True)   # 3, 7
 
         qc.start_sub_circuit("BD")
         qc.create_bell_pair("D-e", "B-e")       # 4, 0
-        qc.SWAP("B-e", "B-1", efficient=True)
-        qc.SWAP("D-e", "D-1", efficient=True)   # 5, 1
+        qc.SWAP("B-e", "B-e+1", efficient=True)
+        qc.SWAP("D-e", "D-e+1", efficient=True)   # 5, 1
 
         PBAR.update(40) if PBAR is not None else None
 
         qc.start_sub_circuit("AB")
         qc.create_bell_pair("B-e", "A-e")       # 6, 4
         # qc.append_print_lines(qc.get_combined_density_matrix([3]))
-        qc.apply_gate(CNOT_gate, cqubit="A-e", tqubit="A-1")   # 6, 4, 3, 7;        6 is "A-e" and 7 is "A-1"
-        qc.apply_gate(CNOT_gate, cqubit="B-e", tqubit="B-1")   # 6, 4, 3, 7, 5, 1;  4 is "B-e" and 5 is "B-1"
-        qc.SWAP("A-e", "A-1", efficient=False)
-        qc.SWAP("B-e", "B-1", efficient=False)
+        qc.apply_gate(CNOT_gate, cqubit="A-e", tqubit="A-e+1")   # 6, 4, 3, 7;        6 is "A-e" and 7 is "A-e+1"
+        qc.apply_gate(CNOT_gate, cqubit="B-e", tqubit="B-e+1")   # 6, 4, 3, 7, 5, 1;  4 is "B-e" and 5 is "B-e+1"
+        qc.SWAP("A-e", "A-e+1", efficient=False)
+        qc.SWAP("B-e", "B-e+1", efficient=False)
         measurement_outcomes = qc.measure(["A-e", "B-e"], basis="Z")    # 3, 7, 5, 1
         # BEGIN FUSION CORRECTION:
         # The correction in nodes C and D can only be applied after both measurements in A and B
@@ -645,11 +645,11 @@ def dyn_prot_4_4_1_swap(qc: QuantumCircuit, *, operation):
         if time_in_D < time_after_meas:
             qc._increase_duration(time_after_meas - time_in_D, [], involved_nodes=["D"])
         if measurement_outcomes != SKIP() and measurement_outcomes[0] == 1:
-            qc.X("C-1")
+            qc.X("C-e+1")
         if measurement_outcomes != SKIP() and measurement_outcomes[1] == 1:
-            qc.X("D-1")
+            qc.X("D-e+1")
         # END FUSION CORRECTION
-        ghz_success = qc.single_selection(CZ_gate, "C-e", "D-e", "C-1", "D-1", create_bell_pair=False)
+        ghz_success = qc.single_selection(CZ_gate, "C-e", "D-e", "C-e+1", "D-e+1", create_bell_pair=False)
 
         PBAR.update(40) if PBAR is not None else None
 
