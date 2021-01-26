@@ -97,13 +97,13 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
 
     elif protocol in ['dejmps_2_4_1_swap', 'dejmps_2_6_1_swap', 'dejmps_2_8_1_swap', 'bipartite_4_swap',
                       'bipartite_6_swap']:
-        qc = QuantumCircuit(28, 4, **kwargs)
+        qc = QuantumCircuit(32, 8, **kwargs)
 
         # If you don't specify which qubits are the data-qubits and electron-qubits, it is assumed that the first
         # qubit(s) in the list is (are) the data-qubit(s) and the last one is the electron_qubit.
 
-        qc.define_node("A", qubits=[26, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 12], amount_data_qubits=2)
-        qc.define_node("B", qubits=[24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0], amount_data_qubits=2)
+        qc.define_node("A", qubits=[30, 28, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12], amount_data_qubits=2)
+        qc.define_node("B", qubits=[26, 24, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], amount_data_qubits=2)
 
         qc.define_sub_circuit("AB")
 
