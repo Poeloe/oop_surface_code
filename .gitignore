@@ -29,6 +29,7 @@ batch/
 .idea/
 _trial_temp/
 .vscode/
+!circuit_data_NV.csv
 !requirements.txt
 cartesiusdata
 !csv_files/*.csv
