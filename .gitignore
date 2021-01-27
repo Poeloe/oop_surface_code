@@ -34,6 +34,8 @@ _trial_temp/
 cartesiusdata
 !csv_files/*.csv
 !unit_tests/UNIT_TEST*.txt
+!notebooks/*/*/*.csv
+!notebooks/*/*/*.pkl
 old_files/
 !gate_lookup_tables/
 !single_qubit_gates.pkl
