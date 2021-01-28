@@ -39,7 +39,7 @@ def get_label_name(run_dict):
     keep_key = ['pg', 'pn', 'pm', 'pm_1']
     name = ""
     for key, value in run_dict.items():
-        if value:
+        if value is not False:
             if key in value_translation:
                 value = value_translation[key]
             name += "{}{}, ".format(key + "=" if key in keep_key else "", str(value).replace("_swap", ""))
@@ -49,7 +49,7 @@ def get_label_name(run_dict):
     return name
 
 
-def keep_rows_to_evaluate(df):
+def keep_rows_to_evaluate(df, evaluate_values):
     if cutoff_results:
         df = df[df['cut_off_time'] != np.inf]
     else:
@@ -142,7 +142,7 @@ def scatter_plot(y_value, title, xlabel, ylabel, df: pd.DataFrame, marker_cols, 
 def main(spread, save, file_name, file_path, no_dec_small):
     dataframe = pd.read_csv(file_name, sep=';', float_precision='round_trip')
     pprint(identify_indices(dataframe))
-    dataframe = keep_rows_to_evaluate(dataframe)
+    dataframe = keep_rows_to_evaluate(dataframe, evaluate_values)
     index_dict, fixed_values = identify_indices(dataframe)
     pprint(index_dict)
     marker_index_cols = set(index_dict).difference(['node', 'protocol_name'])
@@ -172,20 +172,20 @@ if __name__ == '__main__':
     no_dec_small = True     # Plots the data points without decoherence smaller
 
     # Input and output file parameters
-    file_name = '../results/circuit_data_NV_info.csv'
+    file_name = '../results/circuit_data_NV_99_check.csv'
     filename_skip_parameters = ['basis_transformation_noise', 'network_noise_type', 'probabilistic',
                                 'no_single_qubit_error']
-    file_path = '../results/thesis_files/draft_figures/fidelity_vs_duration'
+    file_path = '../results/thesis_files/draft_figures/fidelity_vs_duration_optimised'
 
     # Filter on the data of the input file
     cutoff_results = False
-    evaluate_values = {'decoherence':           [True, False],
-                       'fixed_lde_attempts':    [0, 2000],
+    evaluate_values = {'decoherence':           [True],
+                       'fixed_lde_attempts':    [2000],
                        'node':                  [],
-                       'p_bell_success':        [0.0001],
-                       'pg':                    [0.01],
-                       'pm':                    [0.01],
-                       'pm_1':                  ['0.05'],
+                       'p_bell_success':        [0.01],
+                       'pg':                    [0.001, 0.0001],
+                       'pm':                    [],
+                       'pm_1':                  [],
                        'protocol_name':         [],
                        }
 

@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import sys
 import re
 import pickle
 import math
@@ -57,7 +58,12 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
     for superoperator_file in superoperator_files:
         pkl_file = (superoperator_file.replace(".csv", ".pkl") if superoperator_file.replace(".csv", ".pkl") in
                     pkl_files else None)
-        full_data = pickle.load(open(pkl_file, "rb"))
+        if pkl_file:
+            full_data = pickle.load(open(pkl_file, "rb"))
+        else:
+            print("\n[!] Warning: Expected pickle file for file ({}) not found! No spread data can be shown."
+                  .format(os.path.basename(superoperator_file)), file=sys.stderr)
+            full_data = None
         result_df = result_df.sort_index()
         df = pd.read_csv(superoperator_file, sep=';', index_col=[0, 1], float_precision='round_trip')
         if df.iloc[0, df.columns.get_loc('pulse_duration')] == 0:
@@ -70,15 +76,16 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
             if variable in df:
                 result_df.loc[index, variable] = df.iloc[0, df.columns.get_loc(variable)]
 
-        interval_data = ['ghz_sem', "dur_sem", "stab_sem"]
-        for interval in interval_data:
-            kind = interval.split(sep="_")[0]
-            key = kind if "dur" in kind else kind + "_fid"
-            result_df.loc[index, interval] = sem(full_data[key])
-            result_df.loc[index, kind + '_lspread'] = confidence_interval(full_data[key], minus_mean=True)[0]
-            result_df.loc[index, kind + '_rspread'] = confidence_interval(full_data[key], minus_mean=True)[1]
+        if full_data:
+            interval_data = ['ghz_sem', "dur_sem", "stab_sem"]
+            for interval in interval_data:
+                kind = interval.split(sep="_")[0]
+                key = kind if "dur" in kind else kind + "_fid"
+                result_df.loc[index, interval] = sem(full_data[key])
+                result_df.loc[index, kind + '_lspread'] = confidence_interval(full_data[key], minus_mean=True)[0]
+                result_df.loc[index, kind + '_rspread'] = confidence_interval(full_data[key], minus_mean=True)[1]
 
-        result_df.loc[index, '99_duration'] = confidence_interval(full_data["dur"], 0.98)[1]
+            result_df.loc[index, '99_duration'] = confidence_interval(full_data["dur"], 0.98)[1]
 
         d = 2**4
         result_df.loc[index, 'IIII'] = (d * df['p'].loc[('IIII', False)] + 1) / (d + 1)
@@ -90,10 +97,12 @@ def get_results_from_files(superoperator_files, pkl_files, name_csv):
 
 
 if __name__ == '__main__':
-    name_csv = "./results/circuit_data_NV_99_check.csv"
+    name_csv = "./notebooks/circuit_data_NV.csv"
     folder = "./results/sim_data_5"
     folder_name = "superoperator_cutoff_99_full"
 
     files, pkl_files = get_all_files_from_folder(folder, folder_name, pkl=True)
 
+    files = [f for f in files if 'Old' not in f]
+    pkl_files = [p for p in pkl_files if 'Old' not in p]
     get_results_from_files(files, pkl_files, name_csv)
