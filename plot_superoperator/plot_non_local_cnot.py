@@ -57,13 +57,12 @@ def plot_style(title=None, xlabel=None, ylabel=None, **kwargs):
     return fig, ax
 
 
-def combine_files(files, pkl_files):
+def combine_files(files, pkl_files, save_full):
     index_cols = [index_tuple[0] for index_tuple in list(pickle.load(open(pkl_files[0], "rb")).keys())[0]]
     full_dataframe = None
 
     for filename in files:
         dataframe = pd.read_csv(filename, sep=";", index_col=index_cols, float_precision='round_trip')
-        print(dataframe)
         data = pickle.load(open(filename.replace('.csv', '.pkl'), 'rb'))
         for key_value_index, sim_data in data.items():
             index = tuple(v for _, v in key_value_index)
@@ -79,6 +78,10 @@ def combine_files(files, pkl_files):
             full_dataframe = pd.concat([full_dataframe, dataframe])
 
     full_dataframe = full_dataframe.sort_index()
+
+    if save_full:
+        full_dataframe.to_csv(full_filename, sep=";")
+
     return full_dataframe
 
 
@@ -105,8 +108,9 @@ def plot_non_local_cnot_fidelity(df, x_axis, evaluate_values, save_file_path, sp
 
     for index_tuple in product(*evaluate_values.values()):
         if index_tuple in df.index:
+            x_axis_data = df.loc[index_tuple, x_axis]
             index_dict = dict(zip(evaluate_values.keys(), index_tuple))
-            ax.errorbar(df.loc[index_tuple, x_axis],
+            ax.errorbar(x_axis_data,
                         df.loc[index_tuple, 'avg_fidelity'],
                         yerr=None if not spread else [df.loc[index_tuple, 'fid_std_l'], df.loc[index_tuple, 'fid_std_r']],
                         ms=8,
@@ -114,11 +118,11 @@ def plot_non_local_cnot_fidelity(df, x_axis, evaluate_values, save_file_path, sp
                         capsize=8,
                         label=get_label_name(index_dict))
             if ent_fid:
-                ax.errorbar(df.loc[index_tuple, x_axis],
+                ax.errorbar(x_axis_data,
                             df.loc[index_tuple, 'fid_entanglement'],
                             fmt='-o',
                             label="{} - {}".format(get_label_name(index_dict), "$F_{e}$"))
-                ax.set_xlim(0.051, 0)
+            ax.set_xlim(max(x_axis_data) + 0.001, min(x_axis_data) - 0.001)
 
     handles, labels = ax.get_legend_handles_labels()
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
@@ -128,7 +132,7 @@ def plot_non_local_cnot_fidelity(df, x_axis, evaluate_values, save_file_path, sp
 
 
 def main(files, pkl_files, x_axis, evaluate_values, save_file_path, spread, ent_fid):
-    dataframes = combine_files(files, pkl_files)
+    dataframes = combine_files(files, pkl_files, save_full)
 
     if spread:
         save_file_path += '_spread'
@@ -138,7 +142,9 @@ def main(files, pkl_files, x_axis, evaluate_values, save_file_path, spread, ent_
 
 if __name__ == '__main__':
     spread = False
-    ent_fid = True
+    ent_fid = False
+    save_full = True
+    full_filename = '../notebooks/non_local_cnot_full.csv'
     save_file_path = '../results/thesis_files/draft_figures/non_local_gate_additional'
     files, pkl_files = get_all_files_from_folder('../results/sim_data_5/non_local_gate',
                                                  ['purified', 'natural_abundance'],
@@ -151,7 +157,7 @@ if __name__ == '__main__':
                        'pg':                    [],
                        'pm':                    [0.01],
                        'pm_1':                  [0.01],
-                       'pn':                    [0.1, 0.05]
+                       'pn':                    []
                        }
     x_axis = "pg"
 

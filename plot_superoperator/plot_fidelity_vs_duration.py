@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -58,6 +59,10 @@ def keep_rows_to_evaluate(df, evaluate_values):
     for key, values in evaluate_values.items():
         if values:
             df = df[df[key].isin(values)]
+
+    if df.empty:
+        print("\n[ERROR] No data to show for this set of parameters!", file=sys.stderr)
+        exit(1)
 
     return df
 
@@ -170,22 +175,23 @@ if __name__ == '__main__':
     spread = True           # Shows the 68.2% spread error bars
     save = True             # Saves the figures to the given filepath
     no_dec_small = True     # Plots the data points without decoherence smaller
+    cutoff_results = False  # Show the results for the 99% cutoff time
 
     # Input and output file parameters
-    file_name = '../results/circuit_data_NV_99_check.csv'
+    file_name = '../notebooks/circuit_data_NV.csv'
     filename_skip_parameters = ['basis_transformation_noise', 'network_noise_type', 'probabilistic',
                                 'no_single_qubit_error']
     file_path = '../results/thesis_files/draft_figures/fidelity_vs_duration_optimised'
 
     # Filter on the data of the input file
-    cutoff_results = False
     evaluate_values = {'decoherence':           [True],
                        'fixed_lde_attempts':    [2000],
                        'node':                  [],
-                       'p_bell_success':        [0.01],
-                       'pg':                    [0.001, 0.0001],
+                       'p_bell_success':        [0.001],
+                       'pg':                    [],
                        'pm':                    [],
                        'pm_1':                  [],
+                       'pn':                    [0.1],
                        'protocol_name':         [],
                        }
 
