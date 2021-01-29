@@ -187,10 +187,10 @@ if __name__ == '__main__':
     evaluate_values = {'decoherence':           [True],
                        'fixed_lde_attempts':    [2000],
                        'node':                  [],
-                       'p_bell_success':        [0.001],
+                       'p_bell_success':        [0.0001],
                        'pg':                    [],
                        'pm':                    [],
-                       'pm_1':                  [],
+                       'pm_1':                  [0.01],
                        'pn':                    [0.1],
                        'protocol_name':         [],
                        }
