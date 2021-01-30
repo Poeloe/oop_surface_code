@@ -386,10 +386,10 @@ class toric(object):
             self.measure_stab(stabs=stabs,
                               z=z,
                               measurement_errors=measurement_errors)
-        # ------------------------------- Plaquette stabilizers --------------------------------
+        # ------------------------------- Star stabilizers --------------------------------
 
         for stabs in s_stabilizers:
-            measurement_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_p_before_meas,
+            measurement_errors, _ = self.superoperator_error(stabs, self.superoperator.sup_op_elements_s_before_meas,
                                                              architecture="weight_three")
             self.measure_stab(stabs=stabs,
                               z=z,
