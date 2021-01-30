@@ -107,7 +107,7 @@ def compose_parser():
                                  choices=['monolithic', 'expedient', 'stringent', 'weight_2_4', 'weight_3',
                                           'dyn_prot_4_14_1', 'dyn_prot_4_22_1', 'bipartite_4',  'bipartite_6', 'plain',
                                           'dyn_prot_4_6_sym_1', 'dejmps_2_4_1', 'dejmps_2_6_1', 'dejmps_2_8_1',
-                                          'dyn_prot_4_4_1', 'dyn_prot_3_4_1', 'dyn_prot_3_8_1'],
+                                          'dyn_prot_4_4_1', 'dyn_prot_3_4_1', 'dyn_prot_3_8_1', 'weight_2_4_secondary'],
                                  type=str.lower,
                                  default=['monolithic'])
     var_circuit_arg.add_argument('-pg',

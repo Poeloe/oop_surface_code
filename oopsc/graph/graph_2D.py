@@ -305,7 +305,8 @@ class toric(object):
 
         first_round_p_sup = self.superoperator.additional_superoperators[0]['p_before_meas']
         first_round_s_sup = self.superoperator.additional_superoperators[0]['s_before_meas']
-        failed_first_round_sup = self.superoperator.additional_superoperators[1]['failed']
+        failed_first_round_sup = (self.superoperator.additional_superoperators[1]['failed']
+                                  if len(self.superoperator.additional_superoperators) > 1 else None)
 
         second_round_p_stabs = [stab for i, stab in enumerate(self.superoperator.stabs_p2[z])
                                 if (divmod(i, self.size/2)[0] % 2) == 0]

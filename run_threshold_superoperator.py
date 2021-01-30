@@ -3,15 +3,27 @@ from run_threshold import add_arguments
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import run_for_arguments, \
     additional_parsing_of_arguments, print_circuit_parameters
 from oopsc.threshold.sim import sim_thresholds
-import re
 import os
 import pandas as pd
 from pprint import pprint
 from copy import copy
 
 
+def create_index_slice(df, column, begin=None, end=None):
+    idx = tuple()
+    column = [df.index.names.index(value) for value in column]
+    for i in range(len(df.index.names)):
+        if i in column:
+            index = column.index(i)
+            cur_begin = begin[index] if begin is not None else None
+            cur_end = end[index] if end is not None else None
+            idx += (slice(cur_begin, cur_end, None),)
+        else:
+            idx += (slice(None, None, None),)
+    return idx
+
+
 def determine_superoperators(superoperator_filenames, args):
-    multiple_superoperators = args.get('protocol') in ['weight_2_4']
     primary_superoperators = []
     primary_superoperators_failed = []
     secondary_superoperators = []
@@ -20,16 +32,16 @@ def determine_superoperators(superoperator_filenames, args):
     for filename in superoperator_filenames:
         if 'secondary' in filename:
             secondary_superoperators.append(filename)
-            secondary_superoperators.append(filename) if 'time' in filename else None
+            secondary_superoperators_failed.append(filename + "_failed") if 'time' in filename else None
         else:
             primary_superoperators.append(filename)
             primary_superoperators_failed.append(filename + "_failed") if 'time' in filename else None
 
     args['superoperator_filenames'] = primary_superoperators
-    args['superoperator_filenames_failed'] = primary_superoperators_failed if 'time' in filename else None
-    args['superoperator_filenames_additional'] = secondary_superoperators if multiple_superoperators else None
-    args['superoperator_filenames_additional_failed'] = (secondary_superoperators_failed if multiple_superoperators
-                                                         and 'time' in filename else None)
+    args['superoperator_filenames_failed'] = primary_superoperators_failed if primary_superoperators_failed else None
+    args['superoperator_filenames_additional'] = secondary_superoperators if secondary_superoperators else None
+    args['superoperator_filenames_additional_failed'] = (secondary_superoperators_failed
+                                                         if secondary_superoperators_failed else None)
 
     if primary_superoperators_failed:
         args['GHZ_successes'] = [0.99]
@@ -40,21 +52,29 @@ def determine_superoperators(superoperator_filenames, args):
     return args
 
 
-def determine_lattice_evaluation_by_result(surface_args, var_circuit_args):
+def determine_lattice_evaluation_by_result(surface_args, opp_args, circuit_args, var_circuit_args):
     folder = surface_args['folder']
     lattices = copy(surface_args['lattices'])
-    pg = var_circuit_args['pg']
-    ghz = 0.99 if not 'timeinf' in folder else 1.1
+    var_circuit_args['GHZ_success'] = 0.99 if 'time' in folder else 1.1
+    var_circuit_args['node'] = 'Purified' if circuit_args['T1_lde'] == 2 else "Natural Abundance"
+    var_circuit_args['p_bell_success'] = var_circuit_args['lde_success']
+
     res_iters = []
 
     if os.path.exists(folder):
         for file in os.listdir(folder):
-            data = pd.read_csv(os.path.join(folder, file), index_col=['L', 'pg', 'GHZ_success'])
+            data = pd.read_csv(os.path.join(folder, file), float_precision='round_trip')
+            parameters = {col: var_circuit_args[col] for col in data if col not in ['L', 'N', 'success']}
+            data.set_index(['L'] + list(parameters.keys()), inplace=True)
             for lat in surface_args['lattices']:
-                res_it = [int(surface_args['iters'] - n) for n in data.loc[pd.IndexSlice[lat, pg, ghz], 'N']]
+                idx = create_index_slice(data, ['L'] + list(parameters.keys()),
+                                         [lat] + [None]*(len(parameters)),
+                                         [lat] + [None]*(len(parameters)))
+                res_it = [int(surface_args['iters'] - n) for n in data.loc[idx, 'N']]
                 res_iters.extend(res_it)
                 if all([surface_args['iters'] * 0.01 > it for it in res_it]):
                     lattices.remove(lat)
+                    print("\n[INFO] Skipping surface code simulations for L={} since it has already run".format(lat))
 
     # If there are no lattices left to evaluate, the program can exit
     if not lattices:
@@ -90,7 +110,7 @@ if __name__ == "__main__":
     print(' ##################################################\n')
     surface_code_args = {action.dest: args[action.dest] for action in add_arguments()._actions if action.dest != 'help'}
     surface_code_args = determine_superoperators(superoperator_filenames, surface_code_args)
-    surface_code_args = determine_lattice_evaluation_by_result(surface_code_args, grouped_arguments[2])
+    surface_code_args = determine_lattice_evaluation_by_result(surface_code_args, *grouped_arguments)
 
     decoder = surface_code_args.pop("decoder")
 

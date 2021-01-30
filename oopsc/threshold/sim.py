@@ -171,7 +171,7 @@ def sim_thresholds(
                 file_path = os.path.join(folder, superoperator.protocol_name + superoperator.node + full_name + ".csv")
                 if os.path.exists(file_path):
                     data = pd.read_csv(file_path, header=0, float_precision='round_trip')
-                    data = data.set_index(ind_dict.keys())
+                    data = data.set_index(list(ind_dict.keys()))
                 else:
                     columns = list(output.keys())
                     index = pd.MultiIndex.from_product([*ind_dict.values()], names=ind_dict.keys())

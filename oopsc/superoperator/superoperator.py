@@ -63,6 +63,7 @@ class Superoperator:
         self._path_to_file_failed = (os.path.join(os.path.dirname(__file__), "csv_files",
                                                   self.file_name_failed_superoperator + ".csv")
                                      if failed_ghz_superoperator is not None else None)
+        self._additional_superoperators_files = additional_superoperators
         self.GHZ_success = GHZ_success
 
         self.pg = None

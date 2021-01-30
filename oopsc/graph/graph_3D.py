@@ -162,9 +162,9 @@ class toric(go.toric):
         for z in range(self.cycles)[:-1]:
             if not networked_architecture:
                 self.stabilizer_cycle_monolithic_architecture(z)
-            elif "weight_two_four" in self.superoperator.file_name:
+            elif "weight_2_4" in self.superoperator.file_name:
                 self.stabilizer_cycle_weight_two_four_architecture(z)
-            elif "weight_three" in self.superoperator.file_name:
+            elif "weight_3" in self.superoperator.file_name:
                 self.stabilizer_cycle_weight_three_architecture(z)
             else:
                 self.stabilizer_cycle_with_superoperator(z)

@@ -30,9 +30,9 @@ def print_configuration(config, iters, **kwargs):
         superoperator = settings['superoperator']
         settings['superoperator_failed'] = superoperator.file_name_failed_superoperator
         settings['superoperator_GHZ_success'] = superoperator.GHZ_success
-        add = superoperator.additional_superoperators
+        add = superoperator._additional_superoperators_files
         if add:
-            [settings.update({'additional_superoperator_' + str(i): value}) for i, value in enumerate(add.keys())]
+            [settings.update({'additional_superoperator_' + str(i): f}) for i, f in enumerate(add)]
     pprint(settings)
     # print("\nusing config:")
     # pprint(config)

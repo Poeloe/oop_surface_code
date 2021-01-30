@@ -96,7 +96,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[20, 4, 3, 2, 1, 0])
 
     elif protocol in ['dejmps_2_4_1_swap', 'dejmps_2_6_1_swap', 'dejmps_2_8_1_swap', 'bipartite_4_swap',
-                      'bipartite_6_swap']:
+                      'bipartite_6_swap', 'weight_2_4_secondary_swap']:
         qc = QuantumCircuit(32, 8, **kwargs)
 
         # If you don't specify which qubits are the data-qubits and electron-qubits, it is assumed that the first
@@ -343,7 +343,7 @@ def dejmps_2_8_1_swap(qc: QuantumCircuit, *, operation):
     PBAR.update(10) if PBAR is not None else None
 
 
-def bipartite_4_swap(qc: QuantumCircuit, *, operation):
+def bipartite_4_swap(qc: QuantumCircuit, *, operation, tqubit=None):
     level_1 = False
     while not level_1:
         PBAR.reset() if PBAR is not None else None
@@ -372,7 +372,7 @@ def bipartite_4_swap(qc: QuantumCircuit, *, operation):
         level_1 = qc.single_selection(CZ_gate, "B-e", "A-e", "B-e+1", "A-e+1", create_bell_pair=False)
         PBAR.update(30) if PBAR is not None else None
 
-    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=True)
+    qc.stabilizer_measurement(operation, nodes=["A", "B"], swap=True, tqubit=tqubit)
 
     PBAR.update(10) if PBAR is not None else None
 
@@ -1317,6 +1317,10 @@ def weight_2_4_swap(qc: QuantumCircuit, *, operation):
     expedient_swap(qc, operation=operation, tqubit=[26, 30, 18, 22])
 
     return [[30, 26, 22, 18], [28, 24, 20, 16]]
+
+
+def weight_2_4_secondary_swap(qc: QuantumCircuit, *, operation):
+    bipartite_4_swap(qc, operation=operation)
 
 
 def weight_3_swap(qc: QuantumCircuit, *, operation):
