@@ -1313,13 +1313,13 @@ def duo_structure(qc: QuantumCircuit, *, operation):
     PBAR.update(50) if PBAR is not None else None
 
 
-def weight_2_4_swap(qc: QuantumCircuit, *, operation):
+def weight_2_4_secondary_swap(qc: QuantumCircuit, *, operation):
     expedient_swap(qc, operation=operation, tqubit=[26, 30, 18, 22])
 
     return [[30, 26, 22, 18], [28, 24, 20, 16]]
 
 
-def weight_2_4_secondary_swap(qc: QuantumCircuit, *, operation):
+def weight_2_4_swap(qc: QuantumCircuit, *, operation):
     bipartite_4_swap(qc, operation=operation)
 
 
