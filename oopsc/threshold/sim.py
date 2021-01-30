@@ -183,10 +183,12 @@ def sim_thresholds(
             cur_index = (lati, pi) if not superoperator else get_current_index(lati, superoperator)
 
             for key, value in output.items():
-                data.loc[cur_index, key] = data.loc[cur_index, key] + value if cur_index in data.index else value
+                data.loc[cur_index, key] = (data.loc[cur_index, key] + value if cur_index in data.index
+                                            and not pd.isna(data.loc[cur_index, key]) else value)
                 data.sort_index(inplace=True)
 
             if save_result:
+                data = data[(data.T.applymap(lambda x: x != 0 and x is not None and not pd.isna(x))).any()]
                 data.to_csv(file_path)
                 data_s[superoperator.protocol_name] = data if superoperators else None
 

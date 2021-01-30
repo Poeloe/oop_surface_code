@@ -455,7 +455,7 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                     res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
                     # iterations within 5% margin
                     if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.05 >= res_iterations:
-                        print("\nSkipping circuit for file '{}', since it already exists.".format(fn))
+                        print("\n[INFO] Skipping circuit for file '{}', since it already exists.".format(fn))
                         continue
                     else:
                         print("\nFile found with too less iterations. Running for {} iterations\n".format(
