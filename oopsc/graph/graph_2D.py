@@ -545,6 +545,7 @@ class toric(object):
                 edge.qubit.E[1].state = 1 ^ edge.qubit.E[1].state
 
     def _apply_error_idle(self, dir, i, random_error_array_idle, stab, architecture=None):
+        stab_type = "S" if stab.sID[0] == 0 else "P"
         if random_error_array_idle is None:
             return
 
@@ -552,19 +553,20 @@ class toric(object):
             translate = {"n": "e", "e": "n", "s": "w", "w": "s"}
 
         elif architecture == "weight_three":
-            # No idle qubits at North of stabilizer
-            if dir == 'n':
+            # No idle qubits at North of stabilizer (When star stabilizer is evaluated, the dir should be translated)
+            if dir == ('n' if stab_type == "P" else "s"):
                 return
 
-            # Idle node (containing two qubits) at South-West of stabilizer, wil get last two errors of error array
-            elif dir == 'w':
-                stab = stab.neighbors[dir][0].neighbors['s']
-                self._apply_error_stabilizer("n", i, random_error_array_idle, stab)
-                self._apply_error_stabilizer("w", i+1, random_error_array_idle, stab)
+            # Idle node (containing two qubits) at South-West of stabilizer
+            elif dir == ('w' if stab_type == "P" else "e"):
+                stab = stab.neighbors[dir][0].neighbors[('s' if stab_type == "P" else "w")]
+                self._apply_error_stabilizer("n", self.dirs.index("n"), random_error_array_idle, stab)
+                self._apply_error_stabilizer("w", self.dirs.index("w"), random_error_array_idle, stab)
                 return
+
             # Idle qubits at East and South of the stab. At East stab the North qubit, at South stab the West qubit.
             else:
-                translate = {"e": "n", "s": "w"}
+                translate = {"e": "n", "s": "w"} if stab_type == "P" else {"w": "e", "n": "s"}
 
         if dir in stab.neighbors:
             neighbor_stab, _ = stab.neighbors[dir]
