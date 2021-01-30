@@ -63,18 +63,19 @@ def determine_lattice_evaluation_by_result(surface_args, opp_args, circuit_args,
 
     if os.path.exists(folder):
         for file in os.listdir(folder):
-            data = pd.read_csv(os.path.join(folder, file), float_precision='round_trip')
-            parameters = {col: var_circuit_args[col] for col in data if col not in ['L', 'N', 'success']}
-            data.set_index(['L'] + list(parameters.keys()), inplace=True)
-            for lat in surface_args['lattices']:
-                idx = create_index_slice(data, ['L'] + list(parameters.keys()),
-                                         [lat] + [None]*(len(parameters)),
-                                         [lat] + [None]*(len(parameters)))
-                res_it = [int(surface_args['iters'] - n) for n in data.loc[idx, 'N']]
-                res_iters.extend(res_it)
-                if all([surface_args['iters'] * 0.01 > it for it in res_it]):
-                    lattices.remove(lat)
-                    print("\n[INFO] Skipping surface code simulations for L={} since it has already run".format(lat))
+            if circuit_args['protocol'] in file:
+                data = pd.read_csv(os.path.join(folder, file), float_precision='round_trip')
+                parameters = {col: var_circuit_args[col] for col in data if col not in ['L', 'N', 'success']}
+                data.set_index(['L'] + list(parameters.keys()), inplace=True)
+                for lat in surface_args['lattices']:
+                    idx = create_index_slice(data, ['L'] + list(parameters.keys()),
+                                             [lat] + [None]*(len(parameters)),
+                                             [lat] + [None]*(len(parameters)))
+                    res_it = [int(surface_args['iters'] - n) for n in data.loc[idx, 'N']]
+                    res_iters.extend(res_it)
+                    if all([surface_args['iters'] * 0.01 > it for it in res_it]):
+                        lattices.remove(lat)
+                        print("\n[INFO] Skipping simulations for L={} since it has already run".format(lat))
 
     # If there are no lattices left to evaluate, the program can exit
     if not lattices:
