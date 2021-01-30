@@ -74,7 +74,7 @@ class Superoperator:
         self.meas_dur = None
         self.dec = None
         self.ts = None
-        self.p_bell_success  = None
+        self.p_bell_success = None
         self.protocol_name = None
         self.pulse_duration = None
         self.node = "Purified" if "nodePur" in file_name else "Natural Abundance"

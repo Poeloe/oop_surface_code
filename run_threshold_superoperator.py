@@ -3,7 +3,10 @@ from run_threshold import add_arguments
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import run_for_arguments, \
     additional_parsing_of_arguments, print_circuit_parameters
 from oopsc.threshold.sim import sim_thresholds
+from itertools import product
+from collections import defaultdict
 import os
+import numpy as np
 import pandas as pd
 from pprint import pprint
 from copy import copy
@@ -54,37 +57,35 @@ def determine_superoperators(superoperator_filenames, args):
 
 def determine_lattice_evaluation_by_result(surface_args, opp_args, circuit_args, var_circuit_args):
     folder = surface_args['folder']
-    lattices = copy(surface_args['lattices'])
-    var_circuit_args['GHZ_success'] = 0.99 if 'time' in folder else 1.1
-    var_circuit_args['node'] = 'Purified' if circuit_args['T1_lde'] == 2 else "Natural Abundance"
-    var_circuit_args['p_bell_success'] = var_circuit_args['lde_success']
-
-    res_iters = []
+    var_circuit_args['GHZ_success'] = [0.99 if cut != np.inf else 1.1 for cut in var_circuit_args['cut_off_time']]
+    var_circuit_args['node'] = ['Purified'] if circuit_args['T1_lde'] == 2 else ["Natural Abundance"]
+    var_circuit_args['p_bell_success'] = var_circuit_args['lde_success'] if circuit_args['probabilistic'] else [1]
+    var_circuit_args['protocol_name'] = set([p.strip("_secondary") + "_swap" if circuit_args['use_swap_gates'] else
+                                            p.strip("_secondary") for p in var_circuit_args['protocol']])
+    res_iters = defaultdict(int)
+    parameters = {}
 
     if os.path.exists(folder):
         for file in os.listdir(folder):
-            if circuit_args['protocol'] in file:
-                data = pd.read_csv(os.path.join(folder, file), float_precision='round_trip')
-                parameters = {col: var_circuit_args[col] for col in data if col not in ['L', 'N', 'success']}
-                data.set_index(['L'] + list(parameters.keys()), inplace=True)
-                for lat in surface_args['lattices']:
-                    idx = create_index_slice(data, ['L'] + list(parameters.keys()),
-                                             [lat] + [None]*(len(parameters)),
-                                             [lat] + [None]*(len(parameters)))
-                    res_it = [int(surface_args['iters'] - n) for n in data.loc[idx, 'N']]
-                    res_iters.extend(res_it)
-                    if all([surface_args['iters'] * 0.01 > it for it in res_it]):
-                        lattices.remove(lat)
-                        print("\n[INFO] Skipping simulations for L={} since it has already run".format(lat))
+            data = pd.read_csv(os.path.join(folder, file), float_precision='round_trip')
+            data.replace({'None': None}, inplace=True)
+            parameters = {col: var_circuit_args[col] for col in data if col not in ['L', 'N', 'success']}
+            data.set_index(['L'] + list(parameters.keys()), inplace=True)
+            data.sort_index()
+            for index in product(*[surface_args['lattices'], *parameters.values()]):
+                res_iters[index[0]] += (1 if index in data.index and
+                                        (data.loc[index, "N"] * 1.05) >= surface_args['iters'] else 0)
+
+    for L, count in res_iters.items():
+        if count == len(list(product(*parameters.values()))):
+            surface_args['lattices'].remove(L)
+            print("\n[INFO] Skipping simulations for L={} since it has already run for all parameters".format(L))
 
     # If there are no lattices left to evaluate, the program can exit
-    if not lattices:
+    if not surface_args['lattices']:
         pprint(data)
         print("\nAll surface code simulations have already been performed. Exiting Surface Code simulations")
         exit(1)
-
-    surface_args['lattices'] = lattices
-    surface_args['iters'] = max(res_iters) if res_iters else surface_args['iters']
 
     return surface_args
 

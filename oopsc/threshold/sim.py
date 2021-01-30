@@ -11,7 +11,7 @@ from pprint import pprint
 import multiprocessing as mp
 import pandas as pd
 import sys, os
-SUP_INDICES = ['node', 'pg', 'pn', 'pm', 'pm_1', 'p_bell_success', 'pulse_duration', 'GHZ_success']
+SUP_INDICES = ['node', 'pg', 'pn', 'pm', 'pm_1', 'p_bell_success', 'pulse_duration', 'GHZ_success', 'protocol_name']
 
 
 def get_superoperator_indices(lattices, superoperators):
@@ -167,26 +167,25 @@ def sim_thresholds(
 
             ind_dict = {"L": lattices, "p": perror} if not superoperator else get_superoperator_indices(lattices,
                                                                                                         superoperators)
+            protocol_name = superoperator.protocol_name if superoperator else ""
+            node_name = superoperator.node if superoperator else ""
             if data is None:
-                file_path = os.path.join(folder, superoperator.protocol_name + superoperator.node + full_name + ".csv")
+                file_path = os.path.join(folder, protocol_name + node_name + full_name + ".csv")
                 if os.path.exists(file_path):
                     data = pd.read_csv(file_path, header=0, float_precision='round_trip')
                     data = data.set_index(list(ind_dict.keys()))
+                    data.sort_index(inplace=True)
                 else:
                     columns = list(output.keys())
                     index = pd.MultiIndex.from_product([*ind_dict.values()], names=ind_dict.keys())
                     data = pd.DataFrame(0, index=index, columns=columns)
 
-            current_index = (lati, pi) if not superoperator else get_current_index(lati, superoperator)
+            cur_index = (lati, pi) if not superoperator else get_current_index(lati, superoperator)
 
-            if current_index in data.index:
-                for key, value in output.items():
-                    data.loc[current_index, key] += value
-            else:
-                for key, value in output.items():
-                    data.loc[current_index, key] = value
+            for key, value in output.items():
+                data.loc[cur_index, key] = data.loc[cur_index, key] + value if cur_index in data.index else value
+                data.sort_index(inplace=True)
 
-            data = data.sort_index()
             if save_result:
                 data.to_csv(file_path)
                 data_s[superoperator.protocol_name] = data if superoperators else None

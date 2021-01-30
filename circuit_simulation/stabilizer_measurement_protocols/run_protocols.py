@@ -427,7 +427,7 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
         run_dict = dict(run)
 
         # Set run_dict values based on circuit arguments
-        run_dict['lde_success'] = run_dict['lde_success'] if circuit_args['probabilistic'] else 0
+        run_dict['lde_success'] = run_dict['lde_success'] if circuit_args['probabilistic'] else 1
         run_dict['fixed_lde_attempts'] = run_dict['fixed_lde_attempts'] if run_dict['pulse_duration'] > 0 else 0
         run_dict['pm'] = (run_dict['pg'] if circuit_args['pm_equals_pg'] else run_dict['pm'])
         run_dict['protocol'] = (run_dict['protocol'] + "_swap" if circuit_args['use_swap_gates']
@@ -453,8 +453,8 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                 if not operational_args['force_run'] and fn is not None and os.path.exists(fn + ".csv"):
                     data = pd.read_csv(fn + '.csv', sep=";", float_precision='round_trip')
                     res_iterations = int(circuit_args['iterations'] - data.loc[0, 'written_to'])
-                    # iterations within 1% margin
-                    if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.05 > res_iterations:
+                    # iterations within 5% margin
+                    if not circuit_args['probabilistic'] or circuit_args['iterations'] * 0.05 >= res_iterations:
                         print("\nSkipping circuit for file '{}', since it already exists.".format(fn))
                         continue
                     else:
