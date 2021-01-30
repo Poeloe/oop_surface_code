@@ -546,7 +546,7 @@ class toric(object):
 
     def _apply_error_idle(self, dir, i, random_error_array_idle, stab, architecture=None):
         stab_type = "S" if stab.sID[0] == 0 else "P"
-        if random_error_array_idle is None:
+        if random_error_array_idle in [None, ["I", "I", "I", "I"]]:
             return
 
         if architecture == "weight_two_four":

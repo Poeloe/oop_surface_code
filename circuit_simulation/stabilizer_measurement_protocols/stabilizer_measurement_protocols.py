@@ -33,7 +33,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("C", qubits=[10, 3, 2])
         qc.define_node("D", qubits=[8, 1, 0])
 
-    elif protocol in ['weight_2_4_swap', 'weight_3_swap']:
+    elif protocol in ['weight_2_4_secondary_swap', 'weight_3_swap']:
         qc = QuantumCircuit(32, 16, **kwargs)
 
         qc.define_node("A", qubits=[30, 28, 15, 14, 13, 12], amount_data_qubits=2)
@@ -96,7 +96,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[20, 4, 3, 2, 1, 0])
 
     elif protocol in ['dejmps_2_4_1_swap', 'dejmps_2_6_1_swap', 'dejmps_2_8_1_swap', 'bipartite_4_swap',
-                      'bipartite_6_swap', 'weight_2_4_secondary_swap']:
+                      'bipartite_6_swap', 'weight_2_4_swap']:
         qc = QuantumCircuit(32, 8, **kwargs)
 
         # If you don't specify which qubits are the data-qubits and electron-qubits, it is assumed that the first
@@ -119,7 +119,7 @@ def create_quantum_circuit(protocol, pbar, **kwargs):
         qc.define_node("D", qubits=[12, 2, 1, 0])
 
     # Common sub circuit defining handled here
-    if protocol in ['plain', 'plain_swap', 'weight_2_4_swap', 'expedient', 'expedient_swap', 'stringent',
+    if protocol in ['plain', 'plain_swap', 'weight_2_4_secondary_swap', 'expedient', 'expedient_swap', 'stringent',
                     'stringent_swap', 'dyn_prot_4_6_sym_1', 'dyn_prot_4_6_sym_1_swap', 'dyn_prot_4_14_1',
                     'dyn_prot_4_4_1_swap', 'dyn_prot_4_14_1_swap', 'dyn_prot_4_22_1', 'dyn_prot_4_42_1']:
         qc.define_sub_circuit("ABCD")
