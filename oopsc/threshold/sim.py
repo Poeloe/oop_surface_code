@@ -45,7 +45,7 @@ def get_data(data, latts, probs, P_store=1):
     if not latts: latts = []
     if not probs: probs = []
     fitL = data.index.get_level_values("L")
-    fitp = data.index.get_level_values("p")
+    fitp = data.index.get_level_values("p") if "p" in data.index else data.index.get_level_values("pg")
     fitN = data.loc[:, "N"].values
     fitt = data.loc[:, "success"].values
 

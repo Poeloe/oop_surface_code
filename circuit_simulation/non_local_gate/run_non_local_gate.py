@@ -155,13 +155,14 @@ def main(data_frame, kwargs, print_lines_total, threaded, csv_filename):
 
 def run_for_arguments(gates, gate_error_probabilities, network_error_probabilities, meas_error_probabilities,
                       meas_error_probabilities_one_state, csv_filename, pm_equals_pg, fixed_lde_attempts, threaded,
-                      pulse_duration, **kwargs):
+                      pulse_duration, T2_lde, T1_lde, T1_equals_T2, **kwargs):
 
     meas_1_errors = [None] if meas_error_probabilities_one_state is None else meas_error_probabilities_one_state
     meas_errors = [None] if meas_error_probabilities is None else meas_error_probabilities
+    T2_lde = [None] if T2_lde is None or T1_equals_T2 else T2_lde
     pb = kwargs.pop('no_progress_bar')
     iter_list = [gates, gate_error_probabilities, network_error_probabilities, meas_errors, meas_1_errors,
-                 fixed_lde_attempts, pulse_duration]
+                 fixed_lde_attempts, pulse_duration, T1_lde, T2_lde]
     pbar1 = tqdm(total=len(list(product(*iter_list))), position=0)
 
     if csv_filename and os.path.exists(csv_filename + ".csv"):
@@ -172,9 +173,10 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
 
     # Loop over command line arguments
     pbar = tqdm(total=kwargs['iterations'], position=1) if pb else None
-    for it, (gate, pg, pn, pm, pm_1, lde, pulse) in enumerate(product(*iter_list)):
+    for it, (gate, pg, pn, pm, pm_1, lde, pulse, T1, T2) in enumerate(product(*iter_list)):
         pbar.reset() if pbar is not None else None
         pm = pg if pm is None or pm_equals_pg else pm
+        T2 = T1 if T2 is None or T1_equals_T2 else T2
         lde = lde if pulse else 0
         loop_arguments = {
             'gate': gate,
@@ -184,7 +186,9 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'pm_1': pm_1,
             'fixed_lde_attempts': lde,
             'pb': pbar,
-            'pulse_duration': pulse
+            'pulse_duration': pulse,
+            'T1_idle_electron': T1,
+            'T2_idle_electron': T2
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)

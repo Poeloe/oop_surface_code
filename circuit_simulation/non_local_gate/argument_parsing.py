@@ -174,13 +174,19 @@ def compose_parser():
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=2)
+                        nargs="*",
+                        default=[2])
+    parser.add_argument('--T1_equals_T2',
+                       help='Specify if T1 lde equals T2 lde. "--T2_lde" will then be disregarded',
+                       required=False,
+                       action='store_true')
     parser.add_argument('-T2nl',
                         '--T2_lde',
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
                              'present, this should NOT be specified.',
                         type=float,
-                        default=2)
+                        nargs="*",
+                        default=[2])
     parser.add_argument('-T1ei',
                         '--T1_idle_electron',
                         help='Specifies the duration of a pulse used in the pulse sequence. If no pulse sequence is '
