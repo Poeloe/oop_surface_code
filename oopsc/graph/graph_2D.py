@@ -515,7 +515,7 @@ class toric(object):
                 continue
 
             # Apply 'Twirling' by shuffling the error array for the 4 qubits (do not shuffle in case of idle qubits)
-            if random_error_array_idle is None:
+            if random_error_array_idle is None and len(superoperator_elements) < 30:
                 np.random.shuffle(random_error_array)
 
             for i, dir in enumerate(self.dirs):

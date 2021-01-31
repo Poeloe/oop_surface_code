@@ -33,7 +33,7 @@ def get_current_index(lattice, superoperator):
 def read_data(file_path):
     try:
         data = pd.read_csv(file_path, header=0, float_precision='round_trip')
-        indices = ["L", "p"] if "GHZ_success" not in data else ["L", "p", "GHZ_success"]
+        indices = ["L", "p"] if "GHZ_success" not in data else ["L", "pg", "GHZ_success"]
         return data.set_index(indices)
     except FileNotFoundError:
         print("File not found")
