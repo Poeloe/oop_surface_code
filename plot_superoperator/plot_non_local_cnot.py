@@ -1,3 +1,4 @@
+import os
 import pickle
 import numpy as np
 import pandas as pd
@@ -68,7 +69,9 @@ def combine_files(files, pkl_files, save_full):
         dataframe = pd.read_csv(filename, sep=";", index_col=index_cols, float_precision='round_trip')
         data = pickle.load(open(filename.replace('.csv', '.pkl'), 'rb'))
         for key_value_index, sim_data in data.items():
-            index = tuple(v for _, v in key_value_index)
+            index = tuple(v for _, v in sorted(key_value_index, key=lambda i: index_cols.index(i[0])))
+            if index not in dataframe.index:
+                continue
             avg_fidelities = [(4*fid + 1)/(4 + 1) for fid in sim_data['fidelities']]
             dataframe.loc[index, 'fid_sem'] = sem(sim_data['fidelities'])
             dataframe.loc[index, 'fid_entanglement'] = sum(sim_data['fidelities']) / len(sim_data['fidelities'])
@@ -78,7 +81,7 @@ def combine_files(files, pkl_files, save_full):
         if full_dataframe is None:
             full_dataframe = dataframe
         else:
-            full_dataframe = pd.concat([full_dataframe, dataframe])
+            full_dataframe = full_dataframe.append(dataframe, sort=True)
 
     full_dataframe = full_dataframe.sort_index()
 
@@ -164,16 +167,20 @@ def plot_non_local_cnot_fidelity(df, x_axis, evaluate_values, save_file_path, sp
 
 
 def main(files, pkl_files, x_axis, evaluate_values, save_file_path, spread, ent_fid):
-    dataframes = combine_files(files, pkl_files, save_full)
+    if not os.path.exists(full_filename) or save_full:
+        full_dataframe = combine_files(files, pkl_files, save_full)
+    else:
+        index_cols = [index_tuple[0] for index_tuple in list(pickle.load(open(pkl_files[0], "rb")).keys())[0]]
+        full_dataframe = pd.read_csv(full_filename, sep=';', index_col=index_cols, float_precision="round_trip")
 
     if spread:
         save_file_path += '_spread'
-    plot_non_local_cnot_fidelity(dataframes, x_axis, evaluate_values, save_file_path + ".pdf", spread=spread,
+    plot_non_local_cnot_fidelity(full_dataframe, x_axis, evaluate_values, save_file_path + ".pdf", spread=spread,
                                  ent_fid=ent_fid)
 
 
 if __name__ == '__main__':
-    spread = False
+    spread = True
     ent_fid = False
     save_full = False
     full_filename = '../notebooks/non_local_cnot_full.csv'
@@ -186,11 +193,12 @@ if __name__ == '__main__':
                        'decoherence':           [True],
                        'fixed_lde_attempts':    [2000],
                        'lde_success':           [0.0001],
-                       'pg':                    [],
-                       'pm':                    [],
-                       'pm_1':                  [0.01],
-                       'pn':                    [0.1]
+                       'pg':                    [0.01],
+                       'pm':                    [0.01],
+                       'pm_1':                  [],
+                       'pn':                    [0.1],
+                       'T1_lde':                [1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001],
                        }
-    x_axis = "pg"
+    x_axis = "T1_lde"
 
     main(files, pkl_files, x_axis, evaluate_values, save_file_path, spread, ent_fid)

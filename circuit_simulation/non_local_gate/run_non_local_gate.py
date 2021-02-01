@@ -5,6 +5,7 @@ import circuit_simulation.non_local_gate.non_local_gate_circuits as tel_circuits
 from circuit_simulation.circuit_simulator import QuantumCircuit
 from circuit_simulation.basic_operations.basic_operations import *
 from circuit_simulation.states.states import *
+from circuit_simulation.gates.gates import set_gate_durations_from_file
 from circuit_simulation.non_local_gate.argument_parsing import compose_parser
 from circuit_simulation.stabilizer_measurement_protocols.run_protocols import additional_parsing_of_arguments, \
     _additional_qc_arguments
@@ -44,7 +45,7 @@ def get_average_fidelity(matrices):
 def create_data_frame(data_frame: pd.DataFrame, **kwargs):
 
     pop_list = ['iterations', 'save_latex_pdf', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
-                'single_qubit_gate_lookup', 'thread_safe_printing', 'cp_path']
+                'single_qubit_gate_lookup', 'thread_safe_printing', 'cp_path', 'gate_duration_file']
     index_columns = copy(kwargs)
     index_columns['pm_1'] = index_columns['pm_1'] if index_columns['pm_1'] is not None else index_columns['pm']
     [index_columns.pop(item) for item in pop_list]
@@ -64,7 +65,9 @@ def create_data_frame(data_frame: pd.DataFrame, **kwargs):
     return data_frame, index_columns
 
 
-def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, **kwargs):
+def run_series(iterations, gate, use_swap_gates, draw_circuit, color, pb, gate_duration_file, **kwargs):
+    if gate_duration_file:
+        set_gate_durations_from_file(gate_duration_file)
     qc = QuantumCircuit(6, 4, **kwargs)
     gate = gate if not use_swap_gates else gate + '_swap'
 
@@ -209,6 +212,5 @@ if __name__ == '__main__':
 
     args = vars(parser.parse_args())
     args = additional_parsing_of_arguments(**args)
-    args.pop('gate_duration_file')
 
     run_for_arguments(**args)

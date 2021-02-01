@@ -28,6 +28,7 @@ def print_signature():
 
 def create_file_name(filename, **kwargs):
     protocol = kwargs.pop('protocol')
+    protocol = protocol if not kwargs['noiseless_swap'] else protocol.strip('_swap')
     filename = "{}{}{}".format(filename, "_" if filename[-1] not in "/_" else "", protocol)
 
     for key, value in kwargs.items():
