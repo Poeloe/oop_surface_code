@@ -187,8 +187,8 @@ def run_for_arguments(gates, gate_error_probabilities, network_error_probabiliti
             'fixed_lde_attempts': lde,
             'pb': pbar,
             'pulse_duration': pulse,
-            'T1_idle_electron': T1,
-            'T2_idle_electron': T2
+            'T1_lde': T1,
+            'T2_lde': T2
         }
         kwargs.update(loop_arguments)
         kwargs = _additional_qc_arguments(**kwargs)
