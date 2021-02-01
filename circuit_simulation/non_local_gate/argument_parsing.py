@@ -199,5 +199,8 @@ def compose_parser():
                              'present, this should NOT be specified.',
                         type=float,
                         default=1)
-
+    parser.add_argument('-deb',
+                        '--debug',
+                        help='Show full information about QuantumCircuit object each time.',
+                        action="store_true")
     return parser

@@ -45,7 +45,7 @@ def get_average_fidelity(matrices):
 def create_data_frame(data_frame: pd.DataFrame, **kwargs):
 
     pop_list = ['iterations', 'save_latex_pdf', 'color', 'draw_circuit', 'pb', 'two_qubit_gate_lookup',
-                'single_qubit_gate_lookup', 'thread_safe_printing', 'cp_path', 'gate_duration_file']
+                'single_qubit_gate_lookup', 'thread_safe_printing', 'cp_path', 'gate_duration_file', 'debug']
     index_columns = copy(kwargs)
     index_columns['pm_1'] = index_columns['pm_1'] if index_columns['pm_1'] is not None else index_columns['pm']
     [index_columns.pop(item) for item in pop_list]

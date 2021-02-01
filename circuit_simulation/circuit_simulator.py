@@ -213,6 +213,7 @@ class QuantumCircuit:
         self._init_parameters = self._init_parameters_to_dict()
 
         if debug:
+            print("X gate duration {}".format(X_gate.duration), flush=True)
             pprint({k: getattr(self, k) for k in self.__dir__()
                     if k[0:2] != '__' and type(getattr(self, k)) in [float, int, str, bool]})
 
