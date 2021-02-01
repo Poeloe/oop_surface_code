@@ -447,7 +447,7 @@ def run_for_arguments(operational_args, circuit_args, var_circuit_args, **kwargs
                 fn = create_file_name(operational_args['csv_filename'], dec=circuit_args['decoherence'],
                                       prob=circuit_args['probabilistic'], node=run_dict['_node'],
                                       decoupling=run_dict['pulse_duration'],
-                                      noisless_swap=circuit_args['noiseless_swap'], **run_dict)
+                                      noiseless_swap=circuit_args['noiseless_swap'], **run_dict)
                 filenames.append(fn) if not (run_dict['cut_off_time'] == np.inf and cut_off_dataframe == 'auto') else \
                     None
 
