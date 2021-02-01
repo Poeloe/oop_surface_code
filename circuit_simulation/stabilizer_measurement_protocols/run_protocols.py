@@ -61,7 +61,8 @@ def _get_cut_off_time(dataframe, run_dict, **kwargs):
         return cut_off_time
     if type(dataframe) == str and dataframe.lower() == 'auto':
         file_n = create_file_name(kwargs['csv_filename'], dec=kwargs['decoherence'], prob=kwargs['probabilistic'],
-                                  node=run_dict['_node'], decoupling=run_dict['pulse_duration'], **run_dict)
+                                  node=run_dict['_node'], decoupling=run_dict['pulse_duration'],
+                                  noiseless_swap=kwargs['noiseless_swap'], **run_dict)
         if os.path.exists(file_n + '.csv'):
             data = pd.read_csv(file_n + '.csv', sep=";", float_precision="round_trip")
             if data.loc[0, 'written_to']*1.05 > kwargs['iterations']:
